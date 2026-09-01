@@ -70,53 +70,53 @@
 }
 
 [data-theme='light'] {
-  /* Clean, Modern Professional Light Theme (Linear / Datadog / GitHub style) */
-  --bg-app: #f8fafc;             /* Crisp Slate-50 Canvas */
-  --bg-sidebar: #ffffff;         /* Clean White Sidebar */
-  --bg-surface: #f1f5f9;         /* Soft Slate-100 for Inputs & Controls */
-  --bg-surface-hover: #e2e8f0;   /* Slate-200 Hover */
-  --bg-card: #ffffff;            /* Pure White Surface Cards */
-  --bg-card-alt: #f8fafc;        /* Alternate Slate Surface */
-  --border-subtle: #e2e8f0;      /* Delicate Slate-200 Border */
-  --border-highlight: #0284c7;   /* Sky-600 Accent Border */
+  /* Warm Alabaster & Amber Stone Theme (Apple Books / Notion Warm Paper style) */
+  --bg-app: #faf7f2;             /* Cozy Warm Alabaster Canvas */
+  --bg-sidebar: #f3eee5;         /* Warm Linen / Parchment Sidebar */
+  --bg-surface: #eae4d8;         /* Soft Warm Oat for Inputs & Controls */
+  --bg-surface-hover: #ded7ca;   /* Warm Stone Hover */
+  --bg-card: #ffffff;            /* Crisp White Surface Cards */
+  --bg-card-alt: #f5f0e7;        /* Warm Neutral Alt Surface */
+  --border-subtle: #ded7ca;      /* Delicate Warm Stone Border */
+  --border-highlight: #d97706;   /* Warm Amber Accent Border */
 
-  /* Crystal-Clear, High-Contrast Typography */
-  --text-primary: #0f172a;       /* Slate-900: Crisp, dark, ultra-readable */
-  --text-secondary: #475569;     /* Slate-600 */
-  --text-muted: #64748b;         /* Slate-500 */
+  /* Warm Charcoal & Espresso Typography */
+  --text-primary: #1c1917;       /* Stone-900: Deep warm charcoal, ultra-readable */
+  --text-secondary: #57534e;     /* Stone-600 */
+  --text-muted: #78716c;         /* Stone-500 */
 
-  /* Modern Sky / Cyan Primary Accent */
-  --accent-primary: #0284c7;     /* Sky-600 */
-  --accent-hover: #0369a1;       /* Sky-700 */
-  --accent-bg: rgba(2, 132, 199, 0.08);
+  /* Warm Amber & Honey Primary Accent */
+  --accent-primary: #d97706;     /* Warm Amber-600 */
+  --accent-hover: #b45309;       /* Amber-700 */
+  --accent-bg: rgba(217, 119, 6, 0.12);
 
   /* Row Selection & Gutters */
-  --row-selected-bg: rgba(2, 132, 199, 0.08);
-  --row-selected-border: #0284c7;
-  --gutter-selected-bg: #e0f2fe;
-  --gutter-selected-text: #0284c7;
+  --row-selected-bg: rgba(217, 119, 6, 0.1);
+  --row-selected-border: #d97706;
+  --gutter-selected-bg: #f3ede2;
+  --gutter-selected-text: #b45309;
 
   /* Sidebar Size Badge */
-  --badge-bg: #f1f5f9;
-  --badge-border: #e2e8f0;
-  --badge-val: #334155;
-  --badge-unit: #64748b;
+  --badge-bg: #ece5d9;
+  --badge-border: #ddd5c7;
+  --badge-val: #292524;
+  --badge-unit: #78716c;
 
-  /* Professional High-Contrast Log Syntax Tokens */
-  --tok-datetime: #0284c7;       /* Clean Sky Blue */
-  --tok-pid: #64748b;            /* Neutral Slate */
-  --tok-corr: #059669;           /* Crisp Emerald Green */
-  --tok-namespace: #0369a1;      /* Deep Ocean Blue */
+  /* Warm, High-Contrast Log Syntax Tokens */
+  --tok-datetime: #0284c7;       /* Deep Sky Blue */
+  --tok-pid: #78716c;            /* Warm Slate */
+  --tok-corr: #059669;           /* Emerald Mint */
+  --tok-namespace: #0369a1;      /* Deep Ocean */
   --tok-workflow: #7c3aed;       /* Royal Violet */
-  --tok-op-http: #ea580c;        /* Vivid Orange */
+  --tok-op-http: #ea580c;        /* Warm Orange */
   --tok-op-action: #d97706;      /* Warm Amber */
   --tok-status-success: #16a34a; /* Vibrant Green */
   --tok-status-error: #dc2626;   /* Crimson Red */
   --tok-status-warn: #d97706;    /* Amber */
   --tok-status-info: #0284c7;    /* Sky Blue */
-  --tok-duration: #b45309;       /* Deep Gold / Amber */
-  --tok-file: #64748b;           /* Slate */
-  --tok-msg: #0f172a;            /* Crisp Dark Slate-900 Message Text */
+  --tok-duration: #b45309;       /* Deep Amber Gold */
+  --tok-file: #78716c;           /* Warm Stone */
+  --tok-msg: #1c1917;            /* Deep Warm Charcoal Message Text */
 
   /* Log Level Colors */
   --lvl-critical: #e11d48;
@@ -127,10 +127,10 @@
   --lvl-warn-bg: #fef3c7;
   --lvl-notice: #9333ea;
   --lvl-notice-bg: #f3e8ff;
-  --lvl-info: #0284c7;
-  --lvl-info-bg: #e0f2fe;
-  --lvl-debug: #475569;
-  --lvl-debug-bg: #f1f5f9;
+  --lvl-info: #d97706;
+  --lvl-info-bg: #fef3c7;
+  --lvl-debug: #57534e;
+  --lvl-debug-bg: #eae4d8;
   --lvl-trace: #7c3aed;
   --lvl-trace-bg: #ede9fe;
 }
@@ -213,9 +213,14 @@ body {
 }
 
 [data-theme='light'] .sidebar-title {
-  background: linear-gradient(90deg, #0284c7, #4f46e5);
+  background: linear-gradient(90deg, #d97706, #c2410c);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
+}
+
+[data-theme='light'] .sidebar-logo {
+  background: linear-gradient(135deg, #d97706 0%, #ea580c 100%);
+  box-shadow: 0 2px 10px rgba(217, 119, 6, 0.35);
 }
 
 .sidebar-search {
