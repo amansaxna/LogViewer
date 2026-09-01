@@ -18,6 +18,10 @@ import {
   Moon,
   Radio,
   ArrowUpDown,
+  GitBranch,
+  Zap,
+  ChevronDown,
+  Check,
 } from 'lucide-react';
 import { LogLevel, LogSource, SortOption } from '../types.ts';
 
@@ -64,6 +68,15 @@ interface TopbarProps {
   selectedLevels: LogLevel[];
   onToggleLevel: (level: LogLevel | 'all') => void;
   levelCounts: Record<string, number>;
+
+  // Workflow & Operation dropdown filters
+  selectedWorkflow: string | null;
+  onSelectWorkflow: (wf: string | null) => void;
+  workflowCounts: Record<string, number>;
+
+  selectedOperation: string | null;
+  onSelectOperation: (op: string | null) => void;
+  operationCounts: Record<string, number>;
 
   // Stream & theme
   isLiveTail: boolean;

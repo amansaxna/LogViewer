@@ -74,5 +74,7 @@ export interface LogQueryResult {
   pageSize: number;
   totalPages: number;
   levelCounts: Record<string, number>;
+  workflowCounts: Record<string, number>;
+  operationCounts: Record<string, number>;
   durationMs: number;
 }

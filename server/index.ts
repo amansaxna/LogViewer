@@ -71,6 +71,7 @@ app.get('/api/logs/entries', (req: Request, res: Response) => {
       levels,
       namespace: req.query.namespace as string | undefined,
       workflow: req.query.workflow as string | undefined,
+      operation: req.query.operation as string | undefined,
       marker: req.query.marker as string | undefined,
       sortBy: (req.query.sortBy as any) || 'time',
       direction: (req.query.direction as 'desc' | 'asc') || 'desc',

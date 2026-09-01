@@ -1,5 +1,6 @@
-import React, { useEffect, useState } from 'react';
-import { X, AlignLeft, Maximize2, Minimize2, WrapText } from 'lucide-react';
+import React, { useEffect, useState, useRef } from 'react';
+import { X, AlignLeft, Maximize2, Minimize2, WrapText, Target } from 'lucide-react';
+import { renderSyntaxColoredLine } from '../utils/coloredLogRenderer.tsx';
 
 interface ContextLine {
   number: number;
@@ -26,6 +27,9 @@ export const ContextModal: React.FC<ContextModalProps> = ({
   const [isFullScreen, setIsFullScreen] = useState(true);
   const [wrapLines, setWrapLines] = useState(false);
 
+  const targetLineRef = useRef<HTMLDivElement>(null);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+
   useEffect(() => {
     if (isOpen && sourceId && lineNumber) {
       setLoading(true);
@@ -41,6 +45,22 @@ export const ContextModal: React.FC<ContextModalProps> = ({
     }
   }, [isOpen, sourceId, lineNumber, radius]);
 
+  // Scroll to target line whenever lines finish loading
+  useEffect(() => {
+    if (!loading && lines.length > 0) {
+      const timer = setTimeout(() => {
+        if (targetLineRef.current) {
+          targetLineRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+      }, 100);
+      return () => clearTimeout(timer);
+    }
+  }, [loading, lines]);
+
+  const scrollToTarget = () => {
+    targetLineRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  };
+
   if (!isOpen || !lineNumber) return null;
 
   return (
@@ -49,21 +69,44 @@ export const ContextModal: React.FC<ContextModalProps> = ({
         className="modal-dialog"
         style={{
           width: isFullScreen ? '98vw' : '85vw',
-          maxWidth: isFullScreen ? '98vw' : '1200px',
-          height: isFullScreen ? '95vh' : '80vh',
-          maxHeight: isFullScreen ? '95vh' : '80vh',
+          maxWidth: isFullScreen ? '98vw' : '1400px',
+          height: isFullScreen ? '95vh' : '82vh',
+          maxHeight: isFullScreen ? '95vh' : '82vh',
           display: 'flex',
           flexDirection: 'column',
           transition: 'all 0.2s ease',
+          backgroundColor: '#080c14',
+          border: '1px solid rgba(56, 189, 248, 0.3)',
+          boxShadow: '0 20px 40px rgba(0, 0, 0, 0.8)',
         }}
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="modal-header">
+        <div
+          className="modal-header"
+          style={{
+            padding: '12px 18px',
+            background: 'var(--bg-sidebar)',
+            borderBottom: '1px solid var(--border-subtle)',
+          }}
+        >
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             <AlignLeft size={20} color="var(--accent-primary)" />
-            <h2 className="modal-title" style={{ fontSize: '1.05rem' }}>
-              Log File Context (Around Line #{lineNumber})
+            <h2 className="modal-title" style={{ fontSize: '1.05rem', display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span>Log File Context</span>
+              <span
+                style={{
+                  background: '#facc15',
+                  color: '#000000',
+                  fontSize: '0.76rem',
+                  fontWeight: 800,
+                  padding: '2px 8px',
+                  borderRadius: 4,
+                  letterSpacing: '0.02em',
+                }}
+              >
+                Line #{lineNumber}
+              </span>
             </h2>
             <span
               style={{
@@ -75,11 +118,31 @@ export const ContextModal: React.FC<ContextModalProps> = ({
                 border: '1px solid var(--border-subtle)',
               }}
             >
-              Showing {lines.length} lines
+              {lines.length} lines loaded
             </span>
           </div>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            {/* Jump to Target Button */}
+            <button
+              className="btn-secondary"
+              onClick={scrollToTarget}
+              style={{
+                height: 28,
+                padding: '0 10px',
+                fontSize: '0.78rem',
+                gap: 5,
+                backgroundColor: 'rgba(250, 204, 21, 0.15)',
+                color: '#facc15',
+                borderColor: 'rgba(250, 204, 21, 0.4)',
+                fontWeight: 600,
+              }}
+              title="Center view on target line"
+            >
+              <Target size={13} />
+              Jump to Target
+            </button>
+
             {/* Radius Selectors */}
             <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: '0.78rem' }}>
               <span style={{ color: 'var(--text-muted)' }}>Radius:</span>
@@ -88,7 +151,7 @@ export const ContextModal: React.FC<ContextModalProps> = ({
                   key={r}
                   className={`search-modifier-btn ${radius === r ? 'active' : ''}`}
                   onClick={() => setRadius(r)}
-                  style={{ padding: '3px 8px' }}
+                  style={{ padding: '3px 8px', height: 26 }}
                 >
                   ±{r}
                 </button>
@@ -99,8 +162,8 @@ export const ContextModal: React.FC<ContextModalProps> = ({
             <button
               className={`search-modifier-btn ${wrapLines ? 'active' : ''}`}
               onClick={() => setWrapLines(!wrapLines)}
-              title={wrapLines ? 'Disable word wrap (keep single line)' : 'Enable word wrap'}
-              style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '4px 8px' }}
+              title={wrapLines ? 'Disable word wrap (single line)' : 'Enable word wrap'}
+              style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '3px 8px', height: 26 }}
             >
               <WrapText size={13} />
               <span>Wrap</span>
@@ -128,81 +191,122 @@ export const ContextModal: React.FC<ContextModalProps> = ({
           </div>
         </div>
 
-        {/* Body with full length / full height */}
+        {/* Body with Token & ANSI Syntax Colors */}
         <div
+          ref={scrollContainerRef}
           className="modal-body"
           style={{
             flex: 1,
             overflow: 'auto',
-            padding: 0,
-            background: 'var(--bg-app)',
+            padding: '8px 0',
+            background: '#080c14',
           }}
         >
           {loading ? (
-            <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-muted)' }}>
-              Loading context lines...
+            <div style={{ padding: 60, textAlign: 'center', color: 'var(--text-muted)' }}>
+              Loading context lines around #{lineNumber}...
             </div>
           ) : (
             <div
               style={{
                 fontFamily: 'var(--font-mono)',
-                fontSize: '0.84rem',
+                fontSize: '0.82rem',
                 minWidth: 'max-content',
                 width: '100%',
               }}
             >
-              {lines.map((line) => (
-                <div
-                  key={line.number}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'flex-start',
-                    padding: '4px 16px',
-                    backgroundColor: line.isTarget ? 'rgba(56, 189, 248, 0.16)' : 'transparent',
-                    borderLeft: line.isTarget ? '4px solid var(--accent-primary)' : '4px solid transparent',
-                    borderBottom: '1px solid rgba(255, 255, 255, 0.03)',
-                  }}
-                >
-                  <span
+              {lines.map((line) => {
+                const isTarget = line.isTarget;
+
+                return (
+                  <div
+                    key={line.number}
+                    ref={isTarget ? targetLineRef : undefined}
                     style={{
-                      width: 60,
-                      color: line.isTarget ? 'var(--accent-primary)' : 'var(--text-muted)',
-                      userSelect: 'none',
-                      flexShrink: 0,
-                      textAlign: 'right',
-                      paddingRight: 16,
-                      fontWeight: line.isTarget ? 700 : 400,
-                      lineHeight: 1.6,
+                      display: 'flex',
+                      alignItems: 'baseline',
+                      padding: isTarget ? '6px 16px' : '2px 16px',
+                      backgroundColor: isTarget
+                        ? 'rgba(2, 132, 199, 0.35)'
+                        : 'transparent',
+                      borderLeft: isTarget
+                        ? '6px solid #facc15'
+                        : '6px solid transparent',
+                      boxShadow: isTarget
+                        ? 'inset 0 0 16px rgba(56, 189, 248, 0.25), 0 0 10px rgba(250, 204, 21, 0.2)'
+                        : 'none',
+                      margin: isTarget ? '4px 0' : '0',
+                      transition: 'background-color 0.15s ease',
                     }}
                   >
-                    {line.number}
-                  </span>
-                  <pre
-                    style={{
-                      margin: 0,
-                      whiteSpace: wrapLines ? 'pre-wrap' : 'pre',
-                      wordBreak: wrapLines ? 'break-word' : 'normal',
-                      overflowX: 'visible',
-                      color: line.isTarget ? '#38bdf8' : 'var(--text-primary)',
-                      fontWeight: line.isTarget ? 600 : 400,
-                      lineHeight: 1.6,
-                      flex: 1,
-                    }}
-                  >
-                    {line.content || ' '}
-                  </pre>
-                </div>
-              ))}
+                    {/* Line number gutter with TARGET indicator badge */}
+                    <span
+                      style={{
+                        width: 70,
+                        minWidth: 70,
+                        color: isTarget ? '#facc15' : '#64748b',
+                        userSelect: 'none',
+                        flexShrink: 0,
+                        textAlign: 'right',
+                        paddingRight: 16,
+                        fontWeight: isTarget ? 800 : 400,
+                        lineHeight: 1.6,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'flex-end',
+                        gap: 4,
+                      }}
+                    >
+                      {isTarget && (
+                        <span
+                          style={{
+                            background: '#facc15',
+                            color: '#000000',
+                            fontSize: '0.62rem',
+                            fontWeight: 800,
+                            padding: '1px 3px',
+                            borderRadius: 2,
+                            lineHeight: 1.1,
+                          }}
+                        >
+                          TARGET
+                        </span>
+                      )}
+                      <span>{line.number}</span>
+                    </span>
+
+                    {/* Syntax & ANSI colored line content */}
+                    <div
+                      style={{
+                        flex: 1,
+                        lineHeight: 1.6,
+                        whiteSpace: wrapLines ? 'pre-wrap' : 'pre',
+                        wordBreak: wrapLines ? 'break-word' : 'normal',
+                      }}
+                    >
+                      {renderSyntaxColoredLine(line.content || ' ')}
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           )}
         </div>
 
         {/* Footer */}
-        <div className="modal-footer" style={{ padding: '10px 20px', background: 'var(--bg-card)' }}>
-          <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginRight: 'auto' }}>
-            Tip: Target line is highlighted in cyan. Use radius buttons to load more surrounding lines.
+        <div
+          className="modal-footer"
+          style={{
+            padding: '10px 20px',
+            background: 'var(--bg-sidebar)',
+            borderTop: '1px solid var(--border-subtle)',
+          }}
+        >
+          <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginRight: 'auto', display: 'flex', alignItems: 'center', gap: 6 }}>
+            <span style={{ width: 8, height: 8, borderRadius: '50%', backgroundColor: '#facc15' }} />
+            <span>Target line <strong>#{lineNumber}</strong> is prominently highlighted with yellow marker and blue glow.</span>
           </span>
-          <button className="btn-secondary" onClick={onClose} style={{ padding: '6px 16px' }}>
+          <button className="btn-secondary" onClick={onClose} style={{ padding: '6px 18px' }}>
             Close
           </button>
         </div>

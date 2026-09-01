@@ -76,9 +76,19 @@ export function queryLogs(query: LogQuery): LogQueryResult {
     trace: 0,
   };
 
+  const workflowCounts: Record<string, number> = {};
+  const operationCounts: Record<string, number> = {};
+
   for (const entry of allEntries) {
     if (levelCounts[entry.level] !== undefined) {
       levelCounts[entry.level]++;
+    }
+    if (entry.workflow) {
+      const baseWf = entry.workflow.replace(/[-_]\d+$/, '');
+      workflowCounts[baseWf] = (workflowCounts[baseWf] || 0) + 1;
+    }
+    if (entry.operation) {
+      operationCounts[entry.operation] = (operationCounts[entry.operation] || 0) + 1;
     }
   }
 
@@ -116,8 +126,19 @@ export function queryLogs(query: LogQuery): LogQueryResult {
     }
 
     // Workflow filter
-    if (query.workflow && (!entry.workflow || !entry.workflow.toLowerCase().includes(query.workflow.toLowerCase()))) {
-      return false;
+    if (query.workflow && query.workflow.trim().length > 0) {
+      const wf = query.workflow.trim().toLowerCase();
+      if (!entry.workflow || !entry.workflow.toLowerCase().includes(wf)) {
+        return false;
+      }
+    }
+
+    // Operation filter
+    if (query.operation && query.operation.trim().length > 0) {
+      const op = query.operation.trim().toLowerCase();
+      if (!entry.operation || !entry.operation.toLowerCase().includes(op)) {
+        return false;
+      }
     }
 
     // Marker filter
@@ -198,6 +219,8 @@ export function queryLogs(query: LogQuery): LogQueryResult {
     pageSize,
     totalPages,
     levelCounts,
+    workflowCounts,
+    operationCounts,
     durationMs,
   };
 }

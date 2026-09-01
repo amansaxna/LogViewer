@@ -3,6 +3,7 @@ import { useVirtualizer } from '@tanstack/react-virtual';
 import { LogEntry } from '../types.ts';
 import { LogRow } from './LogRow.tsx';
 import { CompactLogRow } from './CompactLogRow.tsx';
+import { renderSyntaxColoredLine } from '../utils/coloredLogRenderer.tsx';
 
 interface LogTableProps {
   entries: LogEntry[];
@@ -77,7 +78,7 @@ export const LogTable: React.FC<LogTableProps> = ({
     );
   }
 
-  // Raw plain-text view
+  // Raw plain-text / ASCII view
   if (viewMode === 'raw') {
     return (
       <div
@@ -87,21 +88,49 @@ export const LogTable: React.FC<LogTableProps> = ({
           padding: '12px 16px',
           background: 'var(--bg-app)',
           fontFamily: 'var(--font-mono)',
-          fontSize: '0.8rem',
+          fontSize: '0.81rem',
           lineHeight: 1.6,
           color: 'var(--text-primary)',
           whiteSpace: wrapLines ? 'pre-wrap' : 'pre',
           overflowX: 'auto',
         }}
       >
-        {entries.map((e) => (
-          <div key={e.id} style={{ display: 'flex' }}>
-            <span style={{ width: 50, color: 'var(--text-muted)', userSelect: 'none', flexShrink: 0 }}>
-              {e.lineNumber}
-            </span>
-            <span>{e.raw}</span>
-          </div>
-        ))}
+        {entries.map((e) => {
+          const isSelected = selectedLineNumber === e.lineNumber;
+          return (
+            <div
+              key={e.id}
+              onClick={() => onSelectLine(e.lineNumber)}
+              onDoubleClick={() => onViewContext(e.lineNumber)}
+              style={{
+                display: 'flex',
+                alignItems: 'baseline',
+                backgroundColor: isSelected ? 'rgba(56, 189, 248, 0.16)' : 'transparent',
+                borderLeft: isSelected ? '4px solid #facc15' : '4px solid transparent',
+                padding: '2px 8px 2px 0',
+                cursor: 'pointer',
+              }}
+            >
+              <span
+                style={{
+                  width: 54,
+                  minWidth: 54,
+                  color: isSelected ? '#facc15' : '#64748b',
+                  userSelect: 'none',
+                  flexShrink: 0,
+                  textAlign: 'right',
+                  paddingRight: 14,
+                  fontWeight: isSelected ? 700 : 400,
+                }}
+              >
+                {e.lineNumber}
+              </span>
+              <div style={{ flex: 1 }}>
+                {renderSyntaxColoredLine(e.raw)}
+              </div>
+            </div>
+          );
+        })}
       </div>
     );
   }

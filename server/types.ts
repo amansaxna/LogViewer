@@ -65,6 +65,7 @@ export interface LogQuery {
   levels?: LogLevel[];
   namespace?: string;
   workflow?: string;
+  operation?: string;
   marker?: string;
   sortBy?: 'line' | 'time' | 'marker' | 'namespace' | 'duration' | 'level';
   direction?: 'desc' | 'asc';
@@ -79,5 +80,7 @@ export interface LogQueryResult {
   pageSize: number;
   totalPages: number;
   levelCounts: Record<string, number>;
+  workflowCounts: Record<string, number>;
+  operationCounts: Record<string, number>;
   durationMs: number;
 }
