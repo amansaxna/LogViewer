@@ -75,7 +75,41 @@ async function runApiTests() {
   assert.strictEqual(removeData.success, true);
   console.log('✓ Test 7 Passed: Successfully removed custom source');
 
-  console.log('\nAll 7 API Integration Tests Passed Successfully!');
+  // Test 8: Marker filter (RefundProcess)
+  const markerRes = await fetch(`${BASE_URL}/api/logs/entries?sourceId=app-workflow&marker=RefundProcess`);
+  assert.strictEqual(markerRes.status, 200);
+  const markerData = await markerRes.json();
+  assert.ok(markerData.entries.length > 0, 'Should find entries with RefundProcess marker');
+  for (const entry of markerData.entries) {
+    assert.ok(entry.workflow?.toLowerCase().includes('refundprocess'));
+  }
+  console.log(`✓ Test 8 Passed: Marker filter returned ${markerData.entries.length} matches for RefundProcess`);
+
+  // Test 9: Sort by Marker
+  const sortMarkerRes = await fetch(`${BASE_URL}/api/logs/entries?sourceId=app-workflow&sortBy=marker&direction=asc`);
+  assert.strictEqual(sortMarkerRes.status, 200);
+  const sortMarkerData = await sortMarkerRes.json();
+  assert.ok(sortMarkerData.entries.length > 1);
+  const firstMarker = sortMarkerData.entries[0].workflow || '';
+  const secondMarker = sortMarkerData.entries[1].workflow || '';
+  assert.ok(firstMarker <= secondMarker, 'Markers should be in ascending alphabetical order');
+  console.log(`✓ Test 9 Passed: Sort by marker verified (${firstMarker} <= ${secondMarker})`);
+
+  // Test 10: Paste Logs endpoint
+  const pasteRes = await fetch(`${BASE_URL}/api/logs/paste`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      text: '[2026-09-02 00:30:00.000] [1001] [thread-01] [App.Auth] [WF:Login-1] [AuthToken] [SUCCESS] [10ms] Pasted login event [Auth.ts::10]',
+      name: 'Pasted Test Event',
+    }),
+  });
+  assert.strictEqual(pasteRes.status, 200);
+  const pasteData = await pasteRes.json();
+  assert.ok(pasteData.source.id.startsWith('custom-'));
+  console.log(`✓ Test 10 Passed: Successfully pasted logs and registered source ${pasteData.source.id}`);
+
+  console.log('\nAll 10 API Integration Tests Passed Successfully!');
 }
 
 runApiTests().catch((err) => {

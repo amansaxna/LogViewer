@@ -1,23 +1,33 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { LogEntry, LogLevel, LogQueryResult, LogSource } from './types.ts';
+import { LogEntry, LogLevel, LogQueryResult, LogSource, SortOption } from './types.ts';
 import { Sidebar } from './components/Sidebar.tsx';
 import { Topbar } from './components/Topbar.tsx';
 import { LogTable } from './components/LogTable.tsx';
 import { OpenFileModal } from './components/OpenFileModal.tsx';
 import { ContextModal } from './components/ContextModal.tsx';
+import { PasteLogsModal } from './components/PasteLogsModal.tsx';
+import { GoToLineModal } from './components/GoToLineModal.tsx';
 
 export const App: React.FC = () => {
   const [sources, setSources] = useState<LogSource[]>([]);
   const [activeSourceId, setActiveSourceId] = useState<string | null>(null);
 
   // Filters and state
+  const [markerFilter, setMarkerFilter] = useState('');
+  const [isMarkerRegex, setIsMarkerRegex] = useState(false);
   const [search, setSearch] = useState('');
   const [isRegex, setIsRegex] = useState(false);
   const [caseSensitive, setCaseSensitive] = useState(false);
   const [invert, setInvert] = useState(false);
   const [selectedLevels, setSelectedLevels] = useState<LogLevel[]>([]);
-  const [direction, setDirection] = useState<'desc' | 'asc'>('desc');
+  const [sortOption, setSortOption] = useState<SortOption>('time-desc');
   const [wrapLines, setWrapLines] = useState(false);
+  const [viewMode, setViewMode] = useState<'compact' | 'standard' | 'raw'>('compact');
+
+  // Match and navigation state
+  const [selectedLineNumber, setSelectedLineNumber] = useState<number | null>(null);
+  const [currentMatchIndex, setCurrentMatchIndex] = useState(1);
+  const [targetScrollIndex, setTargetScrollIndex] = useState<number | null>(null);
 
   // Query results
   const [entries, setEntries] = useState<LogEntry[]>([]);
@@ -36,6 +46,8 @@ export const App: React.FC = () => {
 
   // Modals
   const [isOpenModalOpen, setIsOpenModalOpen] = useState(false);
+  const [isPasteModalOpen, setIsPasteModalOpen] = useState(false);
+  const [isGoToLineModalOpen, setIsGoToLineModalOpen] = useState(false);
   const [contextLineNumber, setContextLineNumber] = useState<number | null>(null);
 
   // Apply theme to document
@@ -69,13 +81,37 @@ export const App: React.FC = () => {
   const fetchEntries = useCallback(async () => {
     if (!activeSourceId) return;
 
+    // Parse sort option
+    let sortBy = 'time';
+    let direction: 'desc' | 'asc' = 'desc';
+    if (sortOption.startsWith('marker-')) {
+      sortBy = 'marker';
+      direction = sortOption.endsWith('asc') ? 'asc' : 'desc';
+    } else if (sortOption.startsWith('line-')) {
+      sortBy = 'line';
+      direction = sortOption.endsWith('asc') ? 'asc' : 'desc';
+    } else if (sortOption.startsWith('duration-')) {
+      sortBy = 'duration';
+      direction = sortOption.endsWith('asc') ? 'asc' : 'desc';
+    } else if (sortOption.startsWith('namespace-')) {
+      sortBy = 'namespace';
+      direction = sortOption.endsWith('asc') ? 'asc' : 'desc';
+    } else {
+      sortBy = 'time';
+      direction = sortOption.endsWith('asc') ? 'asc' : 'desc';
+    }
+
     const params = new URLSearchParams({
       sourceId: activeSourceId,
+      sortBy,
       direction,
       page: '1',
       pageSize: '25000',
     });
 
+    if (markerFilter.trim()) {
+      params.append('marker', markerFilter.trim());
+    }
     if (search.trim()) {
       params.append('search', search.trim());
     }
@@ -101,10 +137,20 @@ export const App: React.FC = () => {
       setTotalEntries(data.total);
       setDurationMs(data.durationMs);
       setLevelCounts(data.levelCounts);
+      setCurrentMatchIndex(1);
     } catch (err) {
       console.error('Failed to query entries:', err);
     }
-  }, [activeSourceId, search, isRegex, caseSensitive, invert, selectedLevels, direction]);
+  }, [
+    activeSourceId,
+    markerFilter,
+    search,
+    isRegex,
+    caseSensitive,
+    invert,
+    selectedLevels,
+    sortOption,
+  ]);
 
   useEffect(() => {
     fetchEntries();
@@ -138,7 +184,60 @@ export const App: React.FC = () => {
     };
   }, [isLiveTail, activeSourceId, fetchEntries, fetchSources]);
 
-  // Handlers
+  // Match Navigation Handlers (< > buttons)
+  const handlePrevMatch = () => {
+    if (entries.length === 0) return;
+    const newIdx = currentMatchIndex > 1 ? currentMatchIndex - 1 : entries.length;
+    setCurrentMatchIndex(newIdx);
+    setTargetScrollIndex(newIdx - 1);
+    setSelectedLineNumber(entries[newIdx - 1]?.lineNumber || null);
+  };
+
+  const handleNextMatch = () => {
+    if (entries.length === 0) return;
+    const newIdx = currentMatchIndex < entries.length ? currentMatchIndex + 1 : 1;
+    setCurrentMatchIndex(newIdx);
+    setTargetScrollIndex(newIdx - 1);
+    setSelectedLineNumber(entries[newIdx - 1]?.lineNumber || null);
+  };
+
+  // "Go to Line" handler
+  const handleGoToLine = (targetLine: number) => {
+    setSelectedLineNumber(targetLine);
+    const entryIdx = entries.findIndex((e) => e.lineNumber === targetLine);
+    if (entryIdx !== -1) {
+      setTargetScrollIndex(entryIdx);
+      setCurrentMatchIndex(entryIdx + 1);
+    } else {
+      // Find closest
+      let closestIdx = 0;
+      let minDiff = Infinity;
+      for (let i = 0; i < entries.length; i++) {
+        const diff = Math.abs(entries[i].lineNumber - targetLine);
+        if (diff < minDiff) {
+          minDiff = diff;
+          closestIdx = i;
+        }
+      }
+      setTargetScrollIndex(closestIdx);
+      setCurrentMatchIndex(closestIdx + 1);
+    }
+  };
+
+  // Export Filtered Logs
+  const handleExportFiltered = () => {
+    if (entries.length === 0) return;
+    const content = entries.map((e) => e.raw).join('\n');
+    const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `${activeSource?.name || 'logs'}_filtered_${Date.now()}.log`;
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+
+  // Level Toggle Handler
   const handleToggleLevel = (level: LogLevel | 'all') => {
     if (level === 'all') {
       setSelectedLevels([]);
@@ -149,6 +248,7 @@ export const App: React.FC = () => {
     );
   };
 
+  // Source Handlers
   const handleOpenSource = async (path: string, name?: string, category?: string) => {
     const res = await fetch('/api/sources/open', {
       method: 'POST',
@@ -163,6 +263,20 @@ export const App: React.FC = () => {
     setActiveSourceId(data.source.id);
   };
 
+  const handlePasteSubmit = async (text: string, name?: string) => {
+    const res = await fetch('/api/logs/paste', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text, name }),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      throw new Error(data.error || 'Failed to analyze pasted logs');
+    }
+    await fetchSources();
+    setActiveSourceId(data.source.id);
+  };
+
   const handleRemoveCustomSource = async (id: string) => {
     await fetch(`/api/sources/${id}`, { method: 'DELETE' });
     await fetchSources();
@@ -171,44 +285,34 @@ export const App: React.FC = () => {
     }
   };
 
-  const handleClearLog = async () => {
-    if (!activeSourceId) return;
-    if (!window.confirm('Are you sure you want to clear the contents of this log file?')) {
-      return;
-    }
-    await fetch('/api/logs/clear', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ sourceId: activeSourceId }),
-    });
-    fetchEntries();
-    fetchSources();
-  };
-
-  const handleDownloadLog = () => {
-    if (!activeSourceId) return;
-    window.location.href = `/api/logs/download?sourceId=${encodeURIComponent(activeSourceId)}`;
-  };
-
   const activeSource = sources.find((s) => s.id === activeSourceId);
 
   return (
     <div className="app-container">
-      {/* Sidebar */}
+      {/* Sidebar with LogViewer.io 3 Quick Actions */}
       <Sidebar
         sources={sources}
         activeSourceId={activeSourceId}
         onSelectSource={(id) => setActiveSourceId(id)}
         onOpenModal={() => setIsOpenModalOpen(true)}
+        onOpenPasteModal={() => setIsPasteModalOpen(true)}
+        onToggleLiveTail={() => setIsLiveTail(!isLiveTail)}
+        isLiveTail={isLiveTail}
         onRemoveCustomSource={handleRemoveCustomSource}
       />
 
-      {/* Main Panel */}
+      {/* Main Content Area */}
       <main className="main-content">
+        {/* Topbar Matching Image 4 (Screenshot 12.37.56) */}
         <Topbar
           activeSource={activeSource}
           totalEntries={totalEntries}
+          filteredCount={entries.length}
           durationMs={durationMs}
+          markerFilter={markerFilter}
+          onMarkerFilterChange={setMarkerFilter}
+          isMarkerRegex={isMarkerRegex}
+          onToggleMarkerRegex={() => setIsMarkerRegex(!isMarkerRegex)}
           search={search}
           onSearchChange={setSearch}
           isRegex={isRegex}
@@ -217,27 +321,38 @@ export const App: React.FC = () => {
           onToggleCaseSensitive={() => setCaseSensitive(!caseSensitive)}
           invert={invert}
           onToggleInvert={() => setInvert(!invert)}
+          currentMatchIndex={currentMatchIndex}
+          onPrevMatch={handlePrevMatch}
+          onNextMatch={handleNextMatch}
+          onOpenGoToLine={() => setIsGoToLineModalOpen(true)}
+          viewMode={viewMode}
+          onChangeViewMode={setViewMode}
+          wrapLines={wrapLines}
+          onToggleWrapLines={() => setWrapLines(!wrapLines)}
+          sortOption={sortOption}
+          onChangeSortOption={setSortOption}
           selectedLevels={selectedLevels}
           onToggleLevel={handleToggleLevel}
           levelCounts={levelCounts}
           isLiveTail={isLiveTail}
           onToggleLiveTail={() => setIsLiveTail(!isLiveTail)}
-          direction={direction}
-          onToggleDirection={() => setDirection(direction === 'desc' ? 'asc' : 'desc')}
-          onRefresh={fetchEntries}
-          onClearLog={handleClearLog}
-          onDownloadLog={handleDownloadLog}
+          onExportFiltered={handleExportFiltered}
           theme={theme}
           onToggleTheme={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
-          wrapLines={wrapLines}
-          onToggleWrapLines={() => setWrapLines(!wrapLines)}
         />
 
+        {/* Log Feed Table */}
         <LogTable
           entries={entries}
           isLiveTail={isLiveTail}
           onViewContext={(line) => setContextLineNumber(line)}
           wrapLines={wrapLines}
+          viewMode={viewMode}
+          selectedLineNumber={selectedLineNumber}
+          onSelectLine={(line) => setSelectedLineNumber(line)}
+          searchQuery={search}
+          markerQuery={markerFilter}
+          targetScrollIndex={targetScrollIndex}
         />
       </main>
 
@@ -246,6 +361,19 @@ export const App: React.FC = () => {
         isOpen={isOpenModalOpen}
         onClose={() => setIsOpenModalOpen(false)}
         onOpen={handleOpenSource}
+      />
+
+      <PasteLogsModal
+        isOpen={isPasteModalOpen}
+        onClose={() => setIsPasteModalOpen(false)}
+        onPasteSubmit={handlePasteSubmit}
+      />
+
+      <GoToLineModal
+        isOpen={isGoToLineModalOpen}
+        onClose={() => setIsGoToLineModalOpen(false)}
+        maxLines={totalEntries || 10000}
+        onGoToLine={handleGoToLine}
       />
 
       <ContextModal

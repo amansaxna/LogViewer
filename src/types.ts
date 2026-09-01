@@ -41,6 +41,17 @@ export interface LogEntry {
   trace?: TraceData;
 }
 
+export type SortOption =
+  | 'time-desc'
+  | 'time-asc'
+  | 'marker-asc'
+  | 'marker-desc'
+  | 'line-asc'
+  | 'line-desc'
+  | 'duration-desc'
+  | 'duration-asc'
+  | 'namespace-asc';
+
 export interface LogSource {
   id: string;
   name: string;

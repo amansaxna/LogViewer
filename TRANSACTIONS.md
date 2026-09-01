@@ -15,6 +15,8 @@ The LogViewer system executes several types of state-altering transactions:
 | `TXN_CLOSE_FILE` | `DELETE /api/sources/:id` | Removes an opened ad-hoc file from the active session | Yes | Evicts source and cached index |
 | `TXN_QUERY_LOGS` | `GET /api/logs/entries` | Executes search, regex matching, level filtering, and pagination | Yes | Computes duration metrics, updates read cache |
 | `TXN_STREAM_CONNECT` | `GET /api/logs/stream` | Opens SSE channel for active live-tail monitoring | Yes | Spawns background polling timer |
+| `TXN_PASTE_LOGS` | `POST /api/logs/paste` | Creates an ephemeral or named log source from user clipboard/raw text | Yes | Writes log file, registers custom source |
+| `TXN_SORT_MARKERS` | `GET /api/logs/entries?sortBy=marker` | Reorders log stream by workflow marker name alphabetically | Yes | None |
 | `TXN_CLEAR_LOG` | `POST /api/logs/clear` | Truncates target log file on disk to 0 bytes upon user confirmation | No | Modifies disk file, invalidates file cache |
 | `TXN_DOWNLOAD_LOG` | `GET /api/logs/download` | Streams raw file content to the client browser for offline backup | Yes | None |
 

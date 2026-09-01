@@ -61,3 +61,35 @@ This document captures the architectural decisions made during the design and im
 - **Context**: Rich visual design matching OpCodes Log Viewer (glassmorphism, vibrant level badges, dark/light themes, monospace fonts) without heavy CSS framework dependencies.
 - **Decision**: Build a custom CSS token system in `src/index.css` with CSS custom properties (`--bg-app`, `--lvl-error`, etc.), dark theme by default, and responsive styling.
 - **Consequences**: Zero framework bundle overhead, immediate styling control, and seamless dark/light switching.
+
+---
+
+## ADR-007: Dual Filter Toolbar & Match Navigation (Screenshot 12.37.56)
+- **Status**: Accepted
+- **Context**: The user provided reference Screenshot 12.37.56 requiring a dual filter system (Marker filter + Search filter), match navigation (`<` and `>` with `1 / 623` match counter), and "Go to line" jumping.
+- **Decision**: Implement independent `marker` and `search` query parameters on the backend, paired with a match index tracker and `virtualizer.scrollToIndex` in the frontend for instantaneous match navigation.
+- **Consequences**: Matches the reference UI layout with sub-millisecond keyboard and button navigation.
+
+---
+
+## ADR-008: High-Density Token Syntax Coloring in Compact View
+- **Status**: Accepted
+- **Context**: Raw monochrome log feeds are hard to parse visually. The user requested color coding for logs to make them more visible, matching Screenshot 12.37.56 and VSCode syntax highlighting.
+- **Decision**: Tokenize the line in `CompactLogRow.tsx` with dedicated HSL color accents:
+  - Datetime: Cyan `#00e5ff`
+  - PID/TID: Muted slate `#94a3b8`
+  - Namespace: Soft blue `#7dd3fc`
+  - Markers: Purple `#c084fc`
+  - Operations / HTTP verbs: Bright Orange `#ff9800`
+  - Statuses: Red (FAILED), Amber (WARN), Green (SUCCESS), Sky (INFO)
+  - Durations: Bright Gold `#facc15`
+  - Selected line: Yellow left indicator bar `#facc15`
+- **Consequences**: Greatly increased scannability and visual contrast.
+
+---
+
+## ADR-009: Marker Sorting Engine
+- **Status**: Accepted
+- **Context**: Users need to group and sort logs by workflow markers (e.g. `WF:InventoryAudit`, `WF:RefundProcess`), line numbers, duration, or timestamps.
+- **Decision**: Added `sortBy` and `sortOption` to `server/fileReader.ts` supporting `marker-asc`, `marker-desc`, `duration-desc`, `duration-asc`, `time-desc`, `time-asc`, `line-asc`, and `line-desc`.
+- **Consequences**: Allows inspecting workflow progression and slowest transactions in one click.

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Terminal, FileText, Plus, X, Search, Folder } from 'lucide-react';
+import { Terminal, FileText, Plus, X, Search, Folder, CloudUpload, Link2, ClipboardList } from 'lucide-react';
 import { LogSource } from '../types.ts';
 
 interface SidebarProps {
@@ -7,6 +7,9 @@ interface SidebarProps {
   activeSourceId: string | null;
   onSelectSource: (id: string) => void;
   onOpenModal: () => void;
+  onOpenPasteModal: () => void;
+  onToggleLiveTail: () => void;
+  isLiveTail: boolean;
   onRemoveCustomSource: (id: string) => void;
 }
 
@@ -23,6 +26,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
   activeSourceId,
   onSelectSource,
   onOpenModal,
+  onOpenPasteModal,
+  onToggleLiveTail,
+  isLiveTail,
   onRemoveCustomSource,
 }) => {
   const [filterText, setFilterText] = useState('');
@@ -45,9 +51,86 @@ export const Sidebar: React.FC<SidebarProps> = ({
           <Terminal size={18} />
         </div>
         <div style={{ display: 'flex', flexDirection: 'column' }}>
-          <span className="sidebar-title">LogViewer</span>
-          <span style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>Local Log Engine</span>
+          <span className="sidebar-title">LogViewer.io</span>
+          <span style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>Modern log analyzer</span>
         </div>
+      </div>
+
+      {/* Quick Action Buttons (Matching Image 2) */}
+      <div style={{ padding: '12px 14px 4px 14px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+        {/* Load Files Button */}
+        <button
+          onClick={onOpenModal}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 8,
+            width: '100%',
+            padding: '9px 14px',
+            backgroundColor: '#2563eb',
+            color: '#ffffff',
+            border: 'none',
+            borderRadius: 8,
+            fontWeight: 600,
+            fontSize: '0.86rem',
+            cursor: 'pointer',
+            boxShadow: '0 2px 8px rgba(37, 99, 235, 0.4)',
+            transition: 'all 0.15s ease',
+          }}
+          className="btn-load-files"
+        >
+          <CloudUpload size={16} />
+          Load Files
+        </button>
+
+        {/* Stream File Button */}
+        <button
+          onClick={onToggleLiveTail}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 8,
+            width: '100%',
+            padding: '8px 14px',
+            backgroundColor: isLiveTail ? 'rgba(34, 197, 94, 0.15)' : 'var(--bg-surface)',
+            color: isLiveTail ? '#22c55e' : 'var(--text-primary)',
+            border: `1px solid ${isLiveTail ? 'rgba(34, 197, 94, 0.4)' : 'var(--border-subtle)'}`,
+            borderRadius: 8,
+            fontWeight: 500,
+            fontSize: '0.84rem',
+            cursor: 'pointer',
+            transition: 'all 0.15s ease',
+          }}
+        >
+          <Link2 size={15} />
+          {isLiveTail ? 'Streaming File (Active)' : 'Stream File'}
+        </button>
+
+        {/* Paste Logs Button */}
+        <button
+          onClick={onOpenPasteModal}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 8,
+            width: '100%',
+            padding: '8px 14px',
+            backgroundColor: 'var(--bg-surface)',
+            color: 'var(--text-primary)',
+            border: '1px solid var(--border-subtle)',
+            borderRadius: 8,
+            fontWeight: 500,
+            fontSize: '0.84rem',
+            cursor: 'pointer',
+            transition: 'all 0.15s ease',
+          }}
+        >
+          <ClipboardList size={15} />
+          Paste Logs
+        </button>
       </div>
 
       {/* Filter Sources */}

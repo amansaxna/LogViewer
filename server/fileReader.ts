@@ -13,6 +13,19 @@ interface CacheEntry {
 
 const fileCache: Map<string, CacheEntry> = new Map();
 
+function parseDurationMs(durationStr?: string): number {
+  if (!durationStr) return 0;
+  const match = durationStr.match(/^(\d+(?:\.\d+)?)\s*(ms|s|m|µs|us|ns)?$/i);
+  if (!match) return 0;
+  const val = parseFloat(match[1]);
+  const unit = (match[2] || 'ms').toLowerCase();
+  if (unit === 's') return val * 1000;
+  if (unit === 'm') return val * 60000;
+  if (unit === 'µs' || unit === 'us') return val / 1000;
+  if (unit === 'ns') return val / 1000000;
+  return val;
+}
+
 export function getEntriesForSource(sourceId: string): LogEntry[] {
   const source = findSourceById(sourceId);
   if (!source) {
@@ -107,6 +120,14 @@ export function queryLogs(query: LogQuery): LogQueryResult {
       return false;
     }
 
+    // Marker filter
+    if (query.marker && query.marker.trim().length > 0) {
+      const mQuery = query.marker.trim().toLowerCase();
+      if (!entry.workflow || !entry.workflow.toLowerCase().includes(mQuery)) {
+        return false;
+      }
+    }
+
     // Search query match
     if (searchRegex) {
       const match = searchRegex.test(entry.raw) ||
@@ -126,11 +147,39 @@ export function queryLogs(query: LogQuery): LogQueryResult {
   });
 
   // 4. Sort entries
+  const sortBy = query.sortBy || 'time';
   const direction = query.direction || 'desc';
-  const sorted = [...filtered];
-  if (direction === 'desc') {
-    sorted.reverse();
-  }
+  const multiplier = direction === 'asc' ? 1 : -1;
+
+  const sorted = [...filtered].sort((a, b) => {
+    if (sortBy === 'marker') {
+      const mA = a.workflow || '';
+      const mB = b.workflow || '';
+      const cmp = mA.localeCompare(mB);
+      if (cmp !== 0) return cmp * multiplier;
+      return (a.lineNumber - b.lineNumber) * multiplier;
+    }
+    if (sortBy === 'namespace') {
+      const nA = a.namespace || '';
+      const nB = b.namespace || '';
+      const cmp = nA.localeCompare(nB);
+      if (cmp !== 0) return cmp * multiplier;
+      return (a.lineNumber - b.lineNumber) * multiplier;
+    }
+    if (sortBy === 'duration') {
+      const dA = parseDurationMs(a.duration);
+      const dB = parseDurationMs(b.duration);
+      if (dA !== dB) return (dA - dB) * multiplier;
+      return (a.lineNumber - b.lineNumber) * multiplier;
+    }
+    if (sortBy === 'line') {
+      return (a.lineNumber - b.lineNumber) * multiplier;
+    }
+    // default: time
+    const tA = a.timestamp || a.lineNumber;
+    const tB = b.timestamp || b.lineNumber;
+    return (tA - tB) * multiplier;
+  });
 
   // 5. Paginate (or return full set if pageSize is <= 0 or very large for virtualized scrolling)
   const page = query.page || 1;

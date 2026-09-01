@@ -2,12 +2,19 @@ import React, { useRef, useEffect } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { LogEntry } from '../types.ts';
 import { LogRow } from './LogRow.tsx';
+import { CompactLogRow } from './CompactLogRow.tsx';
 
 interface LogTableProps {
   entries: LogEntry[];
   isLiveTail: boolean;
   onViewContext: (lineNumber: number) => void;
   wrapLines?: boolean;
+  viewMode?: 'compact' | 'standard' | 'raw';
+  selectedLineNumber: number | null;
+  onSelectLine: (lineNumber: number) => void;
+  searchQuery?: string;
+  markerQuery?: string;
+  targetScrollIndex?: number | null;
 }
 
 export const LogTable: React.FC<LogTableProps> = ({
@@ -15,22 +22,35 @@ export const LogTable: React.FC<LogTableProps> = ({
   isLiveTail,
   onViewContext,
   wrapLines = false,
+  viewMode = 'compact',
+  selectedLineNumber,
+  onSelectLine,
+  searchQuery,
+  markerQuery,
+  targetScrollIndex,
 }) => {
   const parentRef = useRef<HTMLDivElement>(null);
 
   const virtualizer = useVirtualizer({
     count: entries.length,
     getScrollElement: () => parentRef.current,
-    estimateSize: () => 40,
-    overscan: 20,
+    estimateSize: () => (viewMode === 'compact' ? 26 : 42),
+    overscan: 30,
   });
 
-  // Auto-scroll to bottom or top if live tail is active and new items arrive
+  // Auto-scroll to top if live tail is active
   useEffect(() => {
     if (isLiveTail && entries.length > 0 && parentRef.current) {
-      parentRef.current.scrollTop = 0; // or bottom if newest first vs oldest
+      parentRef.current.scrollTop = 0;
     }
   }, [entries.length, isLiveTail]);
+
+  // Scroll to target index when match or go-to-line changes
+  useEffect(() => {
+    if (targetScrollIndex !== undefined && targetScrollIndex !== null && targetScrollIndex >= 0 && targetScrollIndex < entries.length) {
+      virtualizer.scrollToIndex(targetScrollIndex, { align: 'center' });
+    }
+  }, [targetScrollIndex, entries.length, virtualizer]);
 
   if (entries.length === 0) {
     return (
@@ -57,10 +77,46 @@ export const LogTable: React.FC<LogTableProps> = ({
     );
   }
 
+  // Raw plain-text view
+  if (viewMode === 'raw') {
+    return (
+      <div
+        ref={parentRef}
+        className="log-feed-container"
+        style={{
+          padding: '12px 16px',
+          background: 'var(--bg-app)',
+          fontFamily: 'var(--font-mono)',
+          fontSize: '0.8rem',
+          lineHeight: 1.6,
+          color: 'var(--text-primary)',
+          whiteSpace: wrapLines ? 'pre-wrap' : 'pre',
+          overflowX: 'auto',
+        }}
+      >
+        {entries.map((e) => (
+          <div key={e.id} style={{ display: 'flex' }}>
+            <span style={{ width: 50, color: 'var(--text-muted)', userSelect: 'none', flexShrink: 0 }}>
+              {e.lineNumber}
+            </span>
+            <span>{e.raw}</span>
+          </div>
+        ))}
+      </div>
+    );
+  }
+
   const items = virtualizer.getVirtualItems();
 
   return (
-    <div ref={parentRef} className="log-feed-container">
+    <div
+      ref={parentRef}
+      className="log-feed-container"
+      style={{
+        background: 'var(--bg-app)',
+        paddingBottom: 40,
+      }}
+    >
       <div
         style={{
           height: `${virtualizer.getTotalSize()}px`,
@@ -70,6 +126,8 @@ export const LogTable: React.FC<LogTableProps> = ({
       >
         {items.map((virtualRow) => {
           const entry = entries[virtualRow.index];
+          const isSelected = selectedLineNumber === entry.lineNumber;
+
           return (
             <div
               key={virtualRow.index}
@@ -83,7 +141,23 @@ export const LogTable: React.FC<LogTableProps> = ({
                 transform: `translateY(${virtualRow.start}px)`,
               }}
             >
-              <LogRow entry={entry} onViewContext={onViewContext} wrapLines={wrapLines} />
+              {viewMode === 'compact' ? (
+                <CompactLogRow
+                  entry={entry}
+                  isSelected={isSelected}
+                  onSelect={(line) => onSelectLine(line)}
+                  onDoubleClick={(line) => onViewContext(line)}
+                  searchQuery={searchQuery}
+                  markerQuery={markerQuery}
+                  wrapLines={wrapLines}
+                />
+              ) : (
+                <LogRow
+                  entry={entry}
+                  onViewContext={onViewContext}
+                  wrapLines={wrapLines}
+                />
+              )}
             </div>
           );
         })}

@@ -71,15 +71,42 @@ app.get('/api/logs/entries', (req: Request, res: Response) => {
       levels,
       namespace: req.query.namespace as string | undefined,
       workflow: req.query.workflow as string | undefined,
+      marker: req.query.marker as string | undefined,
+      sortBy: (req.query.sortBy as any) || 'time',
       direction: (req.query.direction as 'desc' | 'asc') || 'desc',
       page: req.query.page ? parseInt(req.query.page as string, 10) : 1,
-      pageSize: req.query.pageSize ? parseInt(req.query.pageSize as string, 10) : 5000,
+      pageSize: req.query.pageSize ? parseInt(req.query.pageSize as string, 10) : 25000,
     };
 
     const result = queryLogs(query);
     res.json(result);
   } catch (err: any) {
     res.status(500).json({ error: err.message || 'Failed to query logs' });
+  }
+});
+
+// 4b. Paste logs directly into session
+app.post('/api/logs/paste', (req: Request, res: Response) => {
+  try {
+    const { text, name } = req.body;
+    if (!text || typeof text !== 'string') {
+      res.status(400).json({ error: 'Text content is required' });
+      return;
+    }
+
+    const timestamp = Date.now();
+    const fileName = `pasted_${timestamp}.log`;
+    const targetPath = path.resolve(process.cwd(), 'logs', fileName);
+    fs.writeFileSync(targetPath, text, 'utf-8');
+
+    const source = registerCustomSource(
+      targetPath,
+      name || `Pasted Logs (${new Date().toLocaleTimeString()})`,
+      'Pasted Logs'
+    );
+    res.json({ source, message: 'Logs saved and opened' });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || 'Failed to process pasted logs' });
   }
 });
 

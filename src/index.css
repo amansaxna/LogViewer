@@ -871,3 +871,17 @@ body {
 .btn-primary:hover {
   background: var(--accent-hover);
 }
+
+.compact-log-row:hover {
+  background-color: rgba(255, 255, 255, 0.04);
+}
+
+.btn-load-files:hover {
+  background-color: #1d4ed8 !important;
+}
+
+mark {
+  border-radius: 2px;
+  padding: 0 2px;
+}
+
