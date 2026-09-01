@@ -7,6 +7,9 @@ interface LogRowProps {
   entry: LogEntry;
   onViewContext: (lineNumber: number) => void;
   wrapLines?: boolean;
+  showPid?: boolean;
+  showTid?: boolean;
+  showCorrelation?: boolean;
 }
 
 const LEVEL_COLORS: Record<LogLevel, string> = {
@@ -17,12 +20,20 @@ const LEVEL_COLORS: Record<LogLevel, string> = {
   warning: 'var(--lvl-warn)',
   notice: 'var(--lvl-notice)',
   info: 'var(--lvl-info)',
+  audit: 'var(--lvl-audit)',
   debug: 'var(--lvl-debug)',
   trace: 'var(--lvl-trace)',
   unknown: 'var(--text-muted)',
 };
 
-export const LogRow: React.FC<LogRowProps> = ({ entry, onViewContext, wrapLines = false }) => {
+export const LogRow: React.FC<LogRowProps> = ({
+  entry,
+  onViewContext,
+  wrapLines = false,
+  showPid = true,
+  showTid = true,
+  showCorrelation = true,
+}) => {
   const [expanded, setExpanded] = useState(false);
   const [copied, setCopied] = useState(false);
 
@@ -59,16 +70,16 @@ export const LogRow: React.FC<LogRowProps> = ({ entry, onViewContext, wrapLines 
         {entry.datetime && <span className="log-datetime">{entry.datetime}</span>}
 
         {/* Process ID & Thread ID */}
-        {(entry.pid || entry.tid) && (
+        {((showPid && entry.pid) || (showTid && entry.tid)) && (
           <span className="badge-pid-tid">
-            {entry.pid ? `P:${entry.pid}` : ''}
-            {entry.pid && entry.tid ? ' ' : ''}
-            {entry.tid ? `T:${entry.tid}` : ''}
+            {showPid && entry.pid ? `P:${entry.pid}` : ''}
+            {showPid && entry.pid && showTid && entry.tid ? ' ' : ''}
+            {showTid && entry.tid ? `T:${entry.tid}` : ''}
           </span>
         )}
 
         {/* Correlation ID */}
-        {entry.correlationId && (
+        {showCorrelation && entry.correlationId && (
           <span
             className="badge-correlation"
             style={{

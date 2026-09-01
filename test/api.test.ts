@@ -190,7 +190,26 @@ async function runApiTests() {
   assert.strictEqual(appendData.count, 1);
   console.log(`✓ Test 18 Passed: Appended new live entry for real-time rate monitoring`);
 
-  console.log('\nAll 18 API Integration Tests Passed Successfully!');
+  // Test 19: Append and filter by [AUDIT] level
+  await fetch(`${BASE_URL}/api/logs/append`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      sourceId: 'app-workflow',
+      lines: [
+        '[2026-09-02 03:05:00.000] [PID:555] [TID:666] [corr-audit-test] [Security.Audit] [AUDIT] Compliance check passed [AuditLogger.ts::99]',
+      ],
+    }),
+  });
+  const auditFilterRes = await fetch(`${BASE_URL}/api/logs/entries?sourceId=app-workflow&levels=audit`);
+  assert.strictEqual(auditFilterRes.status, 200);
+  const auditFilterData = await auditFilterRes.json();
+  assert.ok(auditFilterData.entries.length > 0, 'Should find at least 1 AUDIT log');
+  assert.strictEqual(auditFilterData.entries[0].level, 'audit');
+  assert.strictEqual(auditFilterData.entries[0].status, 'AUDIT');
+  console.log(`✓ Test 19 Passed: Filter by [AUDIT] level returned ${auditFilterData.entries.length} audit entries`);
+
+  console.log('\nAll 19 API Integration Tests Passed Successfully!');
 }
 
 runApiTests().catch((err) => {

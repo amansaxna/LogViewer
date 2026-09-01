@@ -30,6 +30,46 @@ export const App: React.FC = () => {
   const [wrapLines, setWrapLines] = useState(false);
   const [viewMode, setViewMode] = useState<'compact' | 'standard' | 'raw'>('compact');
 
+  // Metadata columns toggle (PID, TID, Correlation ID)
+  const [showPid, setShowPid] = useState<boolean>(() => localStorage.getItem('lv_show_pid') !== 'false');
+  const [showTid, setShowTid] = useState<boolean>(() => localStorage.getItem('lv_show_tid') !== 'false');
+  const [showCorrelation, setShowCorrelation] = useState<boolean>(() => localStorage.getItem('lv_show_corr') !== 'false');
+
+  const handleToggleShowPid = () => {
+    setShowPid((prev) => {
+      const next = !prev;
+      localStorage.setItem('lv_show_pid', String(next));
+      return next;
+    });
+  };
+
+  const handleToggleShowTid = () => {
+    setShowTid((prev) => {
+      const next = !prev;
+      localStorage.setItem('lv_show_tid', String(next));
+      return next;
+    });
+  };
+
+  const handleToggleShowCorrelation = () => {
+    setShowCorrelation((prev) => {
+      const next = !prev;
+      localStorage.setItem('lv_show_corr', String(next));
+      return next;
+    });
+  };
+
+  const handleToggleAllMeta = () => {
+    const anyActive = showPid || showTid || showCorrelation;
+    const next = !anyActive;
+    setShowPid(next);
+    setShowTid(next);
+    setShowCorrelation(next);
+    localStorage.setItem('lv_show_pid', String(next));
+    localStorage.setItem('lv_show_tid', String(next));
+    localStorage.setItem('lv_show_corr', String(next));
+  };
+
   // Match and navigation state
   const [selectedLineNumber, setSelectedLineNumber] = useState<number | null>(null);
   const [currentMatchIndex, setCurrentMatchIndex] = useState(1);
@@ -705,6 +745,13 @@ export const App: React.FC = () => {
           onToggleSidebar={toggleSidebar}
           isFullscreen={isFullscreen}
           onToggleFullscreen={toggleFullscreen}
+          showPid={showPid}
+          onToggleShowPid={handleToggleShowPid}
+          showTid={showTid}
+          onToggleShowTid={handleToggleShowTid}
+          showCorrelation={showCorrelation}
+          onToggleShowCorrelation={handleToggleShowCorrelation}
+          onToggleAllMeta={handleToggleAllMeta}
         />
 
         {/* Log Feed Table */}
@@ -720,6 +767,9 @@ export const App: React.FC = () => {
           markerQuery={markerFilter}
           correlationQuery={selectedCorrelation || undefined}
           targetScrollIndex={targetScrollIndex}
+          showPid={showPid}
+          showTid={showTid}
+          showCorrelation={showCorrelation}
         />
       </main>
 

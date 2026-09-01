@@ -325,3 +325,30 @@ This document captures the architectural decisions made during the design and im
   3. Connected `handleToggleLiveTail` to Topbar toggle button, Sidebar stream button, and keyboard shortcut `'t'`.
   4. Updated Sort dropdown labels: `Time (Log Flow: Oldest → Newest)` and `Time (Tail: Latest at Top)`.
 - **Consequences**: Tail mode gives immediate top-row visibility for real-time streaming, while static viewing preserves natural top-to-bottom reading order.
+
+---
+
+## ADR-024: Metadata Columns Visibility Toggles and [AUDIT] Log Level
+- **Status**: Accepted
+- **Context**: The user requested:
+  1. Toggle buttons to enable/disable showing Process ID (`PID`), Thread ID (`TID`), and Correlation ID (`Corr`).
+  2. Add `[AUDIT]` as a first-class log level filter alongside `INFO`, `ERROR`, etc.
+- **Decision**:
+  1. **Metadata Visibility Toggles**:
+     - Added persistent boolean state in `App.tsx` (`showPid`, `showTid`, `showCorrelation`), saved to `localStorage` (`lv_show_pid`, `lv_show_tid`, `lv_show_corr`).
+     - Added a clean toolbar button group in Topbar Row 2: `Meta: [PID] [TID] [Corr]`.
+     - Clicking "Meta:" toggles all 3 simultaneously; clicking individual pills (`PID`, `TID`, `Corr`) provides granular control.
+     - Threaded visibility down to `CompactLogRow.tsx` and `LogRow.tsx`, allowing users to declutter log feeds without losing token parsing.
+  2. **First-Class [AUDIT] Level**:
+     - Extended `LogLevel` union in `server/types.ts` and `src/types.ts` with `'audit'`.
+     - Updated `server/parser.ts`:
+       - Added `audit: 'audit'` in `STATUS_LEVEL_MAP`.
+       - Added `'AUDIT'` check in `inferLevelFromText()`.
+       - Bracket token `[AUDIT]` sets `level: 'audit'` and `status: 'AUDIT'`.
+     - Initialized `audit: 0` in `server/fileReader.ts` `levelCounts`.
+     - Added `{ key: 'audit', label: 'AUDIT' }` in `AVAILABLE_LEVELS` in `Topbar.tsx`.
+     - Added custom teal/emerald colors in `src/index.css`:
+       - Dark theme: `--lvl-audit: #14b8a6;` `--lvl-audit-bg: rgba(20, 184, 166, 0.2);`
+       - Light theme: `--lvl-audit: #0d9488;` `--lvl-audit-bg: #ccfbf1;`
+       - Status badge `.badge-status.audit` and filter pill `.level-pill.audit.active`.
+- **Consequences**: Enhanced log density customization and complete support for enterprise compliance audit logs.

@@ -829,6 +829,35 @@ body {
   color: var(--tok-status-error);
 }
 
+.badge-status.audit {
+  background: var(--lvl-audit-bg);
+  color: var(--lvl-audit);
+}
+
+.meta-toggle-btn {
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--text-muted);
+  border-radius: 4px;
+  padding: 2px 7px;
+  font-size: 0.72rem;
+  font-family: var(--font-mono);
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.meta-toggle-btn:hover {
+  background: var(--bg-surface-hover);
+  color: var(--text-primary);
+}
+
+.meta-toggle-btn.active {
+  background: var(--accent-bg);
+  border-color: var(--accent-primary);
+  color: var(--accent-primary);
+}
+
 .badge-duration {
   font-size: 0.7rem;
   color: var(--text-muted);

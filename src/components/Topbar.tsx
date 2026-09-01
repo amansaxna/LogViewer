@@ -112,6 +112,15 @@ interface TopbarProps {
   onToggleSidebar?: () => void;
   isFullscreen?: boolean;
   onToggleFullscreen?: () => void;
+
+  // Metadata token visibility toggles (PID, TID, Correlation)
+  showPid?: boolean;
+  onToggleShowPid?: () => void;
+  showTid?: boolean;
+  onToggleShowTid?: () => void;
+  showCorrelation?: boolean;
+  onToggleShowCorrelation?: () => void;
+  onToggleAllMeta?: () => void;
 }
 
 const AVAILABLE_LEVELS: { key: LogLevel; label: string }[] = [
@@ -121,6 +130,7 @@ const AVAILABLE_LEVELS: { key: LogLevel; label: string }[] = [
   { key: 'warning', label: 'WARN' },
   { key: 'notice', label: 'NOTICE' },
   { key: 'info', label: 'INFO' },
+  { key: 'audit', label: 'AUDIT' },
   { key: 'debug', label: 'DEBUG' },
 ];
 
@@ -178,6 +188,13 @@ export const Topbar: React.FC<TopbarProps> = ({
   onToggleSidebar,
   isFullscreen,
   onToggleFullscreen,
+  showPid = true,
+  onToggleShowPid,
+  showTid = true,
+  onToggleShowTid,
+  showCorrelation = true,
+  onToggleShowCorrelation,
+  onToggleAllMeta,
 }) => {
   const [lineInput, setLineInput] = useState<string>(currentMatchIndex ? currentMatchIndex.toString() : '1');
   const [showDatePicker, setShowDatePicker] = useState(false);
@@ -880,6 +897,58 @@ export const Topbar: React.FC<TopbarProps> = ({
               <option value="duration-asc">Duration (Fastest First)</option>
               <option value="namespace-asc">Namespace (A → Z)</option>
             </select>
+          </div>
+
+          {/* Metadata Columns Toggle (PID, TID, Correlation ID) */}
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 2,
+              marginLeft: 6,
+              background: 'var(--bg-surface)',
+              border: '1px solid var(--border-subtle)',
+              borderRadius: 6,
+              padding: '2px 4px',
+            }}
+            title="Toggle visibility of Process ID, Thread ID, and Correlation ID tokens"
+          >
+            <button
+              onClick={onToggleAllMeta}
+              style={{
+                background: 'none',
+                border: 'none',
+                fontSize: '0.72rem',
+                color: showPid || showTid || showCorrelation ? 'var(--accent-primary)' : 'var(--text-muted)',
+                padding: '1px 4px',
+                cursor: 'pointer',
+                fontWeight: 600,
+              }}
+              title="Click to toggle all: PID, TID, and Correlation ID"
+            >
+              Meta:
+            </button>
+            <button
+              className={`meta-toggle-btn ${showPid ? 'active' : ''}`}
+              onClick={onToggleShowPid}
+              title={showPid ? 'Hide Process ID [PID]' : 'Show Process ID [PID]'}
+            >
+              PID
+            </button>
+            <button
+              className={`meta-toggle-btn ${showTid ? 'active' : ''}`}
+              onClick={onToggleShowTid}
+              title={showTid ? 'Hide Thread ID [TID]' : 'Show Thread ID [TID]'}
+            >
+              TID
+            </button>
+            <button
+              className={`meta-toggle-btn ${showCorrelation ? 'active' : ''}`}
+              onClick={onToggleShowCorrelation}
+              title={showCorrelation ? 'Hide Correlation ID [Corr]' : 'Show Correlation ID [Corr]'}
+            >
+              Corr
+            </button>
           </div>
 
           <span style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>

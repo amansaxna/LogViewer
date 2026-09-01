@@ -10,6 +10,9 @@ interface CompactLogRowProps {
   markerQuery?: string;
   correlationQuery?: string;
   wrapLines?: boolean;
+  showPid?: boolean;
+  showTid?: boolean;
+  showCorrelation?: boolean;
 }
 
 export const CompactLogRow: React.FC<CompactLogRowProps> = ({
@@ -21,6 +24,9 @@ export const CompactLogRow: React.FC<CompactLogRowProps> = ({
   markerQuery,
   correlationQuery,
   wrapLines = false,
+  showPid = true,
+  showTid = true,
+  showCorrelation = true,
 }) => {
   // Helper to highlight matching terms inside text
   const highlightMatches = (text: string, queries: (string | undefined)[]) => {
@@ -61,6 +67,7 @@ export const CompactLogRow: React.FC<CompactLogRowProps> = ({
     if (s.includes('SUCCESS') || s === '200') return 'var(--tok-status-success)';
     if (s.includes('PEND')) return 'var(--tok-duration)';
     if (s.includes('CRIT') || s.includes('FATAL')) return 'var(--lvl-critical)';
+    if (s.includes('AUDIT')) return 'var(--lvl-audit)';
     if (s.includes('INFO')) return 'var(--tok-status-info)';
     return 'var(--tok-pid)';
   };
@@ -117,15 +124,15 @@ export const CompactLogRow: React.FC<CompactLogRowProps> = ({
         )}
 
         {/* PID & TID (Muted Slate) */}
-        {entry.pid && (
+        {showPid && entry.pid && (
           <span style={{ color: 'var(--tok-pid)', marginRight: 6 }}>[{entry.pid}]</span>
         )}
-        {entry.tid && (
+        {showTid && entry.tid && (
           <span style={{ color: 'var(--tok-pid)', marginRight: 6 }}>[{entry.tid}]</span>
         )}
 
         {/* Correlation ID */}
-        {entry.correlationId && (
+        {showCorrelation && entry.correlationId && (
           <span
             style={{ color: 'var(--tok-corr)', fontWeight: 600, marginRight: 6 }}
             title={`Correlation ID: ${entry.correlationId}`}

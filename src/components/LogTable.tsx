@@ -17,6 +17,9 @@ interface LogTableProps {
   markerQuery?: string;
   correlationQuery?: string;
   targetScrollIndex?: number | null;
+  showPid?: boolean;
+  showTid?: boolean;
+  showCorrelation?: boolean;
 }
 
 export const LogTable: React.FC<LogTableProps> = ({
@@ -31,6 +34,9 @@ export const LogTable: React.FC<LogTableProps> = ({
   markerQuery,
   correlationQuery,
   targetScrollIndex,
+  showPid = true,
+  showTid = true,
+  showCorrelation = true,
 }) => {
   const parentRef = useRef<HTMLDivElement>(null);
 
@@ -182,12 +188,18 @@ export const LogTable: React.FC<LogTableProps> = ({
                   markerQuery={markerQuery}
                   correlationQuery={correlationQuery}
                   wrapLines={wrapLines}
+                  showPid={showPid}
+                  showTid={showTid}
+                  showCorrelation={showCorrelation}
                 />
               ) : (
                 <LogRow
                   entry={entry}
                   onViewContext={onViewContext}
                   wrapLines={wrapLines}
+                  showPid={showPid}
+                  showTid={showTid}
+                  showCorrelation={showCorrelation}
                 />
               )}
             </div>

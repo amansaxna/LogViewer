@@ -55,4 +55,14 @@ assert.strictEqual(parsedMulti[0].trace?.title, 'Trace: HttpRequestException: Co
 assert.strictEqual(parsedMulti[0].trace?.frames.length, 3);
 console.log('✓ Test 4 Passed: Multi-line log with stack trace extraction');
 
+// Test 5: [AUDIT] log level parsing
+const auditLine = '[2026-09-02 03:00:00.000] [PID:4421] [TID:8812] [corr-audit-99] [Security.Audit] [AUDIT] User permissions modified by admin [SecurityManager.ts::42]';
+const parsedAudit = parseSingleLine(auditLine, 5);
+assert.strictEqual(parsedAudit.level, 'audit');
+assert.strictEqual(parsedAudit.status, 'AUDIT');
+assert.strictEqual(parsedAudit.correlationId, 'corr-audit-99');
+assert.strictEqual(parsedAudit.pid, '4421');
+assert.strictEqual(parsedAudit.tid, '8812');
+console.log('✓ Test 5 Passed: [AUDIT] level parsed and classified correctly');
+
 console.log('All Parser Tests Passed Successfully!');
