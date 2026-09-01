@@ -35,6 +35,9 @@ export const App: React.FC = () => {
   const [showTid, setShowTid] = useState<boolean>(() => localStorage.getItem('lv_show_tid') !== 'false');
   const [showCorrelation, setShowCorrelation] = useState<boolean>(() => localStorage.getItem('lv_show_corr') !== 'false');
 
+  // Loading state
+  const [isLoading, setIsLoading] = useState(false);
+
   const handleToggleShowPid = () => {
     setShowPid((prev) => {
       const next = !prev;
@@ -225,6 +228,10 @@ export const App: React.FC = () => {
       params.append('endDate', endDate);
     }
 
+    if (!isLiveTail) {
+      setIsLoading(true);
+    }
+
     try {
       const res = await fetch(`/api/logs/entries?${params.toString()}`);
       if (!res.ok) throw new Error('Query failed');
@@ -252,6 +259,8 @@ export const App: React.FC = () => {
       setCurrentMatchIndex(1);
     } catch (err) {
       console.error('Failed to query entries:', err);
+    } finally {
+      setIsLoading(false);
     }
   }, [
     activeSourceId,
@@ -752,11 +761,13 @@ export const App: React.FC = () => {
           showCorrelation={showCorrelation}
           onToggleShowCorrelation={handleToggleShowCorrelation}
           onToggleAllMeta={handleToggleAllMeta}
+          isLoading={isLoading}
         />
 
         {/* Log Feed Table */}
         <LogTable
           entries={entries}
+          isLoading={isLoading}
           isLiveTail={isLiveTail}
           onViewContext={(line) => setContextLineNumber(line)}
           wrapLines={wrapLines}

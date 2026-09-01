@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Copy, Check, ExternalLink, ChevronDown, ChevronRight } from 'lucide-react';
 import { LogEntry, LogLevel } from '../types.ts';
 import { TraceViewer } from './TraceViewer.tsx';
+import { renderRichMessageContext } from '../utils/messageContextHighlighter.tsx';
 
 interface LogRowProps {
   entry: LogEntry;
@@ -10,6 +11,7 @@ interface LogRowProps {
   showPid?: boolean;
   showTid?: boolean;
   showCorrelation?: boolean;
+  searchQuery?: string;
 }
 
 const LEVEL_COLORS: Record<LogLevel, string> = {
@@ -33,6 +35,7 @@ export const LogRow: React.FC<LogRowProps> = ({
   showPid = true,
   showTid = true,
   showCorrelation = true,
+  searchQuery,
 }) => {
   const [expanded, setExpanded] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -138,7 +141,7 @@ export const LogRow: React.FC<LogRowProps> = ({
               : undefined
           }
         >
-          {entry.message}
+          {renderRichMessageContext(entry.message, [searchQuery])}
         </span>
 
         {/* Trailing Location [FileName::LineNumber] */}
@@ -242,7 +245,7 @@ export const LogRow: React.FC<LogRowProps> = ({
                 lineHeight: 1.5,
               }}
             >
-              {entry.message}
+              {renderRichMessageContext(entry.message, [searchQuery])}
             </div>
           </div>
 

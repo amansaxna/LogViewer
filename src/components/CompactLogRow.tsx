@@ -1,5 +1,6 @@
 import React from 'react';
 import { LogEntry } from '../types.ts';
+import { renderRichMessageContext } from '../utils/messageContextHighlighter.tsx';
 
 interface CompactLogRowProps {
   entry: LogEntry;
@@ -182,9 +183,9 @@ export const CompactLogRow: React.FC<CompactLogRowProps> = ({
           </span>
         )}
 
-        {/* Message Content */}
+        {/* Message Content with Rich Context Highlighting */}
         <span style={{ color: 'var(--tok-msg)' }}>
-          {highlightMatches(entry.message, [searchQuery, markerQuery])}
+          {renderRichMessageContext(entry.message, [searchQuery, markerQuery])}
         </span>
 
         {/* Code Location */}

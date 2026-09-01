@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { X, FileText, AlertCircle, ClipboardPaste } from 'lucide-react';
+import { ButtonSpinner } from './Loaders.tsx';
 
 interface PasteLogsModalProps {
   isOpen: boolean;
@@ -139,7 +140,7 @@ export const PasteLogsModal: React.FC<PasteLogsModalProps> = ({
               Cancel
             </button>
             <button type="submit" className="btn-primary" disabled={loading || !text.trim()}>
-              {loading ? 'Analyzing...' : 'Analyze Logs'}
+              {loading ? <ButtonSpinner text="Analyzing & Indexing..." /> : 'Analyze Logs'}
             </button>
           </div>
         </form>

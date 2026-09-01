@@ -240,6 +240,15 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
       {/* Grouped Sources List */}
       <div className="sidebar-sources-list">
+        {sources.length === 0 && (
+          <div style={{ padding: '8px 12px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <div className="skeleton-box" style={{ width: '40%', height: 14 }} />
+            <div className="skeleton-box" style={{ width: '100%', height: 32 }} />
+            <div className="skeleton-box" style={{ width: '100%', height: 32 }} />
+            <div className="skeleton-box" style={{ width: '60%', height: 14, marginTop: 8 }} />
+            <div className="skeleton-box" style={{ width: '100%', height: 32 }} />
+          </div>
+        )}
         {categories.map((category) => {
           const categorySources = filteredSources.filter((s) => (s.category || 'General') === category);
           return (

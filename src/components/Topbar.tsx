@@ -33,6 +33,7 @@ import {
   Activity,
 } from 'lucide-react';
 import { LogLevel, LogSource, SortOption } from '../types.ts';
+import { Spinner } from './Loaders.tsx';
 
 interface TopbarProps {
   activeSource?: LogSource;
@@ -121,6 +122,7 @@ interface TopbarProps {
   showCorrelation?: boolean;
   onToggleShowCorrelation?: () => void;
   onToggleAllMeta?: () => void;
+  isLoading?: boolean;
 }
 
 const AVAILABLE_LEVELS: { key: LogLevel; label: string }[] = [
@@ -195,6 +197,7 @@ export const Topbar: React.FC<TopbarProps> = ({
   showCorrelation = true,
   onToggleShowCorrelation,
   onToggleAllMeta,
+  isLoading = false,
 }) => {
   const [lineInput, setLineInput] = useState<string>(currentMatchIndex ? currentMatchIndex.toString() : '1');
   const [showDatePicker, setShowDatePicker] = useState(false);
@@ -678,6 +681,23 @@ export const Topbar: React.FC<TopbarProps> = ({
             gap: 4,
           }}
         >
+          {isLoading && (
+            <span
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 4,
+                color: 'var(--accent-primary)',
+                fontSize: '0.74rem',
+                marginRight: 6,
+                fontWeight: 600,
+              }}
+              title="Querying & updating logs..."
+            >
+              <Spinner size={12} />
+              <span>Updating...</span>
+            </span>
+          )}
           <span>Lines:</span>
           <span style={{ color: '#38bdf8', fontWeight: 700 }}>{filteredCount.toLocaleString()}</span>
           <span>/</span>

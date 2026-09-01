@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { X, FolderOpen, AlertCircle } from 'lucide-react';
+import { ButtonSpinner } from './Loaders.tsx';
 
 interface OpenFileModalProps {
   isOpen: boolean;
@@ -161,7 +162,7 @@ export const OpenFileModal: React.FC<OpenFileModalProps> = ({ isOpen, onClose, o
               Cancel
             </button>
             <button type="submit" className="btn-primary" disabled={loading || !filePath.trim()}>
-              {loading ? 'Opening...' : 'Open Log File'}
+              {loading ? <ButtonSpinner text="Opening & Parsing..." /> : 'Open Log File'}
             </button>
           </div>
         </form>

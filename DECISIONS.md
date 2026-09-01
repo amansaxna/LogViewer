@@ -352,3 +352,94 @@ This document captures the architectural decisions made during the design and im
        - Light theme: `--lvl-audit: #0d9488;` `--lvl-audit-bg: #ccfbf1;`
        - Status badge `.badge-status.audit` and filter pill `.level-pill.audit.active`.
 - **Consequences**: Enhanced log density customization and complete support for enterprise compliance audit logs.
+
+---
+
+## ADR-025: Rich Context Highlighting for Message Sections (URLs, IPs, UUIDs, Key-Values, Endpoints)
+- **Status**: Accepted
+- **Context**: The user requested that special contextual entities inside log message sections (such as URLs, IP addresses, key-value pairs, and endpoints) be properly highlighted with dedicated pill chips, borders, and backgrounds rather than basic font color changes.
+- **Decision**:
+  1. Created dedicated tokenizer utility [`src/utils/messageContextHighlighter.tsx`](file:///Users/amansaxena/Documents/Claude/Projects/LogViewer/src/utils/messageContextHighlighter.tsx) with `renderRichMessageContext()`:
+     - **URLs**: Recognizes `http(s)://` and `ws(s)://`. Renders as an interactive link chip with an external link icon `<ExternalLink />` opening in a new tab without propagating row selection.
+     - **IP Addresses & Ports**: Recognizes IPv4 with optional port numbers (e.g. `192.168.1.1:8080`).
+     - **UUIDs & Hashes**: Recognizes 36-char UUIDs and hexadecimal hash IDs.
+     - **Key-Value Pairs**: Recognizes `key=value`, `key="value"`, `key='value'`, formatting keys and values into structured multi-color badge tokens.
+     - **API Endpoints**: Recognizes path segments like `/api/v1/...`, `/oauth/...`, `/auth/...`.
+     - **Email Addresses**: Recognizes emails with mailto links.
+     - **Search Queries**: Integrates seamlessly with active search queries, highlighting matching substrings inside or outside entity chips.
+  2. Applied chip styles in [`src/index.css`](file:///Users/amansaxena/Documents/Claude/Projects/LogViewer/src/index.css):
+     - Distinct tinted background chips, 1px subtle borders, 4px border radius, font-mono typography, and subtle drop shadows for both Dark Mode and Light Mode.
+  3. Integrated across all viewer modes:
+     - Compact log row feed ([`CompactLogRow.tsx`](file:///Users/amansaxena/Documents/Claude/Projects/LogViewer/src/components/CompactLogRow.tsx)).
+     - Detailed card log row preview and expanded message detail panel ([`LogRow.tsx`](file:///Users/amansaxena/Documents/Claude/Projects/LogViewer/src/components/LogRow.tsx)).
+     - Raw ANSI / Context Modal view ([`coloredLogRenderer.tsx`](file:///Users/amansaxena/Documents/Claude/Projects/LogViewer/src/utils/coloredLogRenderer.tsx)).
+- **Consequences**: Drastically elevates log message scanability and readability, transforming raw unstructured text blocks into visually structured, interactive, and distinct data tokens.
+
+---
+
+## ADR-026: Modern Loaders & Skeleton States Suite
+- **Status**: Accepted
+- **Context**: The user requested proper, modern loaders across the application rather than basic/missing feedback during queries, file opening, parsing, and context inspection.
+- **Decision**:
+  1. Built comprehensive loader component library [`src/components/Loaders.tsx`](file:///Users/amansaxena/Documents/Claude/Projects/LogViewer/src/components/Loaders.tsx):
+     - `TopProgressBar`: 2.5px sweeping indeterminate gradient progress bar that sweeps smoothly along the top of the feed during background queries.
+     - `LogFeedSkeleton`: 16-row animated shimmering placeholders with varying width message bodies, badge tokens, and line gutters.
+     - `CenterLoadingOverlay`: Dual orbiting rings with glowing core dot and glassmorphism card for initial source load / large queries.
+     - `ModalLoadingState`: Centered glowing spinner and informative status text for `ContextModal`.
+     - `ButtonSpinner`: Seamless spinning indicator for modal submit buttons (`OpenFileModal`, `PasteLogsModal`).
+     - `Spinner`: Compact icon spinner with smooth 360deg keyframe rotation for headers and toolbars.
+  2. Styled with CSS keyframe animations in [`src/index.css`](file:///Users/amansaxena/Documents/Claude/Projects/LogViewer/src/index.css):
+     - `@keyframes shimmer` (wave sweep across placeholder boxes).
+     - `@keyframes sweepProgress` (laser sweep across top progress bar with glowing cyan/amber shadows).
+     - `@keyframes spin` (0.85s ease linear).
+  3. Integrated across all states:
+     - `LogTable`: Shows `LogFeedSkeleton` + `CenterLoadingOverlay` when empty + loading; shows `TopProgressBar` when updating an existing log dataset.
+     - `Topbar`: Shows a live `Spinner` next to the line stats when indexing or updating.
+     - `ContextModal`: Replaced plain unstyled text with `ModalLoadingState`.
+     - `OpenFileModal` & `PasteLogsModal`: Interactive button spinners during file read/parse.
+     - `Sidebar`: Skeleton placeholders when loading log sources.
+- **Consequences**: Delivers instant, smooth, non-blocking visual feedback with zero UI freezing across dark and light themes.
+
+---
+
+## ADR-027: Log File Context Selective Copy & Multi-Line Selection
+- **Status**: Accepted
+- **Context**: The user requested a copy button that copies only selected logs inside the surrounding Log File Context modal.
+- **Decision**:
+  1. Implemented selection state in [`src/components/ContextModal.tsx`](file:///Users/amansaxena/Documents/Claude/Projects/LogViewer/src/components/ContextModal.tsx):
+     - Maintained `selectedLineNumbers: Set<number>`.
+     - Automatically pre-selects the target line (`lineNumber`) upon modal open for instant 1-click copying.
+     - Added row checkbox selection in the line number gutter and row click toggle with Shift+Click range selection.
+     - Active rows display highlighted cyan borders and soft background tints (`rgba(56, 189, 248, 0.14)`).
+  2. Created quick selection pills:
+     - `All`: Selects all loaded context lines.
+     - `Target`: Re-selects only the focal target line.
+     - `Clear`: Clears current selection.
+  3. Added interactive **Copy Selected** buttons (in both header toolbar and footer):
+     - Displays dynamic selection count: `Copy Selected (N)`.
+     - Copies only raw log line content (`line.content`) joined by newlines directly to the system clipboard.
+     - Provides instant visual confirmation with a green checkmark: `✓ Copied N Selected Lines!`.
+- **Consequences**: Enables developers to extract exact ranges of surrounding context lines cleanly without copying entire file windows or dragging cursor selections over line numbers.
+
+---
+
+## ADR-028: RFC 8259 Semantic JSON Tokenizer & Universal `x=y` Key-Value Highlighter
+- **Status**: Accepted
+- **Context**: The user requested that the rich context tokenizer be improved to support universal key-value forms like `x=y` and incorporate a proper, full-featured JSON tokenizer for embedded objects, arrays, and fields.
+- **Decision**:
+  1. Built **RFC 8259 JSON Lexer & Tokenizer** in [`src/utils/messageContextHighlighter.tsx`](file:///Users/amansaxena/Documents/Claude/Projects/LogViewer/src/utils/messageContextHighlighter.tsx):
+     - `tokenizeJson()`: Scans JSON characters into typed tokens: `key`, `string`, `number`, `boolean`, `null`, `punctuation`, `whitespace`.
+     - `findJsonBlocks()`: Uses balanced bracket/brace depth scanning to locate candidate JSON objects `{ ... }` and arrays `[ ... ]` and verifies syntactic validity via native parsing.
+     - `JsonChip`: Renders embedded JSON with a badge, interactive format toggle (switches between single-line compact and multi-line pretty-printed JSON), and copy button.
+     - Semantic Token Styling in [`src/index.css`](file:///Users/amansaxena/Documents/Claude/Projects/LogViewer/src/index.css):
+       - `.json-tok-key`: Bold cyan (`#38bdf8` dark, `#0284c7` light).
+       - `.json-tok-string`: Mint green (`#4ade80` dark, `#15803d` light).
+       - `.json-tok-number`: Warm amber/orange (`#fb923c` dark, `#c2410c` light).
+       - `.json-tok-boolean`: Vivid purple (`#c084fc` dark, `#7e22ce` light).
+       - `.json-tok-null`: Italic rose (`#f87171` dark, `#b91c1c` light).
+       - `.json-tok-punctuation`: Slate gray (`#94a3b8` dark, `#78716c` light).
+  2. Built **Universal `x=y` & Standalone JSON KV Highlighter**:
+     - Upgraded `KV_REGEX` to accurately match single-letter variables (`x=y`, `i=0`, `k=v`), spaced assignments (`x = y`, `a = 10`), quoted values (`x="hello world"`), and bracketed contexts (`[x=y]`, `(x=y)`), stripping trailing sentence punctuation.
+     - Added `JSON_KV_REGEX` to highlight unbracketed JSON fields (`"userId": 1042`, `"status": "APPROVED"`).
+  3. Added comprehensive automated tests in [`test/highlighter.test.ts`](file:///Users/amansaxena/Documents/Claude/Projects/LogViewer/test/highlighter.test.ts) (Tests 7, 8, 9, 10).
+- **Consequences**: Complex log messages containing nested JSON payloads, microservice webhooks, and raw variable assignments `x=y` are cleanly tokenized with IDE-grade syntax highlighting and interactive format/copy controls.

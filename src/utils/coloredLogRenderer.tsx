@@ -1,4 +1,5 @@
 import React from 'react';
+import { renderRichMessageContext } from './messageContextHighlighter.tsx';
 
 // ANSI escape code mappings to CSS hex colors
 const ANSI_COLOR_MAP: Record<string, string> = {
@@ -106,6 +107,7 @@ export function renderSyntaxColoredLine(rawLine: string): React.ReactNode {
   if (!hasBrackets) {
     const ansiOnly = renderAnsiText(rawLine);
     if (ansiOnly) return ansiOnly;
+    return renderRichMessageContext(rawLine);
   }
 
   // Bracket tokens regex
@@ -211,12 +213,20 @@ export function renderSyntaxColoredLine(rawLine: string): React.ReactNode {
   // Trailing remainder of line (message body)
   if (lastIndex < rawLine.length) {
     const remainder = rawLine.slice(lastIndex);
-    const ansiRemainder = renderAnsiText(remainder);
-    elements.push(
-      <span key={`rem-${lastIndex}`} style={{ color: 'var(--tok-msg)' }}>
-        {ansiRemainder || remainder}
-      </span>
-    );
+    if (remainder.includes('\x1b[')) {
+      const ansiRemainder = renderAnsiText(remainder);
+      elements.push(
+        <span key={`rem-${lastIndex}`} style={{ color: 'var(--tok-msg)' }}>
+          {ansiRemainder || remainder}
+        </span>
+      );
+    } else {
+      elements.push(
+        <span key={`rem-${lastIndex}`} style={{ color: 'var(--tok-msg)' }}>
+          {renderRichMessageContext(remainder)}
+        </span>
+      );
+    }
   }
 
   return <>{elements}</>;

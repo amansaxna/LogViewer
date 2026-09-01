@@ -4,9 +4,11 @@ import { LogEntry } from '../types.ts';
 import { LogRow } from './LogRow.tsx';
 import { CompactLogRow } from './CompactLogRow.tsx';
 import { renderSyntaxColoredLine } from '../utils/coloredLogRenderer.tsx';
+import { TopProgressBar, LogFeedSkeleton, CenterLoadingOverlay } from './Loaders.tsx';
 
 interface LogTableProps {
   entries: LogEntry[];
+  isLoading?: boolean;
   isLiveTail: boolean;
   onViewContext: (lineNumber: number) => void;
   wrapLines?: boolean;
@@ -24,6 +26,7 @@ interface LogTableProps {
 
 export const LogTable: React.FC<LogTableProps> = ({
   entries,
+  isLoading = false,
   isLiveTail,
   onViewContext,
   wrapLines = false,
@@ -62,6 +65,19 @@ export const LogTable: React.FC<LogTableProps> = ({
   }, [targetScrollIndex, entries.length, virtualizer]);
 
   if (entries.length === 0) {
+    if (isLoading) {
+      return (
+        <div style={{ position: 'relative', flex: 1, overflow: 'hidden', height: '100%' }}>
+          <TopProgressBar isVisible={true} />
+          <LogFeedSkeleton rows={16} />
+          <CenterLoadingOverlay
+            message="Indexing & Parsing Log Stream..."
+            subtext="Analyzing structured tokens, timestamps, correlations & stack traces"
+          />
+        </div>
+      );
+    }
+
     return (
       <div
         style={{
@@ -93,6 +109,7 @@ export const LogTable: React.FC<LogTableProps> = ({
         ref={parentRef}
         className="log-feed-container"
         style={{
+          position: 'relative',
           padding: '12px 16px',
           background: 'var(--bg-app)',
           fontFamily: 'var(--font-mono)',
@@ -103,6 +120,7 @@ export const LogTable: React.FC<LogTableProps> = ({
           overflowX: 'auto',
         }}
       >
+        <TopProgressBar isVisible={isLoading} />
         {entries.map((e) => {
           const isSelected = selectedLineNumber === e.lineNumber;
           return (
@@ -150,10 +168,12 @@ export const LogTable: React.FC<LogTableProps> = ({
       ref={parentRef}
       className="log-feed-container"
       style={{
+        position: 'relative',
         background: 'var(--bg-app)',
         paddingBottom: 40,
       }}
     >
+      <TopProgressBar isVisible={isLoading} />
       <div
         style={{
           height: `${virtualizer.getTotalSize()}px`,
@@ -200,6 +220,7 @@ export const LogTable: React.FC<LogTableProps> = ({
                   showPid={showPid}
                   showTid={showTid}
                   showCorrelation={showCorrelation}
+                  searchQuery={searchQuery}
                 />
               )}
             </div>
