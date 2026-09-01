@@ -93,3 +93,30 @@ This document captures the architectural decisions made during the design and im
 - **Context**: Users need to group and sort logs by workflow markers (e.g. `WF:InventoryAudit`, `WF:RefundProcess`), line numbers, duration, or timestamps.
 - **Decision**: Added `sortBy` and `sortOption` to `server/fileReader.ts` supporting `marker-asc`, `marker-desc`, `duration-desc`, `duration-asc`, `time-desc`, `time-asc`, `line-asc`, and `line-desc`.
 - **Consequences**: Allows inspecting workflow progression and slowest transactions in one click.
+
+---
+
+## ADR-010: Document-Active Workflow & Operation Dropdown Toggles
+- **Status**: Accepted
+- **Context**: Users need pills/dropdown toggles similar to the severity level pills to inspect and filter by all active workflows and operations present in the current document.
+- **Decision**: Dynamically compute `workflowCounts` and `operationCounts` in `server/fileReader.ts` across all entries in the active document. Expose two pill dropdown toggles in `Topbar.tsx` (purple for Workflows, orange for Operations) displaying live count badges, quick search filtering, active selection indicators, and one-click clear buttons.
+- **Consequences**: Enables multi-dimensional slicing of complex workflows and operations with sub-millisecond filtering.
+
+---
+
+## ADR-011: Global Keyboard Shortcuts & Line-by-Line Navigation
+- **Status**: Accepted
+- **Context**: Rapid log triage requires vim-like and arrow-key keyboard navigation without requiring mouse clicks. The user specifically requested: `down arrow: move to next log downwards (e.g. 5684 -> 5683), moving the yellow highlight accordingly`.
+- **Decision**: Implemented global window listener in `src/App.tsx` coordinating `ArrowDown`/`j`, `ArrowUp`/`k`, `PageDown`/`PageUp`, `Home`/`End`, `Enter`/`Space` (Context Viewer), `g` (Go to line), `/` (Focus search), `n`/`N` (Match navigation), `c` (Compact toggle), `w` (Wrap toggle), `t` (Live tail toggle), and `?` (Keyboard shortcuts cheat sheet modal).
+- **Consequences**: Fast keyboard-driven workflow, auto-scrolling virtual table keeping highlighted lines visible at all times.
+
+---
+
+## ADR-012: Collapsible Sidebar, Fullscreen Mode, and Popover Stacking
+- **Status**: Accepted
+- **Context**: The user identified that the Workflow/Operation dropdowns were being clipped vertically by `.level-pills-row` overflow, and requested a toggleable left panel (sidebar) and a full-screen button on the top right.
+- **Decision**:
+  1. Set `.level-pills-row` and `.topbar` to `overflow: visible; position: relative; z-index: 50;`. Dropdowns are rendered with `position: absolute; right: 0; zIndex: 1000;` over a fixed click-outside dismiss backdrop.
+  2. Implemented collapsible sidebar with smooth CSS width transition (`.sidebar.collapsed { width: 0; min-width: 0; }`), toggled via topbar button, sidebar header button, or `[` / `Ctrl+B` key shortcut.
+  3. Added Fullscreen button on the top right using the HTML5 Fullscreen API (`document.documentElement.requestFullscreen()`) with dynamic `fullscreenchange` synchronization.
+- **Consequences**: Unimpeded popover menus, maximum screen real estate for wide logs, and seamless distraction-free fullscreen triage.

@@ -22,6 +22,11 @@ import {
   Zap,
   ChevronDown,
   Check,
+  Keyboard,
+  Maximize,
+  Minimize,
+  PanelLeftClose,
+  PanelLeftOpen,
 } from 'lucide-react';
 import { LogLevel, LogSource, SortOption } from '../types.ts';
 
@@ -84,6 +89,13 @@ interface TopbarProps {
   onExportFiltered: () => void;
   theme: 'dark' | 'light';
   onToggleTheme: () => void;
+  onOpenShortcuts?: () => void;
+
+  // Sidebar & Fullscreen
+  isSidebarOpen?: boolean;
+  onToggleSidebar?: () => void;
+  isFullscreen?: boolean;
+  onToggleFullscreen?: () => void;
 }
 
 const AVAILABLE_LEVELS: { key: LogLevel; label: string }[] = [
@@ -126,19 +138,54 @@ export const Topbar: React.FC<TopbarProps> = ({
   selectedLevels,
   onToggleLevel,
   levelCounts,
+  selectedWorkflow,
+  onSelectWorkflow,
+  workflowCounts = {},
+  selectedOperation,
+  onSelectOperation,
+  operationCounts = {},
   isLiveTail,
   onToggleLiveTail,
   onExportFiltered,
   theme,
   onToggleTheme,
+  onOpenShortcuts,
+  isSidebarOpen,
+  onToggleSidebar,
+  isFullscreen,
+  onToggleFullscreen,
 }) => {
   const [showDatePicker, setShowDatePicker] = useState(false);
+  const [isWorkflowDropdownOpen, setIsWorkflowDropdownOpen] = useState(false);
+  const [isOperationDropdownOpen, setIsOperationDropdownOpen] = useState(false);
+  const [workflowSearch, setWorkflowSearch] = useState('');
+  const [operationSearch, setOperationSearch] = useState('');
+
   const isAllSelected = selectedLevels.length === 0;
 
   return (
     <header className="topbar" style={{ gap: 8, padding: '10px 16px' }}>
       {/* ROW 1: DUAL FILTERS, MATCH NAVIGATOR, GO TO LINE, LINE STATS (Image 4) */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+        {/* Toggle Left Panel Button */}
+        {onToggleSidebar && (
+          <button
+            className="btn-icon"
+            onClick={onToggleSidebar}
+            title={isSidebarOpen ? 'Collapse Left Panel ([)' : 'Expand Left Panel ([)'}
+            style={{
+              width: 34,
+              height: 34,
+              flexShrink: 0,
+              backgroundColor: !isSidebarOpen ? 'var(--accent-bg)' : undefined,
+              borderColor: !isSidebarOpen ? 'var(--accent-primary)' : undefined,
+              color: !isSidebarOpen ? 'var(--accent-primary)' : undefined,
+            }}
+          >
+            {isSidebarOpen ? <PanelLeftClose size={16} /> : <PanelLeftOpen size={16} />}
+          </button>
+        )}
+
         {/* Filter Box 1: Marker / Workflow Filter */}
         <div
           className="search-container"
@@ -339,6 +386,18 @@ export const Topbar: React.FC<TopbarProps> = ({
           >
             {theme === 'dark' ? <Sun size={14} /> : <Moon size={14} />}
           </button>
+
+          {/* Full Screen Button */}
+          {onToggleFullscreen && (
+            <button
+              className="btn-icon"
+              onClick={onToggleFullscreen}
+              title={isFullscreen ? 'Exit Full Screen (F11)' : 'Full Screen (F11)'}
+              style={{ width: 32, height: 32 }}
+            >
+              {isFullscreen ? <Minimize size={14} /> : <Maximize size={14} />}
+            </button>
+          )}
         </div>
       </div>
 
@@ -480,6 +539,24 @@ export const Topbar: React.FC<TopbarProps> = ({
             <FileText size={12} />
             Plain Text
           </button>
+
+          {/* Keyboard Shortcuts Button */}
+          <button
+            className="btn-secondary"
+            onClick={onOpenShortcuts}
+            style={{
+              height: 28,
+              padding: '0 8px',
+              fontSize: '0.76rem',
+              gap: 4,
+              color: 'var(--text-secondary)',
+            }}
+            title="View Keyboard Shortcuts (?)"
+          >
+            <Keyboard size={12} />
+            <span>Shortcuts</span>
+            <kbd style={{ fontSize: '0.65rem', background: 'var(--bg-surface)', padding: '1px 4px', borderRadius: 3, border: '1px solid var(--border-subtle)' }}>?</kbd>
+          </button>
         </div>
       </div>
 
@@ -508,6 +585,345 @@ export const Topbar: React.FC<TopbarProps> = ({
             </button>
           );
         })}
+
+        {/* DIVIDER */}
+        <div style={{ width: 1, height: 20, backgroundColor: 'var(--border-subtle)', margin: '0 4px', flexShrink: 0 }} />
+
+        {/* WORKFLOW DROPDOWN TOGGLE */}
+        <div style={{ position: 'relative' }}>
+          <button
+            className={`level-pill ${selectedWorkflow ? 'active' : ''}`}
+            onClick={() => {
+              setIsWorkflowDropdownOpen(!isWorkflowDropdownOpen);
+              setIsOperationDropdownOpen(false);
+            }}
+            style={{
+              backgroundColor: selectedWorkflow ? 'rgba(192, 132, 252, 0.2)' : undefined,
+              borderColor: selectedWorkflow ? '#c084fc' : undefined,
+              color: selectedWorkflow ? '#c084fc' : undefined,
+              fontWeight: selectedWorkflow ? 700 : undefined,
+            }}
+          >
+            <GitBranch size={12} />
+            <span>{selectedWorkflow ? selectedWorkflow : 'Workflows'}</span>
+            <span className="level-pill-count">
+              {selectedWorkflow ? (workflowCounts[selectedWorkflow] || 0) : Object.keys(workflowCounts).length}
+            </span>
+            <ChevronDown size={11} />
+          </button>
+
+          {/* Active workflow clear button */}
+          {selectedWorkflow && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onSelectWorkflow(null);
+              }}
+              style={{
+                position: 'absolute',
+                top: -4,
+                right: -4,
+                background: '#ef4444',
+                color: '#ffffff',
+                border: 'none',
+                borderRadius: '50%',
+                width: 15,
+                height: 15,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                cursor: 'pointer',
+                fontSize: '0.65rem',
+                fontWeight: 'bold',
+                zIndex: 2,
+              }}
+              title="Clear workflow filter"
+            >
+              ×
+            </button>
+          )}
+
+          {/* Workflow Dropdown Popup */}
+          {isWorkflowDropdownOpen && (
+            <>
+              <div
+                style={{ position: 'fixed', inset: 0, zIndex: 999 }}
+                onClick={() => setIsWorkflowDropdownOpen(false)}
+              />
+              <div
+                style={{
+                  position: 'absolute',
+                  top: 'calc(100% + 6px)',
+                  right: 0,
+                  background: '#0f172a',
+                  border: '1px solid rgba(192, 132, 252, 0.5)',
+                  borderRadius: 8,
+                  boxShadow: '0 20px 40px rgba(0, 0, 0, 0.95), 0 0 15px rgba(192, 132, 252, 0.25)',
+                  zIndex: 1000,
+                  minWidth: 280,
+                  maxWidth: 340,
+                  overflow: 'hidden',
+                  display: 'flex',
+                  flexDirection: 'column',
+                }}
+              >
+                <div style={{ padding: '8px 10px', borderBottom: '1px solid var(--border-subtle)', background: '#1e293b' }}>
+                  <input
+                    type="text"
+                    placeholder="Filter active workflows..."
+                    value={workflowSearch}
+                    onChange={(e) => setWorkflowSearch(e.target.value)}
+                    className="sidebar-search-input"
+                    style={{ fontSize: '0.78rem', padding: '5px 10px', background: '#0f172a', border: '1px solid #334155' }}
+                    autoFocus
+                  />
+                </div>
+
+                <div style={{ maxHeight: 260, overflowY: 'auto', padding: '4px 6px' }}>
+                <div
+                  onClick={() => {
+                    onSelectWorkflow(null);
+                    setIsWorkflowDropdownOpen(false);
+                  }}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    padding: '6px 8px',
+                    borderRadius: 4,
+                    cursor: 'pointer',
+                    fontSize: '0.78rem',
+                    backgroundColor: !selectedWorkflow ? 'var(--accent-bg)' : 'transparent',
+                    color: !selectedWorkflow ? 'var(--accent-primary)' : 'var(--text-primary)',
+                    fontWeight: !selectedWorkflow ? 600 : 400,
+                  }}
+                >
+                  <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <GitBranch size={12} />
+                    All Workflows
+                  </span>
+                  {!selectedWorkflow && <Check size={13} color="var(--accent-primary)" />}
+                </div>
+
+                {Object.entries(workflowCounts)
+                  .filter(([wf]) => wf.toLowerCase().includes(workflowSearch.toLowerCase()))
+                  .sort((a, b) => b[1] - a[1])
+                  .map(([wf, count]) => {
+                    const isSelected = selectedWorkflow === wf;
+                    return (
+                      <div
+                        key={wf}
+                        onClick={() => {
+                          onSelectWorkflow(isSelected ? null : wf);
+                          setIsWorkflowDropdownOpen(false);
+                        }}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          padding: '6px 8px',
+                          borderRadius: 4,
+                          cursor: 'pointer',
+                          fontSize: '0.78rem',
+                          backgroundColor: isSelected ? 'rgba(192, 132, 252, 0.2)' : 'transparent',
+                          color: isSelected ? '#c084fc' : 'var(--text-primary)',
+                          fontWeight: isSelected ? 600 : 400,
+                        }}
+                      >
+                        <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                          {wf}
+                        </span>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                          <span
+                            style={{
+                              fontSize: '0.7rem',
+                              fontFamily: 'var(--font-mono)',
+                              backgroundColor: 'var(--bg-surface)',
+                              padding: '1px 6px',
+                              borderRadius: 4,
+                              color: isSelected ? '#c084fc' : 'var(--text-muted)',
+                            }}
+                          >
+                            {count}
+                          </span>
+                          {isSelected && <Check size={13} color="#c084fc" />}
+                        </div>
+                      </div>
+                    );
+                  })}
+              </div>
+            </div>
+            </>
+          )}
+        </div>
+
+        {/* OPERATION DROPDOWN TOGGLE */}
+        <div style={{ position: 'relative' }}>
+          <button
+            className={`level-pill ${selectedOperation ? 'active' : ''}`}
+            onClick={() => {
+              setIsOperationDropdownOpen(!isOperationDropdownOpen);
+              setIsWorkflowDropdownOpen(false);
+            }}
+            style={{
+              backgroundColor: selectedOperation ? 'rgba(251, 146, 60, 0.2)' : undefined,
+              borderColor: selectedOperation ? '#fb923c' : undefined,
+              color: selectedOperation ? '#fb923c' : undefined,
+              fontWeight: selectedOperation ? 700 : undefined,
+            }}
+          >
+            <Zap size={12} />
+            <span>{selectedOperation ? selectedOperation : 'Operations'}</span>
+            <span className="level-pill-count">
+              {selectedOperation ? (operationCounts[selectedOperation] || 0) : Object.keys(operationCounts).length}
+            </span>
+            <ChevronDown size={11} />
+          </button>
+
+          {/* Active operation clear button */}
+          {selectedOperation && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onSelectOperation(null);
+              }}
+              style={{
+                position: 'absolute',
+                top: -4,
+                right: -4,
+                background: '#ef4444',
+                color: '#ffffff',
+                border: 'none',
+                borderRadius: '50%',
+                width: 15,
+                height: 15,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                cursor: 'pointer',
+                fontSize: '0.65rem',
+                fontWeight: 'bold',
+                zIndex: 2,
+              }}
+              title="Clear operation filter"
+            >
+              ×
+            </button>
+          )}
+
+          {/* Operation Dropdown Popup */}
+          {isOperationDropdownOpen && (
+            <>
+              <div
+                style={{ position: 'fixed', inset: 0, zIndex: 999 }}
+                onClick={() => setIsOperationDropdownOpen(false)}
+              />
+              <div
+                style={{
+                  position: 'absolute',
+                  top: 'calc(100% + 6px)',
+                  right: 0,
+                  background: '#0f172a',
+                  border: '1px solid rgba(251, 146, 60, 0.5)',
+                  borderRadius: 8,
+                  boxShadow: '0 20px 40px rgba(0, 0, 0, 0.95), 0 0 15px rgba(251, 146, 60, 0.25)',
+                  zIndex: 1000,
+                  minWidth: 280,
+                  maxWidth: 360,
+                  overflow: 'hidden',
+                  display: 'flex',
+                  flexDirection: 'column',
+                }}
+              >
+                <div style={{ padding: '8px 10px', borderBottom: '1px solid var(--border-subtle)', background: '#1e293b' }}>
+                  <input
+                    type="text"
+                    placeholder="Filter active operations..."
+                    value={operationSearch}
+                    onChange={(e) => setOperationSearch(e.target.value)}
+                    className="sidebar-search-input"
+                    style={{ fontSize: '0.78rem', padding: '5px 10px', background: '#0f172a', border: '1px solid #334155' }}
+                    autoFocus
+                  />
+                </div>
+
+                <div style={{ maxHeight: 260, overflowY: 'auto', padding: '4px 6px' }}>
+                  <div
+                    onClick={() => {
+                      onSelectOperation(null);
+                      setIsOperationDropdownOpen(false);
+                    }}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      padding: '6px 8px',
+                      borderRadius: 4,
+                      cursor: 'pointer',
+                      fontSize: '0.78rem',
+                      backgroundColor: !selectedOperation ? 'var(--accent-bg)' : 'transparent',
+                      color: !selectedOperation ? 'var(--accent-primary)' : 'var(--text-primary)',
+                      fontWeight: !selectedOperation ? 600 : 400,
+                    }}
+                  >
+                    <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <Zap size={12} />
+                      All Operations
+                    </span>
+                    {!selectedOperation && <Check size={13} color="var(--accent-primary)" />}
+                  </div>
+
+                  {Object.entries(operationCounts)
+                    .filter(([op]) => op.toLowerCase().includes(operationSearch.toLowerCase()))
+                    .sort((a, b) => b[1] - a[1])
+                    .map(([op, count]) => {
+                      const isSelected = selectedOperation === op;
+                      return (
+                        <div
+                          key={op}
+                          onClick={() => {
+                            onSelectOperation(isSelected ? null : op);
+                            setIsOperationDropdownOpen(false);
+                          }}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            padding: '6px 8px',
+                            borderRadius: 4,
+                            cursor: 'pointer',
+                            fontSize: '0.78rem',
+                            backgroundColor: isSelected ? 'rgba(251, 146, 60, 0.2)' : 'transparent',
+                            color: isSelected ? '#fb923c' : 'var(--text-primary)',
+                            fontWeight: isSelected ? 600 : 400,
+                          }}
+                        >
+                          <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                            {op}
+                          </span>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                            <span
+                              style={{
+                                fontSize: '0.7rem',
+                                fontFamily: 'var(--font-mono)',
+                                backgroundColor: 'var(--bg-surface)',
+                                padding: '1px 6px',
+                                borderRadius: 4,
+                                color: isSelected ? '#fb923c' : 'var(--text-muted)',
+                              }}
+                            >
+                              {count}
+                            </span>
+                            {isSelected && <Check size={13} color="#fb923c" />}
+                          </div>
+                        </div>
+                      );
+                    })}
+                </div>
+              </div>
+            </>
+          )}
+        </div>
       </div>
     </header>
   );

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Terminal, FileText, Plus, X, Search, Folder, CloudUpload, Link2, ClipboardList } from 'lucide-react';
+import { Terminal, FileText, Plus, X, Search, Folder, CloudUpload, Link2, ClipboardList, PanelLeftClose } from 'lucide-react';
 import { LogSource } from '../types.ts';
 
 interface SidebarProps {
@@ -11,6 +11,8 @@ interface SidebarProps {
   onToggleLiveTail: () => void;
   isLiveTail: boolean;
   onRemoveCustomSource: (id: string) => void;
+  isOpen?: boolean;
+  onToggleOpen?: () => void;
 }
 
 function formatBytes(bytes?: number): string {
@@ -30,6 +32,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onToggleLiveTail,
   isLiveTail,
   onRemoveCustomSource,
+  isOpen = true,
+  onToggleOpen,
 }) => {
   const [filterText, setFilterText] = useState('');
 
@@ -44,16 +48,28 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const categories = Array.from(new Set(filteredSources.map((s) => s.category || 'General')));
 
   return (
-    <aside className="sidebar">
+    <aside className={`sidebar ${!isOpen ? 'collapsed' : ''}`}>
       {/* Header */}
-      <div className="sidebar-header">
-        <div className="sidebar-logo">
-          <Terminal size={18} />
+      <div className="sidebar-header" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <div className="sidebar-logo">
+            <Terminal size={18} />
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column' }}>
+            <span className="sidebar-title">LogViewer.io</span>
+            <span style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>Modern log analyzer</span>
+          </div>
         </div>
-        <div style={{ display: 'flex', flexDirection: 'column' }}>
-          <span className="sidebar-title">LogViewer.io</span>
-          <span style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>Modern log analyzer</span>
-        </div>
+        {onToggleOpen && (
+          <button
+            className="btn-icon"
+            onClick={onToggleOpen}
+            title="Collapse left panel ([)"
+            style={{ width: 28, height: 28, flexShrink: 0 }}
+          >
+            <PanelLeftClose size={15} />
+          </button>
+        )}
       </div>
 
       {/* Quick Action Buttons (Matching Image 2) */}

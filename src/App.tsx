@@ -7,6 +7,7 @@ import { OpenFileModal } from './components/OpenFileModal.tsx';
 import { ContextModal } from './components/ContextModal.tsx';
 import { PasteLogsModal } from './components/PasteLogsModal.tsx';
 import { GoToLineModal } from './components/GoToLineModal.tsx';
+import { KeyboardShortcutsModal } from './components/KeyboardShortcutsModal.tsx';
 
 export const App: React.FC = () => {
   const [sources, setSources] = useState<LogSource[]>([]);
@@ -20,6 +21,8 @@ export const App: React.FC = () => {
   const [caseSensitive, setCaseSensitive] = useState(false);
   const [invert, setInvert] = useState(false);
   const [selectedLevels, setSelectedLevels] = useState<LogLevel[]>([]);
+  const [selectedWorkflow, setSelectedWorkflow] = useState<string | null>(null);
+  const [selectedOperation, setSelectedOperation] = useState<string | null>(null);
   const [sortOption, setSortOption] = useState<SortOption>('time-desc');
   const [wrapLines, setWrapLines] = useState(false);
   const [viewMode, setViewMode] = useState<'compact' | 'standard' | 'raw'>('compact');
@@ -34,6 +37,8 @@ export const App: React.FC = () => {
   const [totalEntries, setTotalEntries] = useState(0);
   const [durationMs, setDurationMs] = useState(0);
   const [levelCounts, setLevelCounts] = useState<Record<string, number>>({});
+  const [workflowCounts, setWorkflowCounts] = useState<Record<string, number>>({});
+  const [operationCounts, setOperationCounts] = useState<Record<string, number>>({});
 
   // Live tail
   const [isLiveTail, setIsLiveTail] = useState(false);
@@ -49,6 +54,36 @@ export const App: React.FC = () => {
   const [isPasteModalOpen, setIsPasteModalOpen] = useState(false);
   const [isGoToLineModalOpen, setIsGoToLineModalOpen] = useState(false);
   const [contextLineNumber, setContextLineNumber] = useState<number | null>(null);
+  const [isShortcutsOpen, setIsShortcutsOpen] = useState(false);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(() => {
+    return localStorage.getItem('lv_sidebar') !== 'false';
+  });
+  const [isFullscreen, setIsFullscreen] = useState(false);
+
+  // Fullscreen change listener
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      setIsFullscreen(Boolean(document.fullscreenElement));
+    };
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
+  }, []);
+
+  const toggleSidebar = () => {
+    setIsSidebarOpen((prev) => {
+      const next = !prev;
+      localStorage.setItem('lv_sidebar', String(next));
+      return next;
+    });
+  };
+
+  const toggleFullscreen = () => {
+    if (!document.fullscreenElement) {
+      document.documentElement.requestFullscreen().catch(() => {});
+    } else {
+      document.exitFullscreen().catch(() => {});
+    }
+  };
 
   // Apply theme to document
   useEffect(() => {
@@ -127,6 +162,12 @@ export const App: React.FC = () => {
     if (selectedLevels.length > 0) {
       params.append('levels', selectedLevels.join(','));
     }
+    if (selectedWorkflow) {
+      params.append('workflow', selectedWorkflow);
+    }
+    if (selectedOperation) {
+      params.append('operation', selectedOperation);
+    }
 
     try {
       const res = await fetch(`/api/logs/entries?${params.toString()}`);
@@ -137,6 +178,8 @@ export const App: React.FC = () => {
       setTotalEntries(data.total);
       setDurationMs(data.durationMs);
       setLevelCounts(data.levelCounts);
+      setWorkflowCounts(data.workflowCounts || {});
+      setOperationCounts(data.operationCounts || {});
       setCurrentMatchIndex(1);
     } catch (err) {
       console.error('Failed to query entries:', err);
@@ -149,6 +192,8 @@ export const App: React.FC = () => {
     caseSensitive,
     invert,
     selectedLevels,
+    selectedWorkflow,
+    selectedOperation,
     sortOption,
   ]);
 
@@ -223,6 +268,219 @@ export const App: React.FC = () => {
       setCurrentMatchIndex(closestIdx + 1);
     }
   };
+
+  // Global Keyboard Shortcuts
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement;
+      const isTyping =
+        target.tagName === 'INPUT' ||
+        target.tagName === 'TEXTAREA' ||
+        target.isContentEditable;
+
+      // Escape key closes open modals or deselects line
+      if (e.key === 'Escape') {
+        if (isShortcutsOpen) { setIsShortcutsOpen(false); return; }
+        if (contextLineNumber !== null) { setContextLineNumber(null); return; }
+        if (isGoToLineModalOpen) { setIsGoToLineModalOpen(false); return; }
+        if (isPasteModalOpen) { setIsPasteModalOpen(false); return; }
+        if (isOpenModalOpen) { setIsOpenModalOpen(false); return; }
+        if (isTyping) { target.blur(); return; }
+        setSelectedLineNumber(null);
+        return;
+      }
+
+      // If user is actively typing in a form input or search box, don't trigger hotkeys
+      if (isTyping) return;
+
+      // Don't navigate background feed if a modal is open
+      if (isOpenModalOpen || isPasteModalOpen || isGoToLineModalOpen || contextLineNumber !== null || isShortcutsOpen) {
+        return;
+      }
+
+      // 1. Down Arrow or 'j': Move to next log downwards
+      if (e.key === 'ArrowDown' || e.key === 'j') {
+        e.preventDefault();
+        if (entries.length === 0) return;
+        const currentIdx = selectedLineNumber !== null
+          ? entries.findIndex((entry) => entry.lineNumber === selectedLineNumber)
+          : -1;
+        const nextIdx = currentIdx === -1
+          ? 0
+          : Math.min(entries.length - 1, currentIdx + 1);
+        const targetEntry = entries[nextIdx];
+        if (targetEntry) {
+          setSelectedLineNumber(targetEntry.lineNumber);
+          setTargetScrollIndex(nextIdx);
+          setCurrentMatchIndex(nextIdx + 1);
+        }
+        return;
+      }
+
+      // 2. Up Arrow or 'k': Move to previous log upwards
+      if (e.key === 'ArrowUp' || e.key === 'k') {
+        e.preventDefault();
+        if (entries.length === 0) return;
+        const currentIdx = selectedLineNumber !== null
+          ? entries.findIndex((entry) => entry.lineNumber === selectedLineNumber)
+          : -1;
+        const prevIdx = currentIdx === -1
+          ? 0
+          : Math.max(0, currentIdx - 1);
+        const targetEntry = entries[prevIdx];
+        if (targetEntry) {
+          setSelectedLineNumber(targetEntry.lineNumber);
+          setTargetScrollIndex(prevIdx);
+          setCurrentMatchIndex(prevIdx + 1);
+        }
+        return;
+      }
+
+      // 3. PageDown / PageUp: Jump 15 logs
+      if (e.key === 'PageDown') {
+        e.preventDefault();
+        if (entries.length === 0) return;
+        const currentIdx = selectedLineNumber !== null
+          ? entries.findIndex((entry) => entry.lineNumber === selectedLineNumber)
+          : 0;
+        const nextIdx = Math.min(entries.length - 1, currentIdx + 15);
+        const targetEntry = entries[nextIdx];
+        if (targetEntry) {
+          setSelectedLineNumber(targetEntry.lineNumber);
+          setTargetScrollIndex(nextIdx);
+          setCurrentMatchIndex(nextIdx + 1);
+        }
+        return;
+      }
+      if (e.key === 'PageUp') {
+        e.preventDefault();
+        if (entries.length === 0) return;
+        const currentIdx = selectedLineNumber !== null
+          ? entries.findIndex((entry) => entry.lineNumber === selectedLineNumber)
+          : 0;
+        const prevIdx = Math.max(0, currentIdx - 15);
+        const targetEntry = entries[prevIdx];
+        if (targetEntry) {
+          setSelectedLineNumber(targetEntry.lineNumber);
+          setTargetScrollIndex(prevIdx);
+          setCurrentMatchIndex(prevIdx + 1);
+        }
+        return;
+      }
+
+      // 4. Home / End
+      if (e.key === 'Home') {
+        e.preventDefault();
+        if (entries.length > 0) {
+          setSelectedLineNumber(entries[0].lineNumber);
+          setTargetScrollIndex(0);
+          setCurrentMatchIndex(1);
+        }
+        return;
+      }
+      if (e.key === 'End') {
+        e.preventDefault();
+        if (entries.length > 0) {
+          const lastIdx = entries.length - 1;
+          setSelectedLineNumber(entries[lastIdx].lineNumber);
+          setTargetScrollIndex(lastIdx);
+          setCurrentMatchIndex(entries.length);
+        }
+        return;
+      }
+
+      // 5. Enter or Space: Open Context Modal for selected line
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        if (selectedLineNumber !== null) {
+          setContextLineNumber(selectedLineNumber);
+        }
+        return;
+      }
+
+      // 6. 'g': Open "Go to line" modal
+      if (e.key === 'g') {
+        e.preventDefault();
+        setIsGoToLineModalOpen(true);
+        return;
+      }
+
+      // 7. '/': Focus global content search
+      if (e.key === '/') {
+        e.preventDefault();
+        const searchInput = document.querySelector('input[placeholder="Search in log lines..."]') as HTMLInputElement;
+        searchInput?.focus();
+        return;
+      }
+
+      // 8. 'n' / 'N': Next / previous search match
+      if (e.key === 'n' && !e.shiftKey) {
+        e.preventDefault();
+        handleNextMatch();
+        return;
+      }
+      if ((e.key === 'n' && e.shiftKey) || e.key === 'N') {
+        e.preventDefault();
+        handlePrevMatch();
+        return;
+      }
+
+      // 9. 'c': Toggle Compact View / Detailed Cards
+      if (e.key === 'c') {
+        e.preventDefault();
+        setViewMode((prev) => (prev === 'compact' ? 'standard' : 'compact'));
+        return;
+      }
+
+      // 10. 'w': Toggle word wrap
+      if (e.key === 'w') {
+        e.preventDefault();
+        setWrapLines((prev) => !prev);
+        return;
+      }
+
+      // 11. 't': Toggle Live Tail
+      if (e.key === 't') {
+        e.preventDefault();
+        setIsLiveTail((prev) => !prev);
+        return;
+      }
+
+      // 12. '[' or (Cmd/Ctrl + b): Toggle left panel
+      if (e.key === '[' || ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'b')) {
+        e.preventDefault();
+        toggleSidebar();
+        return;
+      }
+
+      // 13. 'F11': Toggle fullscreen
+      if (e.key === 'F11') {
+        e.preventDefault();
+        toggleFullscreen();
+        return;
+      }
+
+      // 14. '?': Show keyboard shortcuts cheat sheet
+      if (e.key === '?') {
+        e.preventDefault();
+        setIsShortcutsOpen(true);
+        return;
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [
+    entries,
+    selectedLineNumber,
+    isOpenModalOpen,
+    isPasteModalOpen,
+    isGoToLineModalOpen,
+    contextLineNumber,
+    isShortcutsOpen,
+    handleNextMatch,
+    handlePrevMatch,
+  ]);
 
   // Export Filtered Logs
   const handleExportFiltered = () => {
@@ -299,6 +557,8 @@ export const App: React.FC = () => {
         onToggleLiveTail={() => setIsLiveTail(!isLiveTail)}
         isLiveTail={isLiveTail}
         onRemoveCustomSource={handleRemoveCustomSource}
+        isOpen={isSidebarOpen}
+        onToggleOpen={toggleSidebar}
       />
 
       {/* Main Content Area */}
@@ -334,11 +594,22 @@ export const App: React.FC = () => {
           selectedLevels={selectedLevels}
           onToggleLevel={handleToggleLevel}
           levelCounts={levelCounts}
+          selectedWorkflow={selectedWorkflow}
+          onSelectWorkflow={setSelectedWorkflow}
+          workflowCounts={workflowCounts}
+          selectedOperation={selectedOperation}
+          onSelectOperation={setSelectedOperation}
+          operationCounts={operationCounts}
           isLiveTail={isLiveTail}
           onToggleLiveTail={() => setIsLiveTail(!isLiveTail)}
           onExportFiltered={handleExportFiltered}
           theme={theme}
           onToggleTheme={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
+          onOpenShortcuts={() => setIsShortcutsOpen(true)}
+          isSidebarOpen={isSidebarOpen}
+          onToggleSidebar={toggleSidebar}
+          isFullscreen={isFullscreen}
+          onToggleFullscreen={toggleFullscreen}
         />
 
         {/* Log Feed Table */}
@@ -381,6 +652,11 @@ export const App: React.FC = () => {
         onClose={() => setContextLineNumber(null)}
         sourceId={activeSourceId || ''}
         lineNumber={contextLineNumber}
+      />
+
+      <KeyboardShortcutsModal
+        isOpen={isShortcutsOpen}
+        onClose={() => setIsShortcutsOpen(false)}
       />
     </div>
   );

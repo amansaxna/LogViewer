@@ -109,7 +109,26 @@ async function runApiTests() {
   assert.ok(pasteData.source.id.startsWith('custom-'));
   console.log(`✓ Test 10 Passed: Successfully pasted logs and registered source ${pasteData.source.id}`);
 
-  console.log('\nAll 10 API Integration Tests Passed Successfully!');
+  // Test 11: Workflow and Operation active counts
+  const countsRes = await fetch(`${BASE_URL}/api/logs/entries?sourceId=app-workflow`);
+  assert.strictEqual(countsRes.status, 200);
+  const countsData = await countsRes.json();
+  assert.ok(countsData.workflowCounts && Object.keys(countsData.workflowCounts).length > 0, 'Should have workflow counts');
+  assert.ok(countsData.operationCounts && Object.keys(countsData.operationCounts).length > 0, 'Should have operation counts');
+  console.log(`✓ Test 11 Passed: Discovered ${Object.keys(countsData.workflowCounts).length} workflows and ${Object.keys(countsData.operationCounts).length} operations`);
+
+  // Test 12: Filter by Workflow and Operation
+  const filterWfRes = await fetch(`${BASE_URL}/api/logs/entries?sourceId=app-workflow&workflow=OrderCheckout&operation=ReserveInventory`);
+  assert.strictEqual(filterWfRes.status, 200);
+  const filterWfData = await filterWfRes.json();
+  assert.ok(filterWfData.entries.length > 0, 'Should return matching entries for OrderCheckout + ReserveInventory');
+  for (const entry of filterWfData.entries) {
+    assert.ok(entry.workflow?.includes('OrderCheckout'));
+    assert.ok(entry.operation?.includes('ReserveInventory'));
+  }
+  console.log(`✓ Test 12 Passed: Filter by OrderCheckout + ReserveInventory returned ${filterWfData.entries.length} entries`);
+
+  console.log('\nAll 12 API Integration Tests Passed Successfully!');
 }
 
 runApiTests().catch((err) => {

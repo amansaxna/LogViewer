@@ -46,10 +46,10 @@ export const LogTable: React.FC<LogTableProps> = ({
     }
   }, [entries.length, isLiveTail]);
 
-  // Scroll to target index when match or go-to-line changes
+  // Scroll to target index when match, arrow keys, or go-to-line changes
   useEffect(() => {
     if (targetScrollIndex !== undefined && targetScrollIndex !== null && targetScrollIndex >= 0 && targetScrollIndex < entries.length) {
-      virtualizer.scrollToIndex(targetScrollIndex, { align: 'center' });
+      virtualizer.scrollToIndex(targetScrollIndex, { align: 'auto' });
     }
   }, [targetScrollIndex, entries.length, virtualizer]);
 
