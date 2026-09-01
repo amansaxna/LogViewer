@@ -173,7 +173,24 @@ async function runApiTests() {
   assert.ok(rotData.entries.length > 0, 'Should return entries from rotated log archive');
   console.log(`✓ Test 17 Passed: Rotated archive "${rot1.name}" correctly grouped and loaded ${rotData.entries.length} archived entries`);
 
-  console.log('\nAll 17 API Integration Tests Passed Successfully!');
+  // Test 18: Live stream append endpoint
+  const appendRes = await fetch(`${BASE_URL}/api/logs/append`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      sourceId: 'app-workflow',
+      lines: [
+        '[2026-09-02 03:00:00.000] [PID:999] [TID:111] [corr-stream-test] [Stream.Live] [SPEED] [Process] [SUCCESS] [5ms] Real-time stream rate verified [stream.ts::42]',
+      ],
+    }),
+  });
+  assert.strictEqual(appendRes.status, 200);
+  const appendData = await appendRes.json();
+  assert.strictEqual(appendData.success, true);
+  assert.strictEqual(appendData.count, 1);
+  console.log(`✓ Test 18 Passed: Appended new live entry for real-time rate monitoring`);
+
+  console.log('\nAll 18 API Integration Tests Passed Successfully!');
 }
 
 runApiTests().catch((err) => {

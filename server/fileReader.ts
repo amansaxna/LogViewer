@@ -72,6 +72,7 @@ export function queryLogs(query: LogQuery): LogQueryResult {
     warning: 0,
     notice: 0,
     info: 0,
+    audit: 0,
     debug: 0,
     trace: 0,
   };

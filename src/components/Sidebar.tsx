@@ -26,6 +26,7 @@ interface SidebarProps {
   onOpenPasteModal: () => void;
   onToggleLiveTail: () => void;
   isLiveTail: boolean;
+  liveLogsPerSec?: number;
   onRemoveCustomSource: (id: string) => void;
   isOpen?: boolean;
   onToggleOpen?: () => void;
@@ -56,6 +57,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onOpenPasteModal,
   onToggleLiveTail,
   isLiveTail,
+  liveLogsPerSec = 0,
   onRemoveCustomSource,
   isOpen = true,
   onToggleOpen,
@@ -166,7 +168,25 @@ export const Sidebar: React.FC<SidebarProps> = ({
           }}
         >
           <Link2 size={15} />
-          {isLiveTail ? 'Streaming File (Active)' : 'Stream File'}
+          {isLiveTail ? (
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+              <span>Streaming File</span>
+              <span
+                style={{
+                  background: 'rgba(34, 197, 94, 0.25)',
+                  padding: '1px 6px',
+                  borderRadius: 4,
+                  fontSize: '0.72rem',
+                  fontWeight: 700,
+                  fontFamily: 'var(--font-mono)',
+                }}
+              >
+                {liveLogsPerSec} logs/s
+              </span>
+            </span>
+          ) : (
+            'Stream File'
+          )}
         </button>
 
         {/* Paste Logs Button */}

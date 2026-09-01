@@ -26,7 +26,7 @@ export const App: React.FC = () => {
   const [selectedCorrelation, setSelectedCorrelation] = useState<string | null>(null);
   const [startDate, setStartDate] = useState<string | null>(null);
   const [endDate, setEndDate] = useState<string | null>(null);
-  const [sortOption, setSortOption] = useState<SortOption>('time-desc');
+  const [sortOption, setSortOption] = useState<SortOption>('time-asc');
   const [wrapLines, setWrapLines] = useState(false);
   const [viewMode, setViewMode] = useState<'compact' | 'standard' | 'raw'>('compact');
 
@@ -46,7 +46,10 @@ export const App: React.FC = () => {
 
   // Live tail
   const [isLiveTail, setIsLiveTail] = useState(false);
+  const [liveLogsPerSec, setLiveLogsPerSec] = useState<number>(0);
   const eventSourceRef = useRef<EventSource | null>(null);
+  const recentArrivalsRef = useRef<{ timestamp: number; count: number }[]>([]);
+  const prevTotalEntriesRef = useRef<number | null>(null);
 
   // Theme
   const [theme, setTheme] = useState<'dark' | 'light'>(() => {
@@ -187,6 +190,18 @@ export const App: React.FC = () => {
       if (!res.ok) throw new Error('Query failed');
       const data: LogQueryResult = await res.json();
 
+      // Track newly added logs in live tail mode
+      if (prevTotalEntriesRef.current !== null && data.total > prevTotalEntriesRef.current && isLiveTail) {
+        const diff = data.total - prevTotalEntriesRef.current;
+        const recentSum = recentArrivalsRef.current
+          .filter((item) => Date.now() - item.timestamp <= 1200)
+          .reduce((acc, item) => acc + item.count, 0);
+        if (diff > recentSum) {
+          recentArrivalsRef.current.push({ timestamp: Date.now(), count: diff - recentSum });
+        }
+      }
+      prevTotalEntriesRef.current = data.total;
+
       setEntries(data.entries);
       setTotalEntries(data.total);
       setDurationMs(data.durationMs);
@@ -212,11 +227,30 @@ export const App: React.FC = () => {
     startDate,
     endDate,
     sortOption,
+    isLiveTail,
   ]);
 
   useEffect(() => {
     fetchEntries();
   }, [fetchEntries]);
+
+  // Track logs added per second
+  useEffect(() => {
+    if (!isLiveTail) {
+      setLiveLogsPerSec(0);
+      recentArrivalsRef.current = [];
+      return;
+    }
+
+    const interval = setInterval(() => {
+      const now = Date.now();
+      recentArrivalsRef.current = recentArrivalsRef.current.filter((item) => now - item.timestamp <= 1200);
+      const sum = recentArrivalsRef.current.reduce((acc, item) => acc + item.count, 0);
+      setLiveLogsPerSec(sum);
+    }, 400);
+
+    return () => clearInterval(interval);
+  }, [isLiveTail]);
 
   // Setup SSE Live Tail
   useEffect(() => {
@@ -231,6 +265,8 @@ export const App: React.FC = () => {
         try {
           const payload = JSON.parse(event.data);
           if (payload.type === 'file_changed') {
+            const addedCount = payload.addedLogs || 1;
+            recentArrivalsRef.current.push({ timestamp: Date.now(), count: addedCount });
             fetchEntries();
             fetchSources();
           }
@@ -245,6 +281,22 @@ export const App: React.FC = () => {
       }
     };
   }, [isLiveTail, activeSourceId, fetchEntries, fetchSources]);
+
+  // Toggle Live Tail:
+  // When tail is ON: always show latest at the top (time-desc, scroll to top)
+  // When tail is NOT set: show in the direction of the flow of logs (time-asc, natural chronological flow)
+  const handleToggleLiveTail = () => {
+    setIsLiveTail((prev) => {
+      const next = !prev;
+      if (next) {
+        setSortOption('time-desc');
+        setTargetScrollIndex(0);
+      } else {
+        setSortOption('time-asc');
+      }
+      return next;
+    });
+  };
 
   // Match Navigation Handlers (< > buttons)
   const handlePrevMatch = () => {
@@ -473,7 +525,7 @@ export const App: React.FC = () => {
       // 11. 't': Toggle Live Tail
       if (e.key === 't') {
         e.preventDefault();
-        setIsLiveTail((prev) => !prev);
+        handleToggleLiveTail();
         return;
       }
 
@@ -585,8 +637,9 @@ export const App: React.FC = () => {
         onSelectSource={(id) => setActiveSourceId(id)}
         onOpenModal={() => setIsOpenModalOpen(true)}
         onOpenPasteModal={() => setIsPasteModalOpen(true)}
-        onToggleLiveTail={() => setIsLiveTail(!isLiveTail)}
+        onToggleLiveTail={handleToggleLiveTail}
         isLiveTail={isLiveTail}
+        liveLogsPerSec={liveLogsPerSec}
         onRemoveCustomSource={handleRemoveCustomSource}
         isOpen={isSidebarOpen}
         onToggleOpen={toggleSidebar}
@@ -636,7 +689,8 @@ export const App: React.FC = () => {
           onSelectCorrelation={setSelectedCorrelation}
           correlationCounts={correlationCounts}
           isLiveTail={isLiveTail}
-          onToggleLiveTail={() => setIsLiveTail(!isLiveTail)}
+          liveLogsPerSec={liveLogsPerSec}
+          onToggleLiveTail={handleToggleLiveTail}
           onExportFiltered={handleExportFiltered}
           theme={theme}
           onToggleTheme={() => setTheme(theme === 'dark' ? 'light' : 'dark')}

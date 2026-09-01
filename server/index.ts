@@ -172,18 +172,66 @@ app.get('/api/logs/stream', (req: Request, res: Response) => {
       const stats = fs.statSync(resolvedPath);
 
       if (stats.size !== lastSize) {
+        let addedLogs = 0;
+        if (stats.size > lastSize && lastSize > 0) {
+          try {
+            const diff = stats.size - lastSize;
+            const readLen = Math.min(diff, 256 * 1024);
+            const buffer = Buffer.alloc(readLen);
+            const fd = fs.openSync(resolvedPath, 'r');
+            fs.readSync(fd, buffer, 0, readLen, lastSize);
+            fs.closeSync(fd);
+            const text = buffer.toString('utf-8');
+            const lines = text.split('\n').filter((l) => l.trim().length > 0);
+            addedLogs = Math.max(1, lines.length);
+          } catch {
+            addedLogs = 1;
+          }
+        }
+
         lastSize = stats.size;
         clearFileCache(resolvedPath);
-        res.write(`data: ${JSON.stringify({ type: 'file_changed', sourceId, size: stats.size, modifiedAt: stats.mtime.toISOString() })}\n\n`);
+        res.write(
+          `data: ${JSON.stringify({
+            type: 'file_changed',
+            sourceId,
+            size: stats.size,
+            modifiedAt: stats.mtime.toISOString(),
+            addedLogs,
+          })}\n\n`
+        );
       }
     } catch (err) {
       // file read err
     }
-  }, 1000);
+  }, 500);
 
   req.on('close', () => {
     clearInterval(pollInterval);
   });
+});
+
+// Endpoint to append logs (useful for live tailing test & simulation)
+app.post('/api/logs/append', (req: Request, res: Response) => {
+  try {
+    const { sourceId, lines } = req.body;
+    const source = findSourceById(sourceId);
+    if (!source) {
+      res.status(404).json({ error: 'Source not found' });
+      return;
+    }
+    const resolvedPath = path.isAbsolute(source.path)
+      ? source.path
+      : path.resolve(process.cwd(), source.path);
+
+    const logLines = Array.isArray(lines) ? lines : [lines || ''];
+    const content = logLines.join('\n') + '\n';
+    fs.appendFileSync(resolvedPath, content, 'utf-8');
+    clearFileCache(resolvedPath);
+    res.json({ success: true, count: logLines.length });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || 'Failed to append logs' });
+  }
 });
 
 // 7. Clear log file content

@@ -270,3 +270,58 @@ This document captures the architectural decisions made during the design and im
      - Status: `#16a34a` (Green), `#dc2626` (Red), `#d97706` (Amber)
      - Message: `#0f172a` (Crisp dark text)
 - **Consequences**: Instantly clean, professional, crystal-clear light mode with zero muddy yellow tint and exceptional readability.
+
+---
+
+## ADR-021: Warm Alabaster & Amber Stone Light Theme
+- **Status**: Accepted
+- **Context**: The user requested a "more warm view" for light mode (moving away from cold blue-slate while avoiding muddy yellow tones).
+- **Decision**:
+  1. Updated `[data-theme='light']` in `src/index.css` to a cozy, natural Warm Alabaster & Amber Stone palette (modeled after Apple Books and Notion warm paper):
+     - Canvas background: `#faf7f2` (soft warm alabaster paper, zero harsh blue/white glare).
+     - Sidebar: `#f3eee5` (warm linen / parchment).
+     - Controls & inputs: `#eae4d8` (soft warm oat).
+     - Subtle borders: `#ded7ca` (delicate stone).
+     - Typography: `#1c1917` (Stone-900: warm deep charcoal espresso ink).
+     - Accent: `#d97706` (warm amber-600) with warm honey glow.
+     - Size badges: `#ece5d9` with `#ddd5c7` border and `#292524` text.
+     - EconViewer title gradient: `#d97706` to `#c2410c` (warm amber to terracotta).
+  2. Preserved high-contrast syntax highlighting for all flat log tokens (cyan datetime, emerald correlation ID, royal violet workflow, warm orange/amber operations).
+- **Consequences**: A cozy, natural, eye-friendly warm light mode with no cold glare, no muddy yellow tint, and razor-sharp readability.
+
+---
+
+## ADR-022: Real-Time Live Stream Rate Tracking (Logs Added/Sec)
+- **Status**: Accepted
+- **Context**: The user requested that during live streaming/tailing of a log file, the viewer show the number of new logs added per second.
+- **Decision**:
+  1. **Backend Event Stream Enhancement** (`server/index.ts`):
+     - Updated `/api/logs/stream` SSE polling to 500ms intervals.
+     - When file growth is detected (`stats.size > lastSize`), reads the appended buffer slice and counts the number of newly added lines (`addedLogs`).
+     - Transmits `{ type: 'file_changed', addedLogs, ... }` via SSE.
+     - Added `POST /api/logs/append` endpoint for external emitters and test simulation.
+  2. **Frontend Rate Calculation Engine** (`src/App.tsx`):
+     - Maintained a 1200ms sliding time window of arrival batches (`recentArrivalsRef`).
+     - An interval ticker recalculates the instantaneous rate (`liveLogsPerSec = sum(counts in window)`), decaying naturally to `0 logs/s` if writes cease.
+     - Reconciles both SSE pushes and query total increments.
+  3. **UI Integration**:
+     - Topbar: Added a prominent pulsing green/cyan speed badge (`<Activity /> {liveLogsPerSec} logs/s`) next to the `LIVE` button.
+     - Topbar Line Stats: Appended a dynamic badge `+{liveLogsPerSec} logs/s` next to `Lines: X / Y`.
+     - Sidebar: Added real-time rate readout inside the `Stream File` button (`Streaming File (X logs/s)`).
+- **Consequences**: Provides immediate, visible, real-time observability of incoming log velocity during live tailing with zero perceptible latency.
+
+---
+
+## ADR-023: Adaptive Log Flow and Tail Orientation (Latest at Top vs Forward Flow)
+- **Status**: Accepted
+- **Context**: The user requested that:
+  - When Live Tail is ON: Always show the latest log at the top, so streaming logs arrive at the top row.
+  - When Live Tail is NOT set: Show logs in the natural direction of the log flow (oldest to newest, line 1 downwards), with new logs appended at the bottom.
+- **Decision**:
+  1. Defaulted the viewer's baseline sort order to `time-asc` (natural flow of logs: Line 1 / earliest timestamp at the top, progressing chronologically downwards).
+  2. Created unified toggle handler `handleToggleLiveTail`:
+     - When toggled ON (`isLiveTail = true`): Automatically switches sort order to `time-desc` (latest at top), scrolls directly to row 0 (`targetScrollIndex = 0`, `scrollTop = 0`), and locks the viewport to the top so new arrivals stream in directly at the top row.
+     - When toggled OFF (`isLiveTail = false`): Automatically restores sort order to `time-asc` (natural flow of logs, oldest at top, flowing downwards).
+  3. Connected `handleToggleLiveTail` to Topbar toggle button, Sidebar stream button, and keyboard shortcut `'t'`.
+  4. Updated Sort dropdown labels: `Time (Log Flow: Oldest → Newest)` and `Time (Tail: Latest at Top)`.
+- **Consequences**: Tail mode gives immediate top-row visibility for real-time streaming, while static viewing preserves natural top-to-bottom reading order.

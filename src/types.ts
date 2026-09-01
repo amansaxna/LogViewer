@@ -6,6 +6,7 @@ export type LogLevel =
   | 'warning'
   | 'notice'
   | 'info'
+  | 'audit'
   | 'debug'
   | 'trace'
   | 'unknown';

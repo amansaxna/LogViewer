@@ -21,6 +21,7 @@ const STATUS_LEVEL_MAP: Record<string, LogLevel> = {
   info: 'info',
   success: 'info',
   ok: 'info',
+  audit: 'audit',
   debug: 'debug',
   trace: 'trace',
 };
@@ -269,6 +270,9 @@ export function inferLevelFromText(text: string): LogLevel {
   }
   if (upper.includes('NOTICE')) {
     return 'notice';
+  }
+  if (upper.includes('AUDIT')) {
+    return 'audit';
   }
   if (upper.includes('DEBUG')) {
     return 'debug';

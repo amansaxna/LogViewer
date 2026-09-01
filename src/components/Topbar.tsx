@@ -30,6 +30,7 @@ import {
   PanelLeftOpen,
   Copy,
   History,
+  Activity,
 } from 'lucide-react';
 import { LogLevel, LogSource, SortOption } from '../types.ts';
 
@@ -99,6 +100,7 @@ interface TopbarProps {
 
   // Stream & theme
   isLiveTail: boolean;
+  liveLogsPerSec?: number;
   onToggleLiveTail: () => void;
   onExportFiltered: () => void;
   theme: 'dark' | 'light';
@@ -163,6 +165,7 @@ export const Topbar: React.FC<TopbarProps> = ({
   onSelectCorrelation,
   correlationCounts = {},
   isLiveTail,
+  liveLogsPerSec = 0,
   onToggleLiveTail,
   onExportFiltered,
   startDate,
@@ -662,6 +665,22 @@ export const Topbar: React.FC<TopbarProps> = ({
           <span style={{ color: '#38bdf8', fontWeight: 700 }}>{filteredCount.toLocaleString()}</span>
           <span>/</span>
           <span>{totalEntries.toLocaleString()}</span>
+          {isLiveTail && (
+            <span
+              style={{
+                marginLeft: 6,
+                padding: '1px 6px',
+                borderRadius: 4,
+                fontSize: '0.72rem',
+                fontWeight: 600,
+                backgroundColor: liveLogsPerSec > 0 ? 'rgba(34, 197, 94, 0.15)' : 'rgba(100, 116, 139, 0.12)',
+                color: liveLogsPerSec > 0 ? '#16a34a' : 'var(--text-muted)',
+              }}
+              title="Live arrival rate: new logs added per second"
+            >
+              +{liveLogsPerSec} logs/s
+            </span>
+          )}
           {durationMs !== undefined && (
             <span style={{ marginLeft: 6, fontSize: '0.74rem', color: 'var(--text-muted)' }}>
               ({durationMs}ms)
@@ -671,10 +690,23 @@ export const Topbar: React.FC<TopbarProps> = ({
 
         {/* Live Tail & Theme Switcher */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          {/* Live Speed Badge */}
+          {isLiveTail && (
+            <div
+              className="live-speed-badge"
+              title={`Live stream rate: ${liveLogsPerSec} new logs added per second`}
+            >
+              <Activity size={12} className={liveLogsPerSec > 0 ? 'pulse-activity' : ''} />
+              <span>
+                <strong style={{ fontWeight: 700 }}>{liveLogsPerSec}</strong> logs/s
+              </span>
+            </div>
+          )}
+
           <button
             className={`btn-live-tail ${isLiveTail ? 'active' : ''}`}
             onClick={onToggleLiveTail}
-            title={isLiveTail ? 'Live tailing active - click to pause' : 'Enable live tailing'}
+            title={isLiveTail ? `Live tailing active: ${liveLogsPerSec} logs/s - click to pause` : 'Enable live tailing'}
             style={{ height: 32, padding: '0 10px', fontSize: '0.75rem' }}
           >
             {isLiveTail && <span className="pulse-dot" />}
@@ -838,8 +870,8 @@ export const Topbar: React.FC<TopbarProps> = ({
                 cursor: 'pointer',
               }}
             >
-              <option value="time-desc">Time (Newest First)</option>
-              <option value="time-asc">Time (Oldest First)</option>
+              <option value="time-asc">Time (Log Flow: Oldest → Newest)</option>
+              <option value="time-desc">Time (Tail: Latest at Top)</option>
               <option value="marker-asc">Workflow Marker (A → Z)</option>
               <option value="marker-desc">Workflow Marker (Z → A)</option>
               <option value="line-asc">Line Number (Asc)</option>
