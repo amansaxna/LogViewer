@@ -1,0 +1,16 @@
+Starting worker daemon version 2.4.0-prod...
+Environment: production, Nodes: 4
+[2026-09-02 00:08:12.001] [System.Init] Daemon initialized in 340ms
+Kernel memory mapped successfully: 2048MB
+[CRITICAL] Out of memory killer invoked for process 4410
+java.lang.OutOfMemoryError: Java heap space
+    at java.base/java.util.Arrays.copyOf(Arrays.java:3512)
+    at java.base/java.util.ArrayList.grow(ArrayList.java:237)
+    at java.base/java.util.ArrayList.add(ArrayList.java:467)
+    at com.example.service.DataProcessor.processBatch(DataProcessor.java:188)
+    at com.example.service.WorkerThread.run(WorkerThread.java:45)
+[2026-09-02 00:08:30.400] [1402] [thread-01] [Supervisor] [ProcessRestart] [WARN] Process 4410 terminated unexpectedly. Respawning worker... [Supervisor.c::210]
+Worker PID 4415 spawned. Binding socket 0.0.0.0:8080
+[2026-09-02 00:08:32.110] [1402] [thread-01] [Supervisor] [HealthCheck] [SUCCESS] [12ms] Worker 4415 responded to ping [Supervisor.c::245]
+Warning: SSL certificate for api.internal.cloud expires in 4 days!
+[2026-09-02 00:08:45.000] [1402] [Security.CertWatcher] [CheckExpiry] [WARN] Alert dispatched to ops@company.com [CertWatcher.ts::52]

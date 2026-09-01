@@ -1,0 +1,7 @@
+[2026-09-02 00:05:01.002] [9100] [Billing.Service] [AuthorizePayment] [SUCCESS] [88ms] Transaction TXN-1002 authorized [PaymentVault.go::42]
+[2026-09-02 00:05:02.140] [9100] [Billing.Service] [CapturePayment] [SUCCESS] [112ms] TXN-1002 funds captured [PaymentVault.go::78]
+[9100] [thread-8] [ACH.Transfer] [PENDING] Initiating direct debit batch for account ****1920
+[2026-09-02 00:05:08.500] [Billing.Reconciliation] [NightlyJob] [INFO] [1200ms] Reconciled 420 transactions successfully
+[2026-09-02 00:05:14.920] [9102] [Risk.Engine] [FraudScoreCheck] [WARN] [45ms] Suspicious velocity detected for user_id=9812 [RiskAnalyzer.py::114]
+[9102] [Risk.Engine] [FlagAccount] [INFO] Flagged account for manual KYC review [RiskAnalyzer.py::130]
+[2026-09-02 00:05:22.010] [9100] [Billing.Gateway] [RefundTransaction] [SUCCESS] [95ms] Refund processed for order #ORD-4491 [RefundHandler.go::65]

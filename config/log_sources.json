@@ -1,0 +1,37 @@
+{
+  "sources": [
+    {
+      "id": "app-workflow",
+      "name": "Application Workflow Log",
+      "category": "Flat Files",
+      "path": "./logs/app_workflow.log",
+      "format": "flat_file",
+      "description": "Primary transactional workflow log with markers, duration, and stack traces",
+      "isDefault": true
+    },
+    {
+      "id": "payments-audit",
+      "name": "Payments & Billing Audit",
+      "category": "Flat Files",
+      "path": "./logs/payments.log",
+      "format": "flat_file",
+      "description": "Payment authorization and settlement operations with partial tokens"
+    },
+    {
+      "id": "system-errors",
+      "name": "System & Runtime Errors",
+      "category": "Flat Files",
+      "path": "./logs/system_errors.log",
+      "format": "flat_file",
+      "description": "Unhandled exceptions, crash dumps, and markerless log lines"
+    },
+    {
+      "id": "service-engine",
+      "name": "Microservices Engine",
+      "category": "Application Logs",
+      "path": "./logs/services.log",
+      "format": "flat_file",
+      "description": "Background worker jobs and inter-service dispatch messages"
+    }
+  ]
+}
