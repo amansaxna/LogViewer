@@ -78,6 +78,7 @@ export function queryLogs(query: LogQuery): LogQueryResult {
 
   const workflowCounts: Record<string, number> = {};
   const operationCounts: Record<string, number> = {};
+  const correlationCounts: Record<string, number> = {};
 
   for (const entry of allEntries) {
     if (levelCounts[entry.level] !== undefined) {
@@ -89,6 +90,9 @@ export function queryLogs(query: LogQuery): LogQueryResult {
     }
     if (entry.operation) {
       operationCounts[entry.operation] = (operationCounts[entry.operation] || 0) + 1;
+    }
+    if (entry.correlationId) {
+      correlationCounts[entry.correlationId] = (correlationCounts[entry.correlationId] || 0) + 1;
     }
   }
 
@@ -120,6 +124,22 @@ export function queryLogs(query: LogQuery): LogQueryResult {
       return false;
     }
 
+    // Start Date filter
+    if (query.startDate) {
+      const startMs = Date.parse(query.startDate);
+      if (!isNaN(startMs) && entry.timestamp && entry.timestamp < startMs) {
+        return false;
+      }
+    }
+
+    // End Date filter
+    if (query.endDate) {
+      const endMs = Date.parse(query.endDate);
+      if (!isNaN(endMs) && entry.timestamp && entry.timestamp > endMs) {
+        return false;
+      }
+    }
+
     // Namespace filter
     if (query.namespace && (!entry.namespace || !entry.namespace.toLowerCase().includes(query.namespace.toLowerCase()))) {
       return false;
@@ -145,6 +165,14 @@ export function queryLogs(query: LogQuery): LogQueryResult {
     if (query.marker && query.marker.trim().length > 0) {
       const mQuery = query.marker.trim().toLowerCase();
       if (!entry.workflow || !entry.workflow.toLowerCase().includes(mQuery)) {
+        return false;
+      }
+    }
+
+    // Correlation ID filter
+    if (query.correlationId && query.correlationId.trim().length > 0) {
+      const cQuery = query.correlationId.trim().toLowerCase();
+      if (!entry.correlationId || !entry.correlationId.toLowerCase().includes(cQuery)) {
         return false;
       }
     }
@@ -221,6 +249,7 @@ export function queryLogs(query: LogQuery): LogQueryResult {
     levelCounts,
     workflowCounts,
     operationCounts,
+    correlationCounts,
     durationMs,
   };
 }

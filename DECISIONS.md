@@ -120,3 +120,153 @@ This document captures the architectural decisions made during the design and im
   2. Implemented collapsible sidebar with smooth CSS width transition (`.sidebar.collapsed { width: 0; min-width: 0; }`), toggled via topbar button, sidebar header button, or `[` / `Ctrl+B` key shortcut.
   3. Added Fullscreen button on the top right using the HTML5 Fullscreen API (`document.documentElement.requestFullscreen()`) with dynamic `fullscreenchange` synchronization.
 - **Consequences**: Unimpeded popover menus, maximum screen real estate for wide logs, and seamless distraction-free fullscreen triage.
+
+---
+
+## ADR-013: Popover Dismissal on Click/MouseLeave, Datetime Picker, Duplicate Toggle Fix & Copy Log Path
+- **Status**: Accepted
+- **Context**: The user requested:
+  1. Dropdowns should close when clicked outside or when the mouse moves outside (`onMouseLeave`).
+  2. Add simple tooltips across all buttons.
+  3. Add a button to copy the log path on the system to clipboard.
+  4. Fix duplicate expand buttons (one in sidebar header and one in topbar).
+  5. The datetime picker was not coming up when clicking the calendar icon (`📅`).
+- **Decision**:
+  1. Implemented global document `mousedown` event listener to close all popups on click outside, plus graceful `onMouseLeave` timers (260ms delay) so moving the cursor outside cleanly dismisses dropdowns without accidental flickers.
+  2. Added rich, descriptive `title` tooltips across all buttons, pills, and inputs.
+  3. Added Copy Path button in Topbar Row 2 (beside Export), in Topbar Row 1, and for each source item in the Sidebar with temporary checkmark feedback (`navigator.clipboard.writeText`).
+  4. Topbar expand button is now conditionally rendered ONLY when `!isSidebarOpen`. When the sidebar is open, only the sidebar header collapse button exists.
+  5. Implemented full interactive Datetime Range Picker popup anchored under `📅` with quick presets (`Last 15m`, `Last 1h`, `Last 24h`, `All Time`), manual inputs, clear button, and backend filtering via `startDate` and `endDate`. Made line gutter sticky in `CompactLogRow.tsx` so line numbers and datetimes are never hidden during horizontal scroll.
+- **Consequences**: Intuitive mouse and keyboard interaction, zero duplicate controls, full datetime range filtering, and one-click log path copying.
+
+---
+
+## ADR-014: Flat File Schema Extension with Correlation ID & Filter
+- **Status**: Accepted
+- **Context**: The user requested extending the flat file schema to include `[Correlation ID]`:
+  `[Datetime] [Process ID] [Thread ID] [Correlation ID] [Namespace] [WorkflowMarkers] [operations] [Status] [Duration] Message [FileName::LineNumner]`
+  and adding a filter for Correlation ID.
+- **Decision**:
+  1. Updated `LogEntry`, `LogQuery`, and `LogQueryResult` interfaces across `server/types.ts` and `src/types.ts` to include `correlationId` and `correlationCounts`.
+  2. Enhanced `server/parser.ts` to recognize explicit correlation formats (`corr-`, `cid-`, UUIDs, `req-`, `trace-`) and schema positional tokens.
+  3. Added `correlationId` filtering and dynamic document-wide `correlationCounts` aggregation in `server/fileReader.ts` and `server/index.ts`.
+  4. Updated sample log generator (`scripts/generate_logs.ts`) and regenerated `logs/app_workflow.log` (5,200 lines) with realistic correlated trace IDs.
+  5. Implemented interactive Correlation ID dropdown pill in `src/components/Topbar.tsx` styled in mint/emerald `#34d399` with search, counts, active clear button, and click/move-outside dismiss.
+  6. Highlighted `[Correlation ID]` in `CompactLogRow.tsx`, `LogRow.tsx`, and `coloredLogRenderer.tsx` with distinct emerald badges and search highlight matching.
+- **Consequences**: Full support for distributed tracing and cross-service transaction inspection directly from the log table and filter bar.
+
+---
+
+## ADR-015: Direct Inline Line Jump & ASCII/ANSI Syntax Coloring Bugfix
+- **Status**: Accepted
+- **Context**: The user requested:
+  1. Combine "Go to line" into the current line indicator so the user can directly edit `1` in `1 / 100` and press Enter to jump immediately, eliminating the separate redundant "Go to line" button.
+  2. In the selected window (Context Modal), the ASCII/syntax coloring was not displaying properly (most lines appeared uncolored).
+- **Decision**:
+  1. Replaced the static match indicator and separate "Go to line" button with a unified, directly-editable inline input: `[ [1] / 100 < > ]`. Users can click/type any line number or entry index and hit `Enter` or click outside to instantly jump and auto-scroll the log feed.
+  2. Root cause of missing syntax/ASCII colors in Context Modal: `renderAnsiText` had a regex pattern `|\[)\??(\d+)m` which accidentally treated duration bracket tokens like `[297ms]` as ANSI escape sequences (`\[297m`). This swallowed the bracket, returned uncolored ANSI fragments, and bypassed token syntax coloring entirely.
+  3. Fixed ANSI regex to strictly require escape prefixes (`(?:\u001b|\\u001b|\\x1b|\x1b|\\033|\\e)\[\??(\d+(?:;\d+)*)m`), and enabled seamless embedding of ANSI colors inside message bodies while preserving full token syntax coloring for Datetime, PID, TID, Correlation ID, Namespace, Workflow, Operation, Status, Duration, and File Location.
+- **Consequences**: Sleek, compact topbar with one-touch direct line jumping, and vivid token and ASCII syntax coloring restored across all context modal views.
+
+---
+
+## ADR-016: Recursive Folder Discovery, Log Rotation Management & Pixel-Matched Sidebar View
+- **Status**: Accepted
+- **Context**: The user requested:
+  1. In `config/log_sources.json`, implement a field where folders can be given and searched recursively for log files.
+  2. Handle rotated log files properly (e.g. `*.log.1`, `*.log.2`, date-based rotations like `*.2026-09-01.log`).
+  3. Improve the view of the files in the sidebar, matching the provided screenshot (stacked 2-line number/unit badges, active borders, cyan highlights, copy buttons).
+- **Decision**:
+  1. Extended `config/log_sources.json` to support a top-level `folders: LogFolderConfig[]` array and individual source folders.
+  2. Implemented `scanFolderRecursively` in `server/config.ts` to traverse directory trees and discover log files (`.log`, `.txt`, `.jsonl`, `.out`, and rotated variants).
+  3. Implemented `detectRotation` to recognize standard rotation patterns (`.log.1`, `.log.2`, `YYYY-MM-DD.log`, etc.) and group rotated archives directly under their parent source (`source.rotations: LogSource[]`).
+  4. Updated `Sidebar.tsx` to match the user screenshot:
+     - Stacked 2-line dark badge (`1.3` on line 1, `MB` on line 2).
+     - Active item highlighted in cyan `#38bdf8` with dark blue glow and border `#0284c7`.
+     - Expandable rotation accordion pill (`<History /> {count}`) to toggle nested archives.
+     - Topbar shows `Rotated Archive` indicator when inspecting archived snapshots.
+- **Consequences**: Effortless auto-discovery of all logs across microservices and directories, clean hierarchy without clutter, and 1-click access to rotated archives.
+
+---
+
+## ADR-017: Source ID Uniqueness, Name Truncation & Rotation Hierarchy Fix
+- **Status**: Accepted
+- **Context**: In the sidebar:
+  1. Multiple items simultaneously showed active blue borders because base64 path slicing (`slice(0, 16)`) generated identical IDs for all discovered and rotated files under `/Users/amansaxena/...`.
+  2. The source item name was prematurely truncated to `Application W...` due to an artificial `max-width: 145px` CSS constraint.
+  3. The rotation toggle pill in `source-item-right` disrupted the vertical column alignment of size badges and copy buttons.
+  4. An outer `title={source.path}` tooltip on the row popped up over size badges on hover.
+  5. Temporary scratch files (`pasted_*.log`) polluted `DISCOVERED LOGS`.
+- **Decision**:
+  1. Replaced base64 string slicing with full-path cryptographic MD5 hashing (`disc-${hash}` and `custom-${hash}`) and explicit parent-scoped rotation IDs (`${parent.id}-rot-${suffix}`).
+  2. Removed `max-width: 145px` on `.source-item-name` and configured flexible flexbox shrinking (`flex: 1; min-width: 0`), allowing names like `Application Workflow Log` to show properly.
+  3. Relocated the rotation toggle badge to `source-item-left` next to the name, ensuring the size badge and copy button column on the right remains uniformly aligned.
+  4. Wrapped rotated log items in `.source-rotations-tree` with a subtle tree-line border.
+  5. Removed intrusive outer container tooltips and ignored `pasted_*.log` temporary files from recursive discovery.
+- **Consequences**: Clean, pixel-perfect sidebar view with strictly 1 active selection at a time, legible log names, and beautifully aligned size badges and copy buttons.
+
+---
+
+## ADR-018: Seafoam / Sage Medium Teal Light Mode Palette
+- **Status**: Accepted
+- **Context**: The user found the default light mode too bright and glary, and explicitly requested a darker teal palette: Seafoam / Sage Medium Teal with deep pine ink text.
+- **Decision**:
+  1. Updated `[data-theme='light']` in `src/index.css`:
+     - Canvas background: `#b8dada` (rich, matte seafoam/sage teal canvas ~79% lightness, eliminating 96% white glare).
+     - Sidebar: `#abcece`.
+     - Surfaces/Cards: `#c7e3e3` and `#cde7e7`.
+     - Borders: `#88b8b8`.
+     - Text: `#032023` (deep pine ink for ultra-sharp legibility without eye fatigue).
+     - Accent: `#0f766e` (Teal-700).
+     - Gutter & row selection: `#99c4c4` with `rgba(15, 118, 110, 0.22)`.
+     - Size badges: `#9ec7c7` with `#032427` value text.
+  2. Defined deep, saturated log token colors for maximum clarity on the seafoam canvas:
+     - Datetime: `#036170` (deep oceanic cyan/teal).
+     - Correlation ID: `#065f46` (rich emerald pine).
+     - Workflow: `#5b21b6` (deep violet).
+     - Namespace: `#0369a1` (deep ocean blue).
+     - Operations: `#9a3412` (burnt orange) and `#854d0e` (warm amber).
+     - Status: `#14532d` (forest green), `#991b1b` (deep crimson), `#854d0e` (warm amber).
+     - Message: `#032023` (deep pine ink).
+- **Consequences**: A distinct, soothing, non-glaring daytime teal theme that is comfortable for long reading sessions while maintaining exceptional contrast and clarity.
+
+---
+
+## ADR-019: Coolors Earth, Sage & Terracotta Light Theme Palette
+- **Status**: Accepted
+- **Context**: The user provided a specific 7-color palette from Coolors: `https://coolors.co/palette/797d62-9b9b7a-d9ae94-f1dca7-ffcb69-d08c60-997b66`
+- **Decision**:
+  1. Mapped the 7 colors into `[data-theme='light']` in `src/index.css`:
+     - `#f1dca7` (Soft Wheat / Vanilla Cream): Main application canvas background — warm, paper-like, zero white glare.
+     - `#e5cd96` & `#faeed2`: Sidebar, surfaces, and card backgrounds.
+     - `#d9ae94` (Desert Sand): Subtle UI borders and badge outlines.
+     - `#d08c60` (Warm Terracotta): Primary accent color, row selection borders, highlight lines, and HTTP action tokens.
+     - `#2b241c` (Deep Espresso/Walnut Ink): Primary typography and log message body for razor-sharp legibility.
+     - `#797d62` (Olive / Reseda Green): Muted text, datetime tokens, info indicators, and badge units.
+     - `#997b66` (Warm Umber / Walnut): PID/TID tokens, code file locations, and debug levels.
+     - `#ffcb69` (Sunglow Amber Gold / darkened `#a86c12`): Duration values, warnings, and action operation tokens.
+  2. Maintained the dark theme untouched and preserved full backward compatibility with virtualized rendering, token parsing, and live tailing.
+- **Consequences**: A warm, natural, high-contrast earth & sage theme with comfortable readability and distinctive personality.
+
+---
+
+## ADR-020: Clean Professional Slate & Sky Blue Light Mode
+- **Status**: Accepted
+- **Context**: The yellowish/wheat earth palette felt muddy and unsuitable for technical log viewing. The user requested an immediate fix for light mode.
+- **Decision**:
+  1. Transitioned `[data-theme='light']` in `src/index.css` to a clean, crisp, industry-standard modern developer theme (modeled after Linear, Datadog, and GitHub):
+     - Canvas background: `#f8fafc` (Tailwind slate-50).
+     - Sidebar and surface cards: `#ffffff` with delicate `#e2e8f0` borders.
+     - Controls and inputs: `#f1f5f9` with subtle hover `#e2e8f0`.
+     - Primary text: `#0f172a` (Slate-900: razor-sharp, dark, completely legible, zero wash-out).
+     - Accent: `#0284c7` (clean Sky-600) with subtle `rgba(2, 132, 199, 0.08)` glow.
+     - Size badges: clean light gray `#f1f5f9` pill with `#334155` text and `#64748b` unit.
+  2. Professional syntax highlighting for log lines:
+     - Datetime: `#0284c7` (Sky Blue)
+     - Correlation ID: `#059669` (Emerald 600)
+     - Workflow: `#7c3aed` (Royal Violet)
+     - Namespace: `#0369a1` (Deep Ocean Blue)
+     - Operations: `#ea580c` (Vivid Orange) & `#d97706` (Amber)
+     - Status: `#16a34a` (Green), `#dc2626` (Red), `#d97706` (Amber)
+     - Message: `#0f172a` (Crisp dark text)
+- **Consequences**: Instantly clean, professional, crystal-clear light mode with zero muddy yellow tint and exceptional readability.

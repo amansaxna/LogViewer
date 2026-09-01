@@ -30,6 +30,7 @@ export interface LogEntry {
   timestamp?: number;
   pid?: string;
   tid?: string;
+  correlationId?: string;
   namespace?: string;
   workflow?: string;
   operation?: string;
@@ -41,6 +42,13 @@ export interface LogEntry {
   trace?: TraceData;
 }
 
+export interface LogFolderConfig {
+  path: string;
+  category?: string;
+  recursive?: boolean;
+  pattern?: string;
+}
+
 export interface LogSource {
   id: string;
   name: string;
@@ -50,6 +58,12 @@ export interface LogSource {
   description?: string;
   isDefault?: boolean;
   isCustom?: boolean;
+  isFolder?: boolean;
+  recursive?: boolean;
+  isRotated?: boolean;
+  rotationParentId?: string;
+  rotationSuffix?: string;
+  rotations?: LogSource[];
   exists?: boolean;
   size?: number;
   lineCount?: number;
@@ -63,10 +77,13 @@ export interface LogQuery {
   caseSensitive?: boolean;
   invert?: boolean;
   levels?: LogLevel[];
+  startDate?: string;
+  endDate?: string;
   namespace?: string;
   workflow?: string;
   operation?: string;
   marker?: string;
+  correlationId?: string;
   sortBy?: 'line' | 'time' | 'marker' | 'namespace' | 'duration' | 'level';
   direction?: 'desc' | 'asc';
   page?: number;
@@ -82,5 +99,6 @@ export interface LogQueryResult {
   levelCounts: Record<string, number>;
   workflowCounts: Record<string, number>;
   operationCounts: Record<string, number>;
+  correlationCounts?: Record<string, number>;
   durationMs: number;
 }

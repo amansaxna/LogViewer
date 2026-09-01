@@ -15,6 +15,7 @@ interface LogTableProps {
   onSelectLine: (lineNumber: number) => void;
   searchQuery?: string;
   markerQuery?: string;
+  correlationQuery?: string;
   targetScrollIndex?: number | null;
 }
 
@@ -28,6 +29,7 @@ export const LogTable: React.FC<LogTableProps> = ({
   onSelectLine,
   searchQuery,
   markerQuery,
+  correlationQuery,
   targetScrollIndex,
 }) => {
   const parentRef = useRef<HTMLDivElement>(null);
@@ -178,6 +180,7 @@ export const LogTable: React.FC<LogTableProps> = ({
                   onDoubleClick={(line) => onViewContext(line)}
                   searchQuery={searchQuery}
                   markerQuery={markerQuery}
+                  correlationQuery={correlationQuery}
                   wrapLines={wrapLines}
                 />
               ) : (

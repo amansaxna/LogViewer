@@ -6,11 +6,12 @@ This document provides instructions, conventions, and architectural context for 
 LogViewer is a local log visualizer inspired by [logviewer.io](https://logviewer.io/) and [OpCodes Log Viewer](https://github.com/opcodesio/log-viewer). It provides high-performance viewing, virtualized scrolling, live-tailing, and custom token parsing for structured and unstructured flat logs.
 
 ### Key Capabilities
-- **Pre-configured Standard Logs**: Loaded from `config/log_sources.json` at launch.
+- **Pre-configured Standard Logs & Folders**: Configured in `config/log_sources.json`, supporting explicit file sources and `folders: [...]` with recursive subfolder directory scanning.
+- **Log Rotation Detection & Grouping**: Automatically identifies rotated archives (`.log.1`, `.log.2`, date-based rotations `YYYY-MM-DD.log`), attaches them to their parent log source, and presents collapsible sub-items in the sidebar.
 - **Dynamic File Opening**: Can open any file path on the local system via API or UI modal.
 - **High-Performance Virtual Scrolling**: Uses `@tanstack/react-virtual` to smoothly render 100,000+ log lines at 60 FPS.
 - **Permissive Flat-File Parser**: Handles logs formatted as:
-  `[Datetime] [Process ID] [Thread ID] [Namespace] [WorkflowMarkers] [operations] [Status] [Duration] Message [FileName::LineNumner]`
+  `[Datetime] [Process ID] [Thread ID] [Correlation ID] [Namespace] [WorkflowMarkers] [operations] [Status] [Duration] Message [FileName::LineNumner]`
   Gracefully handles missing brackets, missing timestamps, markerless logs, and multi-line stack traces.
 - **Optimal Trace Viewer**: Automatically parses and structures multi-line call stacks into collapsible frames with file:line indicators and one-click copying.
 - **Live Tail Streaming**: Real-time file observation using Server-Sent Events (SSE).

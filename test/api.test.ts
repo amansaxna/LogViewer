@@ -128,7 +128,52 @@ async function runApiTests() {
   }
   console.log(`✓ Test 12 Passed: Filter by OrderCheckout + ReserveInventory returned ${filterWfData.entries.length} entries`);
 
-  console.log('\nAll 12 API Integration Tests Passed Successfully!');
+  // Test 13: Datetime range filtering
+  const dateRes = await fetch(`${BASE_URL}/api/logs/entries?sourceId=app-workflow&startDate=2026-09-02T00:00:00.000Z&endDate=2026-09-02T00:00:02.000Z`);
+  assert.strictEqual(dateRes.status, 200);
+  const dateData = await dateRes.json();
+  assert.ok(dateData.entries.length > 0, 'Should return entries within datetime range');
+  console.log(`✓ Test 13 Passed: Datetime range filter returned ${dateData.entries.length} entries between 00:00:00 and 00:00:02`);
+
+  // Test 14: Correlation ID aggregation
+  const corrCountsRes = await fetch(`${BASE_URL}/api/logs/entries?sourceId=app-workflow`);
+  assert.strictEqual(corrCountsRes.status, 200);
+  const corrCountsData = await corrCountsRes.json();
+  assert.ok(corrCountsData.correlationCounts, 'Should return correlationCounts');
+  const corrKeys = Object.keys(corrCountsData.correlationCounts);
+  assert.ok(corrKeys.length > 0, 'Should have discovered correlation IDs');
+  console.log(`✓ Test 14 Passed: Discovered ${corrKeys.length} active correlation IDs in document`);
+
+  // Test 15: Filter by specific Correlation ID
+  const testCorrId = corrKeys[0];
+  const expectedCount = corrCountsData.correlationCounts[testCorrId];
+  const filterCorrRes = await fetch(`${BASE_URL}/api/logs/entries?sourceId=app-workflow&correlationId=${encodeURIComponent(testCorrId)}`);
+  assert.strictEqual(filterCorrRes.status, 200);
+  const filterCorrData = await filterCorrRes.json();
+  assert.strictEqual(filterCorrData.entries.length, expectedCount);
+  for (const entry of filterCorrData.entries) {
+    assert.strictEqual(entry.correlationId, testCorrId);
+  }
+  // Test 16: Recursive folder discovery
+  const discSourcesRes = await fetch(`${BASE_URL}/api/sources`);
+  const discSourcesData = await discSourcesRes.json();
+  const sourcesList = discSourcesData.sources;
+  const ordersSource = sourcesList.find((s: any) => s.path.includes('orders.log'));
+  assert.ok(ordersSource, 'Should have discovered nested orders.log in logs/microservices/');
+  console.log(`✓ Test 16 Passed: Recursive folder discovery located nested log "${ordersSource.name}"`);
+
+  // Test 17: Rotated log grouping and querying
+  const appWorkflowSource = sourcesList.find((s: any) => s.id === 'app-workflow');
+  assert.ok(appWorkflowSource, 'app-workflow source exists');
+  assert.ok(appWorkflowSource.rotations && appWorkflowSource.rotations.length >= 2, 'app-workflow should have grouped rotated archives');
+  const rot1 = appWorkflowSource.rotations[0];
+  const rotRes = await fetch(`${BASE_URL}/api/logs/entries?sourceId=${encodeURIComponent(rot1.id)}`);
+  assert.strictEqual(rotRes.status, 200);
+  const rotData = await rotRes.json();
+  assert.ok(rotData.entries.length > 0, 'Should return entries from rotated log archive');
+  console.log(`✓ Test 17 Passed: Rotated archive "${rot1.name}" correctly grouped and loaded ${rotData.entries.length} archived entries`);
+
+  console.log('\nAll 17 API Integration Tests Passed Successfully!');
 }
 
 runApiTests().catch((err) => {

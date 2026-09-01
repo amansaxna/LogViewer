@@ -20,6 +20,34 @@
   --accent-hover: #0ea5e9;
   --accent-bg: rgba(56, 189, 248, 0.12);
 
+  /* Row Selection Tokens */
+  --row-selected-bg: rgba(56, 189, 248, 0.12);
+  --row-selected-border: #0284c7;
+  --gutter-selected-bg: rgba(30, 41, 59, 0.98);
+  --gutter-selected-text: #38bdf8;
+
+  /* Sidebar Size Badge */
+  --badge-bg: #0f172a;
+  --badge-border: rgba(255, 255, 255, 0.08);
+  --badge-val: #cbd5e1;
+  --badge-unit: #64748b;
+
+  /* Adaptive Log Syntax Tokens (Dark Mode) */
+  --tok-datetime: #00e5ff;
+  --tok-pid: #94a3b8;
+  --tok-corr: #34d399;
+  --tok-namespace: #7dd3fc;
+  --tok-workflow: #c084fc;
+  --tok-op-http: #ff9800;
+  --tok-op-action: #fbbf24;
+  --tok-status-success: #86efac;
+  --tok-status-error: #f87171;
+  --tok-status-warn: #fbbf24;
+  --tok-status-info: #7dd3fc;
+  --tok-duration: #facc15;
+  --tok-file: #64748b;
+  --tok-msg: #f1f5f9;
+
   /* Log Level Colors */
   --lvl-critical: #f43f5e;
   --lvl-critical-bg: rgba(244, 63, 94, 0.15);
@@ -42,23 +70,55 @@
 }
 
 [data-theme='light'] {
-  --bg-app: #f8fafc;
-  --bg-sidebar: #ffffff;
-  --bg-surface: #f1f5f9;
-  --bg-surface-hover: #e2e8f0;
-  --bg-card: #ffffff;
-  --bg-card-alt: #f8fafc;
-  --border-subtle: rgba(0, 0, 0, 0.08);
-  --border-highlight: rgba(0, 0, 0, 0.16);
+  /* Clean, Modern Professional Light Theme (Linear / Datadog / GitHub style) */
+  --bg-app: #f8fafc;             /* Crisp Slate-50 Canvas */
+  --bg-sidebar: #ffffff;         /* Clean White Sidebar */
+  --bg-surface: #f1f5f9;         /* Soft Slate-100 for Inputs & Controls */
+  --bg-surface-hover: #e2e8f0;   /* Slate-200 Hover */
+  --bg-card: #ffffff;            /* Pure White Surface Cards */
+  --bg-card-alt: #f8fafc;        /* Alternate Slate Surface */
+  --border-subtle: #e2e8f0;      /* Delicate Slate-200 Border */
+  --border-highlight: #0284c7;   /* Sky-600 Accent Border */
 
-  --text-primary: #0f172a;
-  --text-secondary: #475569;
-  --text-muted: #94a3b8;
+  /* Crystal-Clear, High-Contrast Typography */
+  --text-primary: #0f172a;       /* Slate-900: Crisp, dark, ultra-readable */
+  --text-secondary: #475569;     /* Slate-600 */
+  --text-muted: #64748b;         /* Slate-500 */
 
-  --accent-primary: #0284c7;
-  --accent-hover: #0369a1;
-  --accent-bg: rgba(2, 132, 199, 0.1);
+  /* Modern Sky / Cyan Primary Accent */
+  --accent-primary: #0284c7;     /* Sky-600 */
+  --accent-hover: #0369a1;       /* Sky-700 */
+  --accent-bg: rgba(2, 132, 199, 0.08);
 
+  /* Row Selection & Gutters */
+  --row-selected-bg: rgba(2, 132, 199, 0.08);
+  --row-selected-border: #0284c7;
+  --gutter-selected-bg: #e0f2fe;
+  --gutter-selected-text: #0284c7;
+
+  /* Sidebar Size Badge */
+  --badge-bg: #f1f5f9;
+  --badge-border: #e2e8f0;
+  --badge-val: #334155;
+  --badge-unit: #64748b;
+
+  /* Professional High-Contrast Log Syntax Tokens */
+  --tok-datetime: #0284c7;       /* Clean Sky Blue */
+  --tok-pid: #64748b;            /* Neutral Slate */
+  --tok-corr: #059669;           /* Crisp Emerald Green */
+  --tok-namespace: #0369a1;      /* Deep Ocean Blue */
+  --tok-workflow: #7c3aed;       /* Royal Violet */
+  --tok-op-http: #ea580c;        /* Vivid Orange */
+  --tok-op-action: #d97706;      /* Warm Amber */
+  --tok-status-success: #16a34a; /* Vibrant Green */
+  --tok-status-error: #dc2626;   /* Crimson Red */
+  --tok-status-warn: #d97706;    /* Amber */
+  --tok-status-info: #0284c7;    /* Sky Blue */
+  --tok-duration: #b45309;       /* Deep Gold / Amber */
+  --tok-file: #64748b;           /* Slate */
+  --tok-msg: #0f172a;            /* Crisp Dark Slate-900 Message Text */
+
+  /* Log Level Colors */
   --lvl-critical: #e11d48;
   --lvl-critical-bg: #ffe4e6;
   --lvl-error: #dc2626;
@@ -144,10 +204,16 @@ body {
 }
 
 .sidebar-title {
-  font-size: 1.1rem;
+  font-size: 1.15rem;
   font-weight: 700;
-  letter-spacing: -0.02em;
+  letter-spacing: -0.025em;
   background: linear-gradient(90deg, #38bdf8, #818cf8);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+[data-theme='light'] .sidebar-title {
+  background: linear-gradient(90deg, #0284c7, #4f46e5);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
 }
@@ -188,8 +254,11 @@ body {
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.06em;
-  color: var(--text-muted);
-  padding: 6px 8px;
+  color: #94a3b8;
+  padding: 8px 8px 6px 8px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
 }
 
 .source-item {
@@ -197,20 +266,21 @@ body {
   align-items: center;
   justify-content: space-between;
   padding: 8px 10px;
-  border-radius: 6px;
-  margin-bottom: 3px;
+  border-radius: 8px;
+  margin-bottom: 4px;
   cursor: pointer;
-  transition: background-color 0.15s;
+  transition: all 0.15s ease;
   border: 1px solid transparent;
+  background-color: transparent;
 }
 
 .source-item:hover {
-  background-color: var(--bg-surface-hover);
+  background-color: rgba(255, 255, 255, 0.04);
 }
 
 .source-item.active {
-  background-color: var(--accent-bg);
-  border-color: rgba(56, 189, 248, 0.3);
+  background-color: rgba(14, 165, 233, 0.08);
+  border-color: #0284c7;
 }
 
 .source-item-left {
@@ -218,35 +288,92 @@ body {
   align-items: center;
   gap: 8px;
   min-width: 0;
+  flex: 1;
 }
 
 .source-item-name {
-  font-size: 0.84rem;
+  font-size: 0.82rem;
   font-weight: 500;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
   color: var(--text-primary);
+  flex: 1;
+  min-width: 0;
 }
 
 .source-item.active .source-item-name {
-  color: var(--accent-primary);
+  color: #38bdf8;
   font-weight: 600;
 }
 
 .source-item-right {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
+  flex-shrink: 0;
 }
 
 .source-size-badge {
-  font-size: 0.7rem;
-  color: var(--text-muted);
-  background: var(--bg-surface);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background-color: #0f172a;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 6px;
   padding: 2px 6px;
-  border-radius: 4px;
+  min-width: 36px;
+  line-height: 1.1;
+  user-select: none;
+}
+
+.source-size-badge-val {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: #cbd5e1;
   font-family: var(--font-mono);
+}
+
+.source-size-badge-unit {
+  font-size: 0.58rem;
+  color: #64748b;
+  font-weight: 600;
+  text-transform: uppercase;
+  font-family: var(--font-mono);
+}
+
+.source-rotations-tree {
+  margin-left: 18px;
+  padding-left: 10px;
+  border-left: 1px solid rgba(255, 255, 255, 0.1);
+  margin-top: 2px;
+  margin-bottom: 4px;
+}
+
+.source-rotated-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 5px 8px;
+  border-radius: 6px;
+  margin-bottom: 2px;
+  cursor: pointer;
+  font-size: 0.76rem;
+  color: var(--text-muted);
+  border: 1px solid transparent;
+  transition: all 0.15s ease;
+}
+
+.source-rotated-item:hover {
+  background-color: rgba(255, 255, 255, 0.04);
+  color: var(--text-primary);
+}
+
+.source-rotated-item.active {
+  background-color: rgba(14, 165, 233, 0.08);
+  border-color: #0284c7;
+  color: #38bdf8;
 }
 
 .sidebar-footer {
@@ -597,8 +724,8 @@ body {
   font-size: 0.72rem;
   padding: 1px 6px;
   border-radius: 4px;
-  background: rgba(148, 163, 184, 0.12);
-  color: #94a3b8;
+  background: rgba(148, 163, 184, 0.15);
+  color: var(--tok-pid);
   white-space: nowrap;
   flex-shrink: 0;
 }
@@ -608,7 +735,7 @@ body {
   padding: 1px 7px;
   border-radius: 4px;
   background: rgba(56, 189, 248, 0.15);
-  color: #38bdf8;
+  color: var(--tok-namespace);
   font-weight: 500;
   white-space: nowrap;
   flex-shrink: 0;
@@ -619,7 +746,7 @@ body {
   padding: 1px 7px;
   border-radius: 4px;
   background: rgba(168, 85, 247, 0.15);
-  color: #c084fc;
+  color: var(--tok-workflow);
   font-weight: 500;
   white-space: nowrap;
   flex-shrink: 0;
@@ -630,7 +757,7 @@ body {
   padding: 1px 6px;
   border-radius: 4px;
   background: rgba(245, 158, 11, 0.15);
-  color: #fbbf24;
+  color: var(--tok-op-action);
   white-space: nowrap;
   flex-shrink: 0;
 }
@@ -647,12 +774,12 @@ body {
 
 .badge-status.success {
   background: rgba(34, 197, 94, 0.2);
-  color: #4ade80;
+  color: var(--tok-status-success);
 }
 
 .badge-status.failed, .badge-status.error {
   background: rgba(239, 68, 68, 0.2);
-  color: #f87171;
+  color: var(--tok-status-error);
 }
 
 .badge-duration {

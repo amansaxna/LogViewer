@@ -19,6 +19,7 @@ import {
   Radio,
   ArrowUpDown,
   GitBranch,
+  GitCommit,
   Zap,
   ChevronDown,
   Check,
@@ -27,6 +28,8 @@ import {
   Minimize,
   PanelLeftClose,
   PanelLeftOpen,
+  Copy,
+  History,
 } from 'lucide-react';
 import { LogLevel, LogSource, SortOption } from '../types.ts';
 
@@ -42,6 +45,11 @@ interface TopbarProps {
   isMarkerRegex: boolean;
   onToggleMarkerRegex: () => void;
 
+  // Datetime range
+  startDate?: string | null;
+  endDate?: string | null;
+  onDateRangeChange?: (start: string | null, end: string | null) => void;
+
   search: string;
   onSearchChange: (val: string) => void;
   isRegex: boolean;
@@ -51,12 +59,13 @@ interface TopbarProps {
   invert: boolean;
   onToggleInvert: () => void;
 
-  // Match navigation
+  // Match navigation & line jump
   currentMatchIndex: number;
   onPrevMatch: () => void;
   onNextMatch: () => void;
+  onGoToLine?: (targetLine: number) => void;
 
-  // Go to line
+  // Go to line modal
   onOpenGoToLine: () => void;
 
   // View modes
@@ -82,6 +91,11 @@ interface TopbarProps {
   selectedOperation: string | null;
   onSelectOperation: (op: string | null) => void;
   operationCounts: Record<string, number>;
+
+  // Correlation filter
+  selectedCorrelation?: string | null;
+  onSelectCorrelation?: (corr: string | null) => void;
+  correlationCounts?: Record<string, number>;
 
   // Stream & theme
   isLiveTail: boolean;
@@ -128,6 +142,7 @@ export const Topbar: React.FC<TopbarProps> = ({
   currentMatchIndex,
   onPrevMatch,
   onNextMatch,
+  onGoToLine,
   onOpenGoToLine,
   viewMode,
   onChangeViewMode,
@@ -144,9 +159,15 @@ export const Topbar: React.FC<TopbarProps> = ({
   selectedOperation,
   onSelectOperation,
   operationCounts = {},
+  selectedCorrelation,
+  onSelectCorrelation,
+  correlationCounts = {},
   isLiveTail,
   onToggleLiveTail,
   onExportFiltered,
+  startDate,
+  endDate,
+  onDateRangeChange,
   theme,
   onToggleTheme,
   onOpenShortcuts,
@@ -155,11 +176,97 @@ export const Topbar: React.FC<TopbarProps> = ({
   isFullscreen,
   onToggleFullscreen,
 }) => {
+  const [lineInput, setLineInput] = useState<string>(currentMatchIndex ? currentMatchIndex.toString() : '1');
   const [showDatePicker, setShowDatePicker] = useState(false);
+  const [localStartDate, setLocalStartDate] = useState(startDate || '');
+  const [localEndDate, setLocalEndDate] = useState(endDate || '');
   const [isWorkflowDropdownOpen, setIsWorkflowDropdownOpen] = useState(false);
   const [isOperationDropdownOpen, setIsOperationDropdownOpen] = useState(false);
+  const [isCorrelationDropdownOpen, setIsCorrelationDropdownOpen] = useState(false);
   const [workflowSearch, setWorkflowSearch] = useState('');
   const [operationSearch, setOperationSearch] = useState('');
+  const [correlationSearch, setCorrelationSearch] = useState('');
+  const [isPathCopied, setIsPathCopied] = useState(false);
+
+  // Refs for click outside & mouse leave
+  const workflowRef = React.useRef<HTMLDivElement>(null);
+  const operationRef = React.useRef<HTMLDivElement>(null);
+  const correlationRef = React.useRef<HTMLDivElement>(null);
+  const datePickerRef = React.useRef<HTMLDivElement>(null);
+
+  const wfLeaveTimer = React.useRef<any>(null);
+  const opLeaveTimer = React.useRef<any>(null);
+  const corrLeaveTimer = React.useRef<any>(null);
+  const dtLeaveTimer = React.useRef<any>(null);
+
+  // Sync local date strings when props change
+  React.useEffect(() => {
+    setLocalStartDate(startDate || '');
+    setLocalEndDate(endDate || '');
+  }, [startDate, endDate]);
+
+  // Sync line input when match index changes
+  React.useEffect(() => {
+    setLineInput(currentMatchIndex > 0 ? currentMatchIndex.toString() : '1');
+  }, [currentMatchIndex]);
+
+  // Click outside listener for all popovers
+  React.useEffect(() => {
+    const handleDocumentClick = (e: MouseEvent) => {
+      const target = e.target as Node;
+      if (workflowRef.current && !workflowRef.current.contains(target)) {
+        setIsWorkflowDropdownOpen(false);
+      }
+      if (operationRef.current && !operationRef.current.contains(target)) {
+        setIsOperationDropdownOpen(false);
+      }
+      if (correlationRef.current && !correlationRef.current.contains(target)) {
+        setIsCorrelationDropdownOpen(false);
+      }
+      if (datePickerRef.current && !datePickerRef.current.contains(target)) {
+        setShowDatePicker(false);
+      }
+    };
+    document.addEventListener('mousedown', handleDocumentClick);
+    return () => document.removeEventListener('mousedown', handleDocumentClick);
+  }, []);
+
+  // Mouse leave handlers (graceful close when moved outside)
+  const handleWfMouseLeave = () => {
+    wfLeaveTimer.current = setTimeout(() => setIsWorkflowDropdownOpen(false), 260);
+  };
+  const cancelWfMouseLeave = () => {
+    if (wfLeaveTimer.current) clearTimeout(wfLeaveTimer.current);
+  };
+
+  const handleOpMouseLeave = () => {
+    opLeaveTimer.current = setTimeout(() => setIsOperationDropdownOpen(false), 260);
+  };
+  const cancelOpMouseLeave = () => {
+    if (opLeaveTimer.current) clearTimeout(opLeaveTimer.current);
+  };
+
+  const handleCorrMouseLeave = () => {
+    corrLeaveTimer.current = setTimeout(() => setIsCorrelationDropdownOpen(false), 260);
+  };
+  const cancelCorrMouseLeave = () => {
+    if (corrLeaveTimer.current) clearTimeout(corrLeaveTimer.current);
+  };
+
+  const handleDtMouseLeave = () => {
+    dtLeaveTimer.current = setTimeout(() => setShowDatePicker(false), 260);
+  };
+  const cancelDtMouseLeave = () => {
+    if (dtLeaveTimer.current) clearTimeout(dtLeaveTimer.current);
+  };
+
+  const handleCopyPath = () => {
+    if (activeSource?.path) {
+      navigator.clipboard.writeText(activeSource.path);
+      setIsPathCopied(true);
+      setTimeout(() => setIsPathCopied(false), 2000);
+    }
+  };
 
   const isAllSelected = selectedLevels.length === 0;
 
@@ -167,22 +274,22 @@ export const Topbar: React.FC<TopbarProps> = ({
     <header className="topbar" style={{ gap: 8, padding: '10px 16px' }}>
       {/* ROW 1: DUAL FILTERS, MATCH NAVIGATOR, GO TO LINE, LINE STATS (Image 4) */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-        {/* Toggle Left Panel Button */}
-        {onToggleSidebar && (
+        {/* Toggle Left Panel Button - ONLY shown when sidebar is collapsed to avoid duplicate button */}
+        {onToggleSidebar && !isSidebarOpen && (
           <button
             className="btn-icon"
             onClick={onToggleSidebar}
-            title={isSidebarOpen ? 'Collapse Left Panel ([)' : 'Expand Left Panel ([)'}
+            title="Expand Left Panel ([)"
             style={{
               width: 34,
               height: 34,
               flexShrink: 0,
-              backgroundColor: !isSidebarOpen ? 'var(--accent-bg)' : undefined,
-              borderColor: !isSidebarOpen ? 'var(--accent-primary)' : undefined,
-              color: !isSidebarOpen ? 'var(--accent-primary)' : undefined,
+              backgroundColor: 'var(--accent-bg)',
+              borderColor: 'var(--accent-primary)',
+              color: 'var(--accent-primary)',
             }}
           >
-            {isSidebarOpen ? <PanelLeftClose size={16} /> : <PanelLeftOpen size={16} />}
+            <PanelLeftOpen size={16} />
           </button>
         )}
 
@@ -196,6 +303,7 @@ export const Topbar: React.FC<TopbarProps> = ({
             borderRadius: 6,
             height: 34,
             padding: '2px 8px',
+            position: 'relative',
           }}
         >
           <Filter size={14} style={{ color: '#c084fc', flexShrink: 0 }} />
@@ -206,29 +314,184 @@ export const Topbar: React.FC<TopbarProps> = ({
             value={markerFilter}
             onChange={(e) => onMarkerFilterChange(e.target.value)}
             style={{ fontSize: '0.82rem' }}
+            title="Filter by Workflow Marker regex or plain text"
           />
 
           <div className="search-modifiers" style={{ gap: 2 }}>
             <button
               className={`search-modifier-btn ${isMarkerRegex ? 'active' : ''}`}
               onClick={onToggleMarkerRegex}
-              title="Toggle Marker Regex"
+              title="Toggle Marker Regex (.*)"
               style={{ padding: '2px 5px' }}
             >
               <Code2 size={12} />
             </button>
-            <button
-              className={`search-modifier-btn ${showDatePicker ? 'active' : ''}`}
-              onClick={() => setShowDatePicker(!showDatePicker)}
-              title="Filter by date range"
-              style={{ padding: '2px 5px' }}
-            >
-              <Calendar size={12} />
-            </button>
+
+            {/* Datetime Picker Trigger Button */}
+            <div style={{ position: 'relative' }} ref={datePickerRef}>
+              <button
+                className={`search-modifier-btn ${showDatePicker || startDate || endDate ? 'active' : ''}`}
+                onClick={() => setShowDatePicker(!showDatePicker)}
+                title={startDate || endDate ? `Date filter active: ${startDate || '...'} to ${endDate || '...'}` : "Filter by datetime range"}
+                style={{
+                  padding: '2px 5px',
+                  color: (startDate || endDate) ? '#38bdf8' : undefined,
+                  borderColor: (startDate || endDate) ? '#38bdf8' : undefined,
+                  backgroundColor: (startDate || endDate) ? 'var(--accent-bg)' : undefined,
+                }}
+              >
+                <Calendar size={12} />
+              </button>
+
+              {/* Datetime Range Picker Dropdown */}
+              {showDatePicker && (
+                <div
+                  onMouseEnter={cancelDtMouseLeave}
+                  onMouseLeave={handleDtMouseLeave}
+                  style={{
+                    position: 'absolute',
+                    top: 'calc(100% + 8px)',
+                    left: -120,
+                    background: '#0f172a',
+                    border: '1px solid #38bdf8',
+                    borderRadius: 8,
+                    boxShadow: '0 20px 40px rgba(0, 0, 0, 0.95), 0 0 15px rgba(56, 189, 248, 0.25)',
+                    zIndex: 1000,
+                    minWidth: 310,
+                    padding: 14,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: 10,
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid var(--border-subtle)', paddingBottom: 8 }}>
+                    <span style={{ fontSize: '0.82rem', fontWeight: 600, color: '#38bdf8', display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <Calendar size={14} /> Filter by Datetime
+                    </span>
+                    {(startDate || endDate) && (
+                      <button
+                        onClick={() => {
+                          onDateRangeChange?.(null, null);
+                          setShowDatePicker(false);
+                        }}
+                        style={{ background: 'none', border: 'none', color: '#ef4444', fontSize: '0.72rem', cursor: 'pointer', fontWeight: 600 }}
+                        title="Reset datetime filter"
+                      >
+                        Clear
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Quick Presets */}
+                  <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                    <button
+                      className="level-pill"
+                      style={{ fontSize: '0.7rem', padding: '2px 8px' }}
+                      onClick={() => {
+                        const now = Date.now();
+                        const from = new Date(now - 15 * 60 * 1000).toISOString().slice(0, 16);
+                        const to = new Date(now).toISOString().slice(0, 16);
+                        onDateRangeChange?.(from, to);
+                        setShowDatePicker(false);
+                      }}
+                      title="Filter logs in the last 15 minutes"
+                    >
+                      Last 15m
+                    </button>
+                    <button
+                      className="level-pill"
+                      style={{ fontSize: '0.7rem', padding: '2px 8px' }}
+                      onClick={() => {
+                        const now = Date.now();
+                        const from = new Date(now - 60 * 60 * 1000).toISOString().slice(0, 16);
+                        const to = new Date(now).toISOString().slice(0, 16);
+                        onDateRangeChange?.(from, to);
+                        setShowDatePicker(false);
+                      }}
+                      title="Filter logs in the last 1 hour"
+                    >
+                      Last 1h
+                    </button>
+                    <button
+                      className="level-pill"
+                      style={{ fontSize: '0.7rem', padding: '2px 8px' }}
+                      onClick={() => {
+                        const now = Date.now();
+                        const from = new Date(now - 24 * 60 * 60 * 1000).toISOString().slice(0, 16);
+                        const to = new Date(now).toISOString().slice(0, 16);
+                        onDateRangeChange?.(from, to);
+                        setShowDatePicker(false);
+                      }}
+                      title="Filter logs in the last 24 hours"
+                    >
+                      Last 24h
+                    </button>
+                    <button
+                      className="level-pill"
+                      style={{ fontSize: '0.7rem', padding: '2px 8px' }}
+                      onClick={() => {
+                        onDateRangeChange?.(null, null);
+                        setShowDatePicker(false);
+                      }}
+                      title="Clear time filter to show all"
+                    >
+                      All Time
+                    </button>
+                  </div>
+
+                  {/* Manual Start / End Datetime */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                    <label style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>From Datetime:</label>
+                    <input
+                      type="datetime-local"
+                      value={localStartDate}
+                      onChange={(e) => setLocalStartDate(e.target.value)}
+                      className="sidebar-search-input"
+                      style={{ fontSize: '0.78rem', padding: '5px 8px', background: '#1e293b', border: '1px solid #334155' }}
+                    />
+                  </div>
+
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                    <label style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>To Datetime:</label>
+                    <input
+                      type="datetime-local"
+                      value={localEndDate}
+                      onChange={(e) => setLocalEndDate(e.target.value)}
+                      className="sidebar-search-input"
+                      style={{ fontSize: '0.78rem', padding: '5px 8px', background: '#1e293b', border: '1px solid #334155' }}
+                    />
+                  </div>
+
+                  <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
+                    <button
+                      className="btn-primary"
+                      style={{ flex: 1, padding: '6px 12px', fontSize: '0.78rem', justifyContent: 'center' }}
+                      onClick={() => {
+                        onDateRangeChange?.(localStartDate || null, localEndDate || null);
+                        setShowDatePicker(false);
+                      }}
+                      title="Apply date range filter"
+                    >
+                      Apply Filter
+                    </button>
+                    <button
+                      className="toolbar-btn"
+                      style={{ padding: '6px 10px', fontSize: '0.78rem' }}
+                      onClick={() => setShowDatePicker(false)}
+                      title="Close date picker"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+
             {markerFilter && (
               <button
                 style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', display: 'flex' }}
                 onClick={() => onMarkerFilterChange('')}
+                title="Clear marker filter"
               >
                 <X size={12} />
               </button>
@@ -294,30 +557,81 @@ export const Topbar: React.FC<TopbarProps> = ({
           </div>
         </div>
 
-        {/* Match Navigation (e.g. 1 / 623 < >) */}
+        {/* Combined Go to Line & Match Navigation (Directly Editable, e.g. [ 1 ] / 5,200 < >) */}
         <div
           style={{
             display: 'flex',
             alignItems: 'center',
             gap: 4,
             background: 'var(--bg-surface)',
-            padding: '3px 8px',
+            padding: '2px 8px',
             borderRadius: 6,
             border: '1px solid var(--border-subtle)',
             fontSize: '0.8rem',
             fontFamily: 'var(--font-mono)',
             height: 34,
           }}
+          title="Directly edit current line number and press Enter to jump (or use < >)"
         >
-          <span style={{ color: 'var(--text-primary)', minWidth: 50, textAlign: 'center' }}>
-            {filteredCount > 0 ? `${currentMatchIndex} / ${filteredCount.toLocaleString()}` : '0 / 0'}
+          {/* Editable current line number input */}
+          <input
+            type="text"
+            value={lineInput}
+            onChange={(e) => setLineInput(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                const num = parseInt(lineInput.replace(/,/g, '').trim(), 10);
+                if (!isNaN(num) && num > 0) {
+                  onGoToLine?.(num);
+                }
+              }
+            }}
+            onBlur={() => {
+              const num = parseInt(lineInput.replace(/,/g, '').trim(), 10);
+              if (!isNaN(num) && num > 0) {
+                onGoToLine?.(num);
+              } else {
+                setLineInput(currentMatchIndex > 0 ? currentMatchIndex.toString() : '1');
+              }
+            }}
+            onFocus={(e) => e.target.select()}
+            style={{
+              width: 54,
+              padding: '2px 4px',
+              textAlign: 'center',
+              backgroundColor: 'var(--bg-app)',
+              border: '1px solid var(--border-subtle)',
+              borderRadius: 4,
+              color: '#38bdf8',
+              fontWeight: 700,
+              fontSize: '0.82rem',
+              fontFamily: 'var(--font-mono)',
+              outline: 'none',
+              cursor: 'text',
+            }}
+            title="Edit current line directly and press Enter"
+          />
+
+          <span style={{ color: 'var(--text-muted)' }}>/</span>
+
+          <span
+            style={{
+              color: 'var(--text-primary)',
+              minWidth: 44,
+              textAlign: 'center',
+              paddingRight: 4,
+            }}
+            title={`Total matching lines: ${filteredCount.toLocaleString()}`}
+          >
+            {filteredCount > 0 ? filteredCount.toLocaleString() : '0'}
           </span>
+
           <button
             className="btn-icon"
             onClick={onPrevMatch}
             disabled={filteredCount === 0}
             style={{ width: 22, height: 22, border: 'none' }}
-            title="Previous match"
+            title="Previous match / line (Shift+N or Up)"
           >
             <ChevronLeft size={14} />
           </button>
@@ -326,21 +640,11 @@ export const Topbar: React.FC<TopbarProps> = ({
             onClick={onNextMatch}
             disabled={filteredCount === 0}
             style={{ width: 22, height: 22, border: 'none' }}
-            title="Next match"
+            title="Next match / line (N or Down)"
           >
             <ChevronRight size={14} />
           </button>
         </div>
-
-        {/* Go to line Button */}
-        <button
-          className="btn-secondary"
-          onClick={onOpenGoToLine}
-          style={{ height: 34, padding: '0 12px', fontSize: '0.82rem', gap: 6 }}
-        >
-          <ArrowRight size={13} color="var(--accent-primary)" />
-          Go to line
-        </button>
 
         {/* Line Count Stats (Lines: 623 / 5,688) */}
         <div
@@ -424,6 +728,49 @@ export const Topbar: React.FC<TopbarProps> = ({
             <Download size={13} />
             Export
           </button>
+
+          {/* Copy Log Path Button */}
+          {activeSource?.path && (
+            <button
+              className={`btn-secondary ${isPathCopied ? 'active' : ''}`}
+              onClick={handleCopyPath}
+              style={{
+                height: 28,
+                padding: '0 10px',
+                fontSize: '0.78rem',
+                gap: 5,
+                borderColor: isPathCopied ? '#4ade80' : undefined,
+                color: isPathCopied ? '#4ade80' : undefined,
+                backgroundColor: isPathCopied ? 'rgba(74, 222, 128, 0.15)' : undefined,
+              }}
+              title={`Copy system path to clipboard: ${activeSource.path}`}
+            >
+              {isPathCopied ? <Check size={13} color="#4ade80" /> : <Copy size={13} />}
+              {isPathCopied ? 'Path Copied!' : 'Copy Path'}
+            </button>
+          )}
+
+          {/* Rotated archive indicator */}
+          {activeSource?.isRotated && (
+            <span
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 4,
+                backgroundColor: 'rgba(56, 189, 248, 0.12)',
+                color: '#38bdf8',
+                border: '1px solid rgba(56, 189, 248, 0.3)',
+                borderRadius: 4,
+                padding: '2px 8px',
+                fontSize: '0.72rem',
+                fontWeight: 600,
+              }}
+              title="Viewing rotated archive snapshot"
+            >
+              <History size={12} />
+              Rotated Archive {activeSource.rotationSuffix && `(${activeSource.rotationSuffix})`}
+            </span>
+          )}
 
           {/* Compact View Toggle */}
           <button
@@ -651,6 +998,9 @@ export const Topbar: React.FC<TopbarProps> = ({
                 onClick={() => setIsWorkflowDropdownOpen(false)}
               />
               <div
+                ref={workflowRef}
+                onMouseEnter={cancelWfMouseLeave}
+                onMouseLeave={handleWfMouseLeave}
                 style={{
                   position: 'absolute',
                   top: 'calc(100% + 6px)',
@@ -819,6 +1169,9 @@ export const Topbar: React.FC<TopbarProps> = ({
                 onClick={() => setIsOperationDropdownOpen(false)}
               />
               <div
+                ref={operationRef}
+                onMouseEnter={cancelOpMouseLeave}
+                onMouseLeave={handleOpMouseLeave}
                 style={{
                   position: 'absolute',
                   top: 'calc(100% + 6px)',
@@ -915,6 +1268,187 @@ export const Topbar: React.FC<TopbarProps> = ({
                               {count}
                             </span>
                             {isSelected && <Check size={13} color="#fb923c" />}
+                          </div>
+                        </div>
+                      );
+                    })}
+                </div>
+              </div>
+            </>
+          )}
+        </div>
+
+        {/* CORRELATION ID DROPDOWN TOGGLE */}
+        <div style={{ position: 'relative' }}>
+          <button
+            className={`level-pill ${selectedCorrelation ? 'active' : ''}`}
+            onClick={() => {
+              setIsCorrelationDropdownOpen(!isCorrelationDropdownOpen);
+              setIsWorkflowDropdownOpen(false);
+              setIsOperationDropdownOpen(false);
+            }}
+            style={{
+              backgroundColor: selectedCorrelation ? 'rgba(52, 211, 153, 0.2)' : undefined,
+              borderColor: selectedCorrelation ? '#34d399' : undefined,
+              color: selectedCorrelation ? '#34d399' : undefined,
+              fontWeight: selectedCorrelation ? 700 : undefined,
+            }}
+            title="Filter by Correlation ID"
+          >
+            <GitCommit size={12} />
+            <span>{selectedCorrelation ? selectedCorrelation : 'Correlation'}</span>
+            <span
+              className="level-pill-count"
+              style={{
+                backgroundColor: selectedCorrelation ? '#34d399' : undefined,
+                color: selectedCorrelation ? '#000' : undefined,
+              }}
+            >
+              {selectedCorrelation
+                ? (correlationCounts[selectedCorrelation] || 0)
+                : Object.keys(correlationCounts).length}
+            </span>
+            <ChevronDown size={11} />
+          </button>
+
+          {/* Active correlation clear button */}
+          {selectedCorrelation && onSelectCorrelation && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onSelectCorrelation(null);
+              }}
+              style={{
+                position: 'absolute',
+                top: -4,
+                right: -4,
+                background: '#ef4444',
+                color: '#ffffff',
+                border: 'none',
+                borderRadius: '50%',
+                width: 15,
+                height: 15,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                cursor: 'pointer',
+                fontSize: '0.65rem',
+                fontWeight: 'bold',
+                zIndex: 2,
+              }}
+              title="Clear correlation filter"
+            >
+              ×
+            </button>
+          )}
+
+          {/* Correlation Dropdown Popup */}
+          {isCorrelationDropdownOpen && (
+            <>
+              <div
+                style={{ position: 'fixed', inset: 0, zIndex: 999 }}
+                onClick={() => setIsCorrelationDropdownOpen(false)}
+              />
+              <div
+                ref={correlationRef}
+                onMouseEnter={cancelCorrMouseLeave}
+                onMouseLeave={handleCorrMouseLeave}
+                style={{
+                  position: 'absolute',
+                  top: 'calc(100% + 6px)',
+                  right: 0,
+                  background: '#0f172a',
+                  border: '1px solid rgba(52, 211, 153, 0.5)',
+                  borderRadius: 8,
+                  boxShadow: '0 20px 40px rgba(0, 0, 0, 0.95), 0 0 15px rgba(52, 211, 153, 0.25)',
+                  zIndex: 1000,
+                  minWidth: 280,
+                  maxWidth: 360,
+                  overflow: 'hidden',
+                  display: 'flex',
+                  flexDirection: 'column',
+                }}
+              >
+                <div style={{ padding: '8px 10px', borderBottom: '1px solid var(--border-subtle)', background: '#1e293b' }}>
+                  <input
+                    type="text"
+                    placeholder="Filter correlation IDs..."
+                    value={correlationSearch}
+                    onChange={(e) => setCorrelationSearch(e.target.value)}
+                    className="sidebar-search-input"
+                    style={{ fontSize: '0.78rem', padding: '5px 10px', background: '#0f172a', border: '1px solid #334155' }}
+                    autoFocus
+                  />
+                </div>
+
+                <div style={{ maxHeight: 260, overflowY: 'auto', padding: '4px 6px' }}>
+                  <div
+                    onClick={() => {
+                      onSelectCorrelation?.(null);
+                      setIsCorrelationDropdownOpen(false);
+                    }}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      padding: '6px 8px',
+                      borderRadius: 4,
+                      cursor: 'pointer',
+                      fontSize: '0.78rem',
+                      backgroundColor: !selectedCorrelation ? 'var(--accent-bg)' : 'transparent',
+                      color: !selectedCorrelation ? 'var(--accent-primary)' : 'var(--text-primary)',
+                      fontWeight: !selectedCorrelation ? 600 : 400,
+                    }}
+                  >
+                    <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <GitCommit size={12} />
+                      All Correlation IDs
+                    </span>
+                    {!selectedCorrelation && <Check size={13} color="var(--accent-primary)" />}
+                  </div>
+
+                  {Object.entries(correlationCounts)
+                    .filter(([corr]) => corr.toLowerCase().includes(correlationSearch.toLowerCase()))
+                    .sort((a, b) => b[1] - a[1])
+                    .map(([corr, count]) => {
+                      const isSelected = selectedCorrelation === corr;
+                      return (
+                        <div
+                          key={corr}
+                          onClick={() => {
+                            onSelectCorrelation?.(isSelected ? null : corr);
+                            setIsCorrelationDropdownOpen(false);
+                          }}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            padding: '6px 8px',
+                            borderRadius: 4,
+                            cursor: 'pointer',
+                            fontSize: '0.78rem',
+                            backgroundColor: isSelected ? 'rgba(52, 211, 153, 0.2)' : 'transparent',
+                            color: isSelected ? '#34d399' : 'var(--text-primary)',
+                            fontWeight: isSelected ? 600 : 400,
+                          }}
+                        >
+                          <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', fontFamily: 'var(--font-mono)' }}>
+                            {corr}
+                          </span>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                            <span
+                              style={{
+                                fontSize: '0.7rem',
+                                fontFamily: 'var(--font-mono)',
+                                backgroundColor: 'var(--bg-surface)',
+                                padding: '1px 6px',
+                                borderRadius: 4,
+                                color: isSelected ? '#34d399' : 'var(--text-muted)',
+                              }}
+                            >
+                              {count}
+                            </span>
+                            {isSelected && <Check size={13} color="#34d399" />}
                           </div>
                         </div>
                       );

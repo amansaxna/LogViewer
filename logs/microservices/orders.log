@@ -1,0 +1,13 @@
+[2026-09-02 00:10:01.120] [21004] [worker-pool-1] [Queue.Consumer] [WF:JobExecution-5501] [PullMessage] [SUCCESS] [14ms] Dequeued job from SQS sqs-orders-priority [QueueConsumer.ts::84]
+[2026-09-02 00:10:01.150] [21004] [worker-pool-1] [Processor.Order] [WF:JobExecution-5501] [TransformData] [SUCCESS] [22ms] Transformed payload schema v1 -> v2 [DataTransformer.ts::40]
+[2026-09-02 00:10:01.320] [21004] [worker-pool-1] [Export.PDF] [WF:JobExecution-5501] [GenerateInvoice] [SUCCESS] [148ms] Generated PDF document for invoice #INV-9921 (size: 42KB) [PdfGenerator.ts::190]
+[2026-09-02 00:10:01.550] [21004] [worker-pool-1] [Cloud.S3] [WF:JobExecution-5501] [PutObject] [SUCCESS] [210ms] Uploaded invoice to s3://company-invoices/2026/09/INV-9921.pdf [S3Storage.ts::65]
+[2026-09-02 00:10:01.560] [21004] [worker-pool-1] [Queue.Consumer] [WF:JobExecution-5501] [AckMessage] [SUCCESS] [8ms] SQS message acknowledged and deleted [QueueConsumer.ts::112]
+[2026-09-02 00:10:15.002] [21004] [worker-pool-2] [Queue.Consumer] [WF:JobExecution-5502] [PullMessage] [SUCCESS] [12ms] Dequeued job from SQS sqs-orders-priority [QueueConsumer.ts::84]
+[2026-09-02 00:10:15.890] [21004] [worker-pool-2] [Export.PDF] [WF:JobExecution-5502] [GenerateInvoice] [ERROR] [880ms] Chromium headless renderer crashed during PDF print [PdfGenerator.ts::220]
+    Error: Target closed.
+        at CDPSession.send (/app/node_modules/puppeteer/lib/cjs/puppeteer/common/Connection.js:296:16)
+        at Page.pdf (/app/node_modules/puppeteer/lib/cjs/puppeteer/common/Page.js:1894:39)
+        at async PdfGenerator.generateInvoice (/app/dist/PdfGenerator.js:215:18)
+        at async WorkerPool.dispatchJob (/app/dist/WorkerPool.js:140:12)
+[2026-09-02 00:10:16.100] [21004] [worker-pool-2] [Queue.Consumer] [WF:JobExecution-5502] [NackMessage] [WARN] [10ms] Message rescheduled for retry in 60s [QueueConsumer.ts::134]

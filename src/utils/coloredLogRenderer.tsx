@@ -24,8 +24,8 @@ const ANSI_COLOR_MAP: Record<string, string> = {
  * Parses and renders ANSI escape sequences (e.g. \u001b[31mRed\u001b[0m) into colored React spans.
  */
 export function renderAnsiText(text: string): React.ReactNode {
-  // Regex to match ANSI escape codes like \u001b[31m or \x1b[0m
-  const ansiRegex = /(?:\u001b|\\u001b|\\x1b|\[)\??(\d+(?:;\d+)*)m/g;
+  // Regex strictly matching ANSI escape sequences starting with ESC (\u001b, \x1b, \e)
+  const ansiRegex = /(?:\u001b|\\u001b|\\x1b|\x1b|\\033|\\e)\[\??(\d+(?:;\d+)*)m/g;
 
   if (!ansiRegex.test(text)) {
     return null; // No ANSI codes found
@@ -91,12 +91,6 @@ export function renderAnsiText(text: string): React.ReactNode {
  * Parses a flat log line into syntax-colored tokens matching Image 3 and Image 4.
  */
 export function renderSyntaxColoredLine(rawLine: string): React.ReactNode {
-  // First check if line has ANSI escape sequences
-  const ansiRender = renderAnsiText(rawLine);
-  if (ansiRender) {
-    return ansiRender;
-  }
-
   // Check if stack trace line
   const isTrace = /^\s*(Trace:|Error:|Exception:|at\s+|Caused by:)/i.test(rawLine);
   if (isTrace) {
@@ -105,6 +99,13 @@ export function renderSyntaxColoredLine(rawLine: string): React.ReactNode {
         {rawLine}
       </span>
     );
+  }
+
+  // If no bracket tokens are present in this line, check for pure ANSI formatting
+  const hasBrackets = /\[(.*?)\]/.test(rawLine);
+  if (!hasBrackets) {
+    const ansiOnly = renderAnsiText(rawLine);
+    if (ansiOnly) return ansiOnly;
   }
 
   // Bracket tokens regex
@@ -117,72 +118,78 @@ export function renderSyntaxColoredLine(rawLine: string): React.ReactNode {
     // Non-bracket text preceding this token
     if (match.index > lastIndex) {
       const nonToken = rawLine.slice(lastIndex, match.index);
+      const ansiChunk = renderAnsiText(nonToken);
       elements.push(
-        <span key={`txt-${lastIndex}`} style={{ color: '#f8fafc' }}>
-          {nonToken}
+        <span key={`txt-${lastIndex}`} style={{ color: 'var(--tok-msg)' }}>
+          {ansiChunk || nonToken}
         </span>
       );
     }
 
     const token = match[1].trim();
     const tokenLower = token.toLowerCase();
-    let tokenColor = '#94a3b8'; // Default slate
+    let tokenColor = 'var(--tok-pid)'; // Default slate
     let fontWeight: 400 | 500 | 600 | 700 = 400;
 
     // 1. Datetime: cyan
     if (/^\d{4}[-/.]\d{2}[-/.]\d{2}/.test(token)) {
-      tokenColor = '#00e5ff'; // Vivid cyan
+      tokenColor = 'var(--tok-datetime)';
       fontWeight = 600;
     }
     // 2. PID or TID: slate/gray
     else if (/^\d{3,6}$/.test(token) || /^thread[-_]?\w+/i.test(token) || /^worker[-_]?\w+/i.test(token)) {
-      tokenColor = '#94a3b8';
+      tokenColor = 'var(--tok-pid)';
     }
-    // 3. Workflow marker: purple
-    else if (/^wf:/i.test(token) || /^flow[-_:]/i.test(token) || /^txn-/i.test(token)) {
-      tokenColor = '#c084fc';
+    // 3. Correlation ID: emerald green
+    else if (/^(corr|cid|correlation|req|traceid|trace_id|correlation_id|txn)[-_:]/i.test(token) || /^[0-9a-f]{8}-[0-9a-f]{4}-/i.test(token) || /^c_[a-f0-9]{6,}/i.test(token)) {
+      tokenColor = 'var(--tok-corr)';
+      fontWeight = 600;
+    }
+    // 4. Workflow marker: purple
+    else if (/^wf:/i.test(token) || /^flow[-_:]/i.test(token) || /^workflow[-_:]/i.test(token)) {
+      tokenColor = 'var(--tok-workflow)';
       fontWeight = 600;
     }
     // 4. Operation: bright orange for HTTP or yellow for action
     else if (/^(GET|POST|PUT|DELETE|PATCH|HEAD|OPTIONS)/i.test(token)) {
-      tokenColor = '#ff9800'; // Bright Orange
+      tokenColor = 'var(--tok-op-http)';
       fontWeight = 700;
     } else if (/^[A-Z][a-zA-Z0-9]+(Check|Create|Update|Delete|Query|Fetch|Dispatch|Process|Rollback|Sync|Validate|Reserve|Charge|Finalize|Send)$/.test(token)) {
-      tokenColor = '#fbbf24';
+      tokenColor = 'var(--tok-op-action)';
       fontWeight = 600;
     }
     // 5. Status / Level
     else if (tokenLower.includes('fail') || tokenLower.includes('err')) {
-      tokenColor = '#f87171'; // Red
+      tokenColor = 'var(--tok-status-error)';
       fontWeight = 700;
     } else if (tokenLower.includes('warn')) {
-      tokenColor = '#fbbf24'; // Amber
+      tokenColor = 'var(--tok-status-warn)';
       fontWeight = 700;
     } else if (tokenLower.includes('success') || token === '200') {
-      tokenColor = '#86efac'; // Green
+      tokenColor = 'var(--tok-status-success)';
       fontWeight = 700;
     } else if (tokenLower.includes('pend')) {
-      tokenColor = '#facc15'; // Yellow
+      tokenColor = 'var(--tok-duration)';
       fontWeight = 600;
     } else if (tokenLower.includes('crit') || tokenLower.includes('fatal')) {
-      tokenColor = '#f43f5e'; // Rose
+      tokenColor = 'var(--lvl-critical)';
       fontWeight = 700;
     } else if (tokenLower.includes('info')) {
-      tokenColor = '#38bdf8'; // Sky
+      tokenColor = 'var(--tok-status-info)';
       fontWeight = 600;
     }
     // 6. Duration: bright gold
     else if (/^\d+(\.\d+)?\s*(ms|s|m|µs|us|ns)$/i.test(token)) {
-      tokenColor = '#facc15'; // Gold
+      tokenColor = 'var(--tok-duration)';
       fontWeight = 600;
     }
     // 7. Trailing file location: [FileName::LineNumber]
     else if (token.includes('::') || /\.[a-z]{2,4}::\d+$/i.test(token)) {
-      tokenColor = '#64748b'; // Muted slate
+      tokenColor = 'var(--tok-file)';
     }
     // 8. Namespace
     else if (token.includes('.') || /^[A-Z][a-zA-Z0-9_]+$/.test(token)) {
-      tokenColor = '#7dd3fc'; // Soft light blue
+      tokenColor = 'var(--tok-namespace)';
       fontWeight = 500;
     }
 
@@ -203,9 +210,11 @@ export function renderSyntaxColoredLine(rawLine: string): React.ReactNode {
 
   // Trailing remainder of line (message body)
   if (lastIndex < rawLine.length) {
+    const remainder = rawLine.slice(lastIndex);
+    const ansiRemainder = renderAnsiText(remainder);
     elements.push(
-      <span key={`rem-${lastIndex}`} style={{ color: '#f8fafc' }}>
-        {rawLine.slice(lastIndex)}
+      <span key={`rem-${lastIndex}`} style={{ color: 'var(--tok-msg)' }}>
+        {ansiRemainder || remainder}
       </span>
     );
   }

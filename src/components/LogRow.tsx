@@ -67,6 +67,28 @@ export const LogRow: React.FC<LogRowProps> = ({ entry, onViewContext, wrapLines 
           </span>
         )}
 
+        {/* Correlation ID */}
+        {entry.correlationId && (
+          <span
+            className="badge-correlation"
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 4,
+              fontSize: '0.72rem',
+              padding: '1px 6px',
+              borderRadius: 4,
+              backgroundColor: 'var(--accent-bg)',
+              color: 'var(--tok-corr)',
+              border: '1px solid var(--accent-primary)',
+              fontFamily: 'var(--font-mono)',
+            }}
+            title={`Correlation ID: ${entry.correlationId}`}
+          >
+            {entry.correlationId}
+          </span>
+        )}
+
         {/* Namespace */}
         {entry.namespace && <span className="badge-namespace">{entry.namespace}</span>}
 

@@ -23,6 +23,9 @@ export const App: React.FC = () => {
   const [selectedLevels, setSelectedLevels] = useState<LogLevel[]>([]);
   const [selectedWorkflow, setSelectedWorkflow] = useState<string | null>(null);
   const [selectedOperation, setSelectedOperation] = useState<string | null>(null);
+  const [selectedCorrelation, setSelectedCorrelation] = useState<string | null>(null);
+  const [startDate, setStartDate] = useState<string | null>(null);
+  const [endDate, setEndDate] = useState<string | null>(null);
   const [sortOption, setSortOption] = useState<SortOption>('time-desc');
   const [wrapLines, setWrapLines] = useState(false);
   const [viewMode, setViewMode] = useState<'compact' | 'standard' | 'raw'>('compact');
@@ -39,6 +42,7 @@ export const App: React.FC = () => {
   const [levelCounts, setLevelCounts] = useState<Record<string, number>>({});
   const [workflowCounts, setWorkflowCounts] = useState<Record<string, number>>({});
   const [operationCounts, setOperationCounts] = useState<Record<string, number>>({});
+  const [correlationCounts, setCorrelationCounts] = useState<Record<string, number>>({});
 
   // Live tail
   const [isLiveTail, setIsLiveTail] = useState(false);
@@ -168,6 +172,15 @@ export const App: React.FC = () => {
     if (selectedOperation) {
       params.append('operation', selectedOperation);
     }
+    if (selectedCorrelation) {
+      params.append('correlationId', selectedCorrelation);
+    }
+    if (startDate) {
+      params.append('startDate', startDate);
+    }
+    if (endDate) {
+      params.append('endDate', endDate);
+    }
 
     try {
       const res = await fetch(`/api/logs/entries?${params.toString()}`);
@@ -180,6 +193,7 @@ export const App: React.FC = () => {
       setLevelCounts(data.levelCounts);
       setWorkflowCounts(data.workflowCounts || {});
       setOperationCounts(data.operationCounts || {});
+      setCorrelationCounts(data.correlationCounts || {});
       setCurrentMatchIndex(1);
     } catch (err) {
       console.error('Failed to query entries:', err);
@@ -194,6 +208,9 @@ export const App: React.FC = () => {
     selectedLevels,
     selectedWorkflow,
     selectedOperation,
+    selectedCorrelation,
+    startDate,
+    endDate,
     sortOption,
   ]);
 
@@ -246,27 +263,41 @@ export const App: React.FC = () => {
     setSelectedLineNumber(entries[newIdx - 1]?.lineNumber || null);
   };
 
-  // "Go to Line" handler
-  const handleGoToLine = (targetLine: number) => {
-    setSelectedLineNumber(targetLine);
-    const entryIdx = entries.findIndex((e) => e.lineNumber === targetLine);
-    if (entryIdx !== -1) {
-      setTargetScrollIndex(entryIdx);
-      setCurrentMatchIndex(entryIdx + 1);
-    } else {
-      // Find closest
-      let closestIdx = 0;
-      let minDiff = Infinity;
-      for (let i = 0; i < entries.length; i++) {
-        const diff = Math.abs(entries[i].lineNumber - targetLine);
-        if (diff < minDiff) {
-          minDiff = diff;
-          closestIdx = i;
-        }
-      }
-      setTargetScrollIndex(closestIdx);
-      setCurrentMatchIndex(closestIdx + 1);
+  // "Go to Line" / Index handler
+  const handleGoToLine = (targetNum: number) => {
+    if (entries.length === 0) return;
+
+    // 1. Check exact line number match
+    const entryByLine = entries.findIndex((e) => e.lineNumber === targetNum);
+    if (entryByLine !== -1) {
+      setSelectedLineNumber(targetNum);
+      setTargetScrollIndex(entryByLine);
+      setCurrentMatchIndex(entryByLine + 1);
+      return;
     }
+
+    // 2. Check 1-based index (e.g. 1 in 1 / 100)
+    if (targetNum >= 1 && targetNum <= entries.length) {
+      const entryByIdx = entries[targetNum - 1];
+      setSelectedLineNumber(entryByIdx.lineNumber);
+      setTargetScrollIndex(targetNum - 1);
+      setCurrentMatchIndex(targetNum);
+      return;
+    }
+
+    // 3. Find closest line number
+    let closestIdx = 0;
+    let minDiff = Infinity;
+    for (let i = 0; i < entries.length; i++) {
+      const diff = Math.abs(entries[i].lineNumber - targetNum);
+      if (diff < minDiff) {
+        minDiff = diff;
+        closestIdx = i;
+      }
+    }
+    setTargetScrollIndex(closestIdx);
+    setCurrentMatchIndex(closestIdx + 1);
+    setSelectedLineNumber(entries[closestIdx].lineNumber);
   };
 
   // Global Keyboard Shortcuts
@@ -584,6 +615,7 @@ export const App: React.FC = () => {
           currentMatchIndex={currentMatchIndex}
           onPrevMatch={handlePrevMatch}
           onNextMatch={handleNextMatch}
+          onGoToLine={handleGoToLine}
           onOpenGoToLine={() => setIsGoToLineModalOpen(true)}
           viewMode={viewMode}
           onChangeViewMode={setViewMode}
@@ -600,12 +632,21 @@ export const App: React.FC = () => {
           selectedOperation={selectedOperation}
           onSelectOperation={setSelectedOperation}
           operationCounts={operationCounts}
+          selectedCorrelation={selectedCorrelation}
+          onSelectCorrelation={setSelectedCorrelation}
+          correlationCounts={correlationCounts}
           isLiveTail={isLiveTail}
           onToggleLiveTail={() => setIsLiveTail(!isLiveTail)}
           onExportFiltered={handleExportFiltered}
           theme={theme}
           onToggleTheme={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
           onOpenShortcuts={() => setIsShortcutsOpen(true)}
+          startDate={startDate}
+          endDate={endDate}
+          onDateRangeChange={(s, e) => {
+            setStartDate(s);
+            setEndDate(e);
+          }}
           isSidebarOpen={isSidebarOpen}
           onToggleSidebar={toggleSidebar}
           isFullscreen={isFullscreen}
@@ -623,6 +664,7 @@ export const App: React.FC = () => {
           onSelectLine={(line) => setSelectedLineNumber(line)}
           searchQuery={search}
           markerQuery={markerFilter}
+          correlationQuery={selectedCorrelation || undefined}
           targetScrollIndex={targetScrollIndex}
         />
       </main>

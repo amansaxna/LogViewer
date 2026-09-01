@@ -30,6 +30,7 @@ export interface LogEntry {
   timestamp?: number;
   pid?: string;
   tid?: string;
+  correlationId?: string;
   namespace?: string;
   workflow?: string;
   operation?: string;
@@ -52,6 +53,13 @@ export type SortOption =
   | 'duration-asc'
   | 'namespace-asc';
 
+export interface LogFolderConfig {
+  path: string;
+  category?: string;
+  recursive?: boolean;
+  pattern?: string;
+}
+
 export interface LogSource {
   id: string;
   name: string;
@@ -61,6 +69,12 @@ export interface LogSource {
   description?: string;
   isDefault?: boolean;
   isCustom?: boolean;
+  isFolder?: boolean;
+  recursive?: boolean;
+  isRotated?: boolean;
+  rotationParentId?: string;
+  rotationSuffix?: string;
+  rotations?: LogSource[];
   exists?: boolean;
   size?: number;
   lineCount?: number;
@@ -76,5 +90,6 @@ export interface LogQueryResult {
   levelCounts: Record<string, number>;
   workflowCounts: Record<string, number>;
   operationCounts: Record<string, number>;
+  correlationCounts?: Record<string, number>;
   durationMs: number;
 }

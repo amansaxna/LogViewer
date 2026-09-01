@@ -119,6 +119,7 @@ export function parseSingleLine(rawLine: string, lineNumber: number): LogEntry {
   let timestamp: number | undefined;
   let pid: string | undefined;
   let tid: string | undefined;
+  let correlationId: string | undefined;
   let namespace: string | undefined;
   let workflow: string | undefined;
   let operation: string | undefined;
@@ -160,9 +161,19 @@ export function parseSingleLine(rawLine: string, lineNumber: number): LogEntry {
       /^wf:/i.test(token) ||
       /^flow[-_:]/i.test(token) ||
       /^jobexecution-/i.test(token) ||
-      /^txn-/i.test(token)
+      /^workflow[-_:]/i.test(token)
     )) {
       workflow = token;
+      continue;
+    }
+
+    // Check Correlation ID (e.g. [corr-8f92a10b], [cid-1002], [c:xyz], UUIDs, or req-xxx)
+    if (!correlationId && (
+      /^(corr|cid|correlation|req|traceid|trace_id|correlation_id|txn)[-_:]/i.test(token) ||
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(token) ||
+      /^(c|corr)_[a-f0-9]{6,}/i.test(token)
+    )) {
+      correlationId = token;
       continue;
     }
 
@@ -205,6 +216,8 @@ export function parseSingleLine(rawLine: string, lineNumber: number): LogEntry {
     if (!status && STATUS_LEVEL_MAP[token.toLowerCase()]) {
       status = token.toUpperCase();
       explicitLevel = STATUS_LEVEL_MAP[token.toLowerCase()];
+    } else if (!correlationId && (/^(corr|cid|correlation|req|trace)[-_:]/i.test(token) || /^[0-9a-f]{8}-[0-9a-f]{4}-/i.test(token) || /^c_[a-f0-9]{4,}/i.test(token))) {
+      correlationId = token;
     } else if (!namespace) {
       namespace = token;
     } else if (!operation) {
@@ -228,6 +241,7 @@ export function parseSingleLine(rawLine: string, lineNumber: number): LogEntry {
     timestamp,
     pid,
     tid,
+    correlationId,
     namespace,
     workflow,
     operation,

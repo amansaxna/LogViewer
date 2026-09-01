@@ -3,13 +3,14 @@ import { parseLogLines, parseSingleLine } from '../server/parser.ts';
 
 console.log('--- Testing Log Parser ---');
 
-// Test 1: Full flat file line format
-const fullLine = '[2026-09-02 00:01:10.104] [18920] [thread-10] [Auth.Service] [WF:UserLogin-1002] [POST /api/auth/token] [SUCCESS] [42ms] User authentication verified for amansaxena [AuthTokenProvider.ts::88]';
+// Test 1: Full flat file line format with Correlation ID
+const fullLine = '[2026-09-02 00:01:10.104] [18920] [thread-10] [corr-9f2b4c1a] [Auth.Service] [WF:UserLogin-1002] [POST /api/auth/token] [SUCCESS] [42ms] User authentication verified for amansaxena [AuthTokenProvider.ts::88]';
 const parsed1 = parseSingleLine(fullLine, 1);
 
 assert.strictEqual(parsed1.datetime, '2026-09-02 00:01:10.104');
 assert.strictEqual(parsed1.pid, '18920');
 assert.strictEqual(parsed1.tid, 'thread-10');
+assert.strictEqual(parsed1.correlationId, 'corr-9f2b4c1a');
 assert.strictEqual(parsed1.namespace, 'Auth.Service');
 assert.strictEqual(parsed1.workflow, 'WF:UserLogin-1002');
 assert.strictEqual(parsed1.operation, 'POST /api/auth/token');
@@ -18,7 +19,7 @@ assert.strictEqual(parsed1.duration, '42ms');
 assert.strictEqual(parsed1.message, 'User authentication verified for amansaxena');
 assert.strictEqual(parsed1.fileLocation, 'AuthTokenProvider.ts::88');
 assert.strictEqual(parsed1.level, 'info');
-console.log('✓ Test 1 Passed: Full flat file format');
+console.log('✓ Test 1 Passed: Full flat file format with Correlation ID');
 
 // Test 2: Partial brackets (missing datetime, missing workflow, missing duration)
 const partialLine = '[9102] [Risk.Engine] [FlagAccount] [INFO] Flagged account for manual KYC review [RiskAnalyzer.py::130]';

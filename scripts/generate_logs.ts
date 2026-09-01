@@ -112,6 +112,7 @@ function generateLines(count = 5200): string {
 
     const pid = 18900 + (i % 8);
     const tid = `thread-${pad((i % 24) + 1)}`;
+    const correlationId = `corr-${((i % 64) + 100).toString(16)}-${((i * 17) % 8999 + 1000).toString(16)}`;
     const namespace = getRandom(NAMESPACES);
     const wfBase = getRandom(WORKFLOWS);
     const workflow = `${wfBase}-${1000 + (i % 200)}`;
@@ -139,14 +140,14 @@ function generateLines(count = 5200): string {
     // Every ~150 lines, test edge cases (missing brackets or partial fields)
     if (i % 140 === 0) {
       // Partial format: no datetime
-      lines.push(`[${pid}] [${tid}] [${namespace}] [${operation}] [${status}] ${message} [${location}]`);
+      lines.push(`[${pid}] [${tid}] [${correlationId}] [${namespace}] [${operation}] [${status}] ${message} [${location}]`);
     } else if (i % 180 === 0) {
       // Raw log line without brackets
       lines.push(`[INFO] Daemon background flush finished for partition ${(i % 16) + 1} in 3.4ms`);
     } else {
       // Standard full flat file line:
-      // [Datetime] [Process ID] [Thread ID] [Namespace] [WorkflowMarkers] [operations] [Status] [Duration] Message [FileName::LineNumner]
-      lines.push(`[${dateStr}] [${pid}] [${tid}] [${namespace}] [${workflow}] [${operation}] [${status}] [${duration}] ${message} [${location}]`);
+      // [Datetime] [Process ID] [Thread ID] [Correlation ID] [Namespace] [WorkflowMarkers] [operations] [Status] [Duration] Message [FileName::LineNumner]
+      lines.push(`[${dateStr}] [${pid}] [${tid}] [${correlationId}] [${namespace}] [${workflow}] [${operation}] [${status}] [${duration}] ${message} [${location}]`);
     }
 
     // If FAILED or CRITICAL, add occasional realistic stack trace

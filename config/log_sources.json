@@ -1,4 +1,11 @@
 {
+  "folders": [
+    {
+      "path": "./logs",
+      "category": "Discovered Logs",
+      "recursive": true
+    }
+  ],
   "sources": [
     {
       "id": "app-workflow",

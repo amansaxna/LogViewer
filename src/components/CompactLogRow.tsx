@@ -8,6 +8,7 @@ interface CompactLogRowProps {
   onDoubleClick: (lineNumber: number) => void;
   searchQuery?: string;
   markerQuery?: string;
+  correlationQuery?: string;
   wrapLines?: boolean;
 }
 
@@ -18,6 +19,7 @@ export const CompactLogRow: React.FC<CompactLogRowProps> = ({
   onDoubleClick,
   searchQuery,
   markerQuery,
+  correlationQuery,
   wrapLines = false,
 }) => {
   // Helper to highlight matching terms inside text
@@ -52,18 +54,18 @@ export const CompactLogRow: React.FC<CompactLogRowProps> = ({
 
   // Determine status color
   const getStatusColor = (status?: string) => {
-    if (!status) return '#94a3b8';
+    if (!status) return 'var(--tok-pid)';
     const s = status.toUpperCase();
-    if (s.includes('FAIL') || s.includes('ERR')) return '#f87171'; // Red
-    if (s.includes('WARN')) return '#fbbf24'; // Amber
-    if (s.includes('SUCCESS') || s === '200') return '#86efac'; // Green
-    if (s.includes('PEND')) return '#facc15'; // Yellow
-    if (s.includes('CRIT') || s.includes('FATAL')) return '#f43f5e'; // Rose
-    if (s.includes('INFO')) return '#38bdf8'; // Sky
-    return '#94a3b8';
+    if (s.includes('FAIL') || s.includes('ERR')) return 'var(--tok-status-error)';
+    if (s.includes('WARN')) return 'var(--tok-status-warn)';
+    if (s.includes('SUCCESS') || s === '200') return 'var(--tok-status-success)';
+    if (s.includes('PEND')) return 'var(--tok-duration)';
+    if (s.includes('CRIT') || s.includes('FATAL')) return 'var(--lvl-critical)';
+    if (s.includes('INFO')) return 'var(--tok-status-info)';
+    return 'var(--tok-pid)';
   };
 
-  // Operation method color (POST/GET/etc orange)
+  // Operation method color (POST/GET/etc orange vs action amber)
   const isHttpOp = Boolean(entry.operation && /^(POST|GET|PUT|DELETE|PATCH|HEAD)/i.test(entry.operation));
 
   return (
@@ -74,8 +76,8 @@ export const CompactLogRow: React.FC<CompactLogRowProps> = ({
         display: 'flex',
         alignItems: 'baseline',
         padding: '3px 12px 3px 0',
-        backgroundColor: isSelected ? 'rgba(56, 189, 248, 0.14)' : 'transparent',
-        borderLeft: isSelected ? '4px solid #facc15' : '4px solid transparent',
+        backgroundColor: isSelected ? 'var(--row-selected-bg)' : 'transparent',
+        borderLeft: isSelected ? '4px solid var(--row-selected-border)' : '4px solid transparent',
         cursor: 'pointer',
         fontFamily: 'var(--font-mono)',
         fontSize: '0.81rem',
@@ -92,12 +94,16 @@ export const CompactLogRow: React.FC<CompactLogRowProps> = ({
         style={{
           width: 54,
           minWidth: 54,
-          color: isSelected ? '#facc15' : '#64748b',
+          color: isSelected ? 'var(--gutter-selected-text)' : 'var(--text-muted)',
           textAlign: 'right',
           paddingRight: 14,
           userSelect: 'none',
           flexShrink: 0,
           fontWeight: isSelected ? 700 : 400,
+          position: 'sticky',
+          left: 0,
+          backgroundColor: isSelected ? 'var(--gutter-selected-bg)' : 'var(--bg-app)',
+          zIndex: 3,
         }}
       >
         {entry.lineNumber}
@@ -105,38 +111,48 @@ export const CompactLogRow: React.FC<CompactLogRowProps> = ({
 
       {/* Structured Colored Log Line */}
       <div style={{ display: 'inline', flex: 1 }}>
-        {/* Datetime (Cyan) */}
+        {/* Datetime */}
         {entry.datetime && (
-          <span style={{ color: '#00e5ff', marginRight: 8 }}>[{entry.datetime}]</span>
+          <span style={{ color: 'var(--tok-datetime)', marginRight: 8 }}>[{entry.datetime}]</span>
         )}
 
         {/* PID & TID (Muted Slate) */}
         {entry.pid && (
-          <span style={{ color: '#94a3b8', marginRight: 6 }}>[{entry.pid}]</span>
+          <span style={{ color: 'var(--tok-pid)', marginRight: 6 }}>[{entry.pid}]</span>
         )}
         {entry.tid && (
-          <span style={{ color: '#94a3b8', marginRight: 6 }}>[{entry.tid}]</span>
+          <span style={{ color: 'var(--tok-pid)', marginRight: 6 }}>[{entry.tid}]</span>
         )}
 
-        {/* Namespace (Soft Light Blue) */}
+        {/* Correlation ID */}
+        {entry.correlationId && (
+          <span
+            style={{ color: 'var(--tok-corr)', fontWeight: 600, marginRight: 6 }}
+            title={`Correlation ID: ${entry.correlationId}`}
+          >
+            [{highlightMatches(entry.correlationId, [searchQuery, correlationQuery])}]
+          </span>
+        )}
+
+        {/* Namespace */}
         {entry.namespace && (
-          <span style={{ color: '#7dd3fc', marginRight: 6 }}>
+          <span style={{ color: 'var(--tok-namespace)', marginRight: 6 }}>
             [{highlightMatches(entry.namespace, [searchQuery])}]
           </span>
         )}
 
-        {/* Workflow Marker (Purple / Highlighted) */}
+        {/* Workflow Marker */}
         {entry.workflow && (
-          <span style={{ color: '#c084fc', fontWeight: 600, marginRight: 6 }}>
+          <span style={{ color: 'var(--tok-workflow)', fontWeight: 600, marginRight: 6 }}>
             [{highlightMatches(entry.workflow, [searchQuery, markerQuery])}]
           </span>
         )}
 
-        {/* Operation (Bright Orange for POST/GET, Amber for actions) */}
+        {/* Operation */}
         {entry.operation && (
           <span
             style={{
-              color: isHttpOp ? '#ff9800' : '#fbbf24',
+              color: isHttpOp ? 'var(--tok-op-http)' : 'var(--tok-op-action)',
               fontWeight: 600,
               marginRight: 6,
             }}
@@ -145,35 +161,35 @@ export const CompactLogRow: React.FC<CompactLogRowProps> = ({
           </span>
         )}
 
-        {/* Status (Color coded by severity) */}
+        {/* Status */}
         {entry.status && (
           <span style={{ color: getStatusColor(entry.status), fontWeight: 700, marginRight: 6 }}>
             [{entry.status}]
           </span>
         )}
 
-        {/* Duration (Bright Gold) */}
+        {/* Duration */}
         {entry.duration && (
-          <span style={{ color: '#facc15', fontWeight: 600, marginRight: 8 }}>
+          <span style={{ color: 'var(--tok-duration)', fontWeight: 600, marginRight: 8 }}>
             [{entry.duration}]
           </span>
         )}
 
         {/* Message Content */}
-        <span style={{ color: '#f1f5f9' }}>
+        <span style={{ color: 'var(--tok-msg)' }}>
           {highlightMatches(entry.message, [searchQuery, markerQuery])}
         </span>
 
-        {/* Code Location (Slate) */}
+        {/* Code Location */}
         {entry.fileLocation && (
-          <span style={{ color: '#64748b', marginLeft: 8 }}>
+          <span style={{ color: 'var(--tok-file)', marginLeft: 8 }}>
             [{entry.fileLocation}]
           </span>
         )}
 
         {/* Trace indicator if available */}
         {entry.trace && (
-          <div style={{ color: '#f87171', paddingLeft: 20, fontSize: '0.76rem' }}>
+          <div style={{ color: 'var(--tok-status-error)', paddingLeft: 20, fontSize: '0.76rem' }}>
             Trace: {entry.trace.title || entry.trace.raw.split('\n')[0]}
           </div>
         )}
