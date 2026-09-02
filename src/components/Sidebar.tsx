@@ -27,6 +27,7 @@ interface SidebarProps {
   onToggleLiveTail: () => void;
   isLiveTail: boolean;
   liveLogsPerSec?: number;
+  liveAvgLogsPerSec?: number;
   onRemoveCustomSource: (id: string) => void;
   isOpen?: boolean;
   onToggleOpen?: () => void;
@@ -58,6 +59,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onToggleLiveTail,
   isLiveTail,
   liveLogsPerSec = 0,
+  liveAvgLogsPerSec = 0,
   onRemoveCustomSource,
   isOpen = true,
   onToggleOpen,
@@ -181,7 +183,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   fontFamily: 'var(--font-mono)',
                 }}
               >
-                {liveLogsPerSec} logs/s
+                {liveAvgLogsPerSec > 0 ? `avg ${liveAvgLogsPerSec} logs/s` : `${liveLogsPerSec} logs/s`}
               </span>
             </span>
           ) : (

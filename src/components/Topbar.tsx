@@ -31,6 +31,7 @@ import {
   Copy,
   History,
   Activity,
+  RotateCcw,
 } from 'lucide-react';
 import { LogLevel, LogSource, SortOption } from '../types.ts';
 import { Spinner } from './Loaders.tsx';
@@ -75,6 +76,8 @@ interface TopbarProps {
   onChangeViewMode: (mode: 'compact' | 'standard' | 'raw') => void;
   wrapLines: boolean;
   onToggleWrapLines: () => void;
+  hideBrackets?: boolean;
+  onToggleHideBrackets?: () => void;
 
   // Sorting
   sortOption: SortOption;
@@ -82,7 +85,9 @@ interface TopbarProps {
 
   // Level Pills
   selectedLevels: LogLevel[];
+  excludeLevels?: LogLevel[];
   onToggleLevel: (level: LogLevel | 'all') => void;
+  onToggleExcludeLevel?: (level: LogLevel) => void;
   levelCounts: Record<string, number>;
 
   // Workflow & Operation dropdown filters
@@ -102,11 +107,15 @@ interface TopbarProps {
   // Stream & theme
   isLiveTail: boolean;
   liveLogsPerSec?: number;
+  liveAvgLogsPerSec?: number;
+  fileAvgLogsPerSec?: number;
+  liveTotalAdded?: number;
   onToggleLiveTail: () => void;
   onExportFiltered: () => void;
   theme: 'dark' | 'light';
   onToggleTheme: () => void;
   onOpenShortcuts?: () => void;
+  onResetSettings?: () => void;
 
   // Sidebar & Fullscreen
   isSidebarOpen?: boolean;
@@ -114,7 +123,9 @@ interface TopbarProps {
   isFullscreen?: boolean;
   onToggleFullscreen?: () => void;
 
-  // Metadata token visibility toggles (PID, TID, Correlation)
+  // Metadata token visibility toggles (Datetime, PID, TID, Correlation)
+  showDatetime?: boolean;
+  onToggleShowDatetime?: () => void;
   showPid?: boolean;
   onToggleShowPid?: () => void;
   showTid?: boolean;
@@ -126,11 +137,8 @@ interface TopbarProps {
 }
 
 const AVAILABLE_LEVELS: { key: LogLevel; label: string }[] = [
-  { key: 'emergency', label: 'EMERGENCY' },
-  { key: 'critical', label: 'CRITICAL' },
   { key: 'error', label: 'ERROR' },
   { key: 'warning', label: 'WARN' },
-  { key: 'notice', label: 'NOTICE' },
   { key: 'info', label: 'INFO' },
   { key: 'audit', label: 'AUDIT' },
   { key: 'debug', label: 'DEBUG' },
@@ -162,10 +170,14 @@ export const Topbar: React.FC<TopbarProps> = ({
   onChangeViewMode,
   wrapLines,
   onToggleWrapLines,
+  hideBrackets = false,
+  onToggleHideBrackets,
   sortOption,
   onChangeSortOption,
   selectedLevels,
+  excludeLevels = [],
   onToggleLevel,
+  onToggleExcludeLevel,
   levelCounts,
   selectedWorkflow,
   onSelectWorkflow,
@@ -178,6 +190,9 @@ export const Topbar: React.FC<TopbarProps> = ({
   correlationCounts = {},
   isLiveTail,
   liveLogsPerSec = 0,
+  liveAvgLogsPerSec = 0,
+  fileAvgLogsPerSec = 0,
+  liveTotalAdded = 0,
   onToggleLiveTail,
   onExportFiltered,
   startDate,
@@ -186,10 +201,13 @@ export const Topbar: React.FC<TopbarProps> = ({
   theme,
   onToggleTheme,
   onOpenShortcuts,
+  onResetSettings,
   isSidebarOpen,
   onToggleSidebar,
   isFullscreen,
   onToggleFullscreen,
+  showDatetime = true,
+  onToggleShowDatetime,
   showPid = true,
   onToggleShowPid,
   showTid = true,
@@ -291,7 +309,7 @@ export const Topbar: React.FC<TopbarProps> = ({
     }
   };
 
-  const isAllSelected = selectedLevels.length === 0;
+  const isAllSelected = selectedLevels.length === 0 && (excludeLevels || []).length === 0;
 
   return (
     <header className="topbar" style={{ gap: 8, padding: '10px 16px' }}>
@@ -375,10 +393,10 @@ export const Topbar: React.FC<TopbarProps> = ({
                     position: 'absolute',
                     top: 'calc(100% + 8px)',
                     left: -120,
-                    background: '#0f172a',
-                    border: '1px solid #38bdf8',
+                    background: 'var(--bg-card)',
+                    border: '1px solid var(--border-subtle)',
                     borderRadius: 8,
-                    boxShadow: '0 20px 40px rgba(0, 0, 0, 0.95), 0 0 15px rgba(56, 189, 248, 0.25)',
+                    boxShadow: '0 20px 40px rgba(0, 0, 0, 0.25), 0 0 15px rgba(56, 189, 248, 0.15)',
                     zIndex: 1000,
                     minWidth: 310,
                     padding: 14,
@@ -702,22 +720,54 @@ export const Topbar: React.FC<TopbarProps> = ({
           <span style={{ color: '#38bdf8', fontWeight: 700 }}>{filteredCount.toLocaleString()}</span>
           <span>/</span>
           <span>{totalEntries.toLocaleString()}</span>
-          {isLiveTail && (
+          {/* Logs Added / s pill (supports average & instantaneous) */}
+          {isLiveTail ? (
             <span
               style={{
                 marginLeft: 6,
-                padding: '1px 6px',
+                padding: '1px 8px',
                 borderRadius: 4,
                 fontSize: '0.72rem',
                 fontWeight: 600,
-                backgroundColor: liveLogsPerSec > 0 ? 'rgba(34, 197, 94, 0.15)' : 'rgba(100, 116, 139, 0.12)',
-                color: liveLogsPerSec > 0 ? '#16a34a' : 'var(--text-muted)',
+                fontFamily: 'var(--font-mono)',
+                backgroundColor: (liveAvgLogsPerSec > 0 || liveLogsPerSec > 0) ? 'rgba(34, 197, 94, 0.15)' : 'rgba(100, 116, 139, 0.12)',
+                color: (liveAvgLogsPerSec > 0 || liveLogsPerSec > 0) ? '#16a34a' : 'var(--text-muted)',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 4,
               }}
-              title="Live arrival rate: new logs added per second"
+              title={`Live stream rate: ${liveLogsPerSec} logs/s current | ${liveAvgLogsPerSec} logs/s average | Total streamed: ${liveTotalAdded} logs`}
             >
-              +{liveLogsPerSec} logs/s
+              {liveLogsPerSec > 0 ? (
+                <>+{liveLogsPerSec} logs/s <span style={{ opacity: 0.8, fontWeight: 500 }}>(avg {liveAvgLogsPerSec}/s)</span></>
+              ) : liveAvgLogsPerSec > 0 ? (
+                <>avg {liveAvgLogsPerSec} logs/s</>
+              ) : fileAvgLogsPerSec > 0 ? (
+                <>avg {fileAvgLogsPerSec} logs/s</>
+              ) : (
+                <>avg 0 logs/s</>
+              )}
             </span>
-          )}
+          ) : fileAvgLogsPerSec > 0 ? (
+            <span
+              style={{
+                marginLeft: 6,
+                padding: '1px 8px',
+                borderRadius: 4,
+                fontSize: '0.72rem',
+                fontWeight: 600,
+                fontFamily: 'var(--font-mono)',
+                backgroundColor: 'rgba(100, 116, 139, 0.12)',
+                color: 'var(--text-muted)',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 4,
+              }}
+              title={`Average log generation rate across loaded file: ${fileAvgLogsPerSec} logs/s`}
+            >
+              avg {fileAvgLogsPerSec} logs/s
+            </span>
+          ) : null}
           {durationMs !== undefined && (
             <span style={{ marginLeft: 6, fontSize: '0.74rem', color: 'var(--text-muted)' }}>
               ({durationMs}ms)
@@ -731,11 +781,12 @@ export const Topbar: React.FC<TopbarProps> = ({
           {isLiveTail && (
             <div
               className="live-speed-badge"
-              title={`Live stream rate: ${liveLogsPerSec} new logs added per second`}
+              title={`Live stream rate: ${liveLogsPerSec} logs/s current | ${liveAvgLogsPerSec} logs/s session average | ${liveTotalAdded} new logs streamed`}
             >
-              <Activity size={12} className={liveLogsPerSec > 0 ? 'pulse-activity' : ''} />
+              <Activity size={12} className={liveLogsPerSec > 0 || liveAvgLogsPerSec > 0 ? 'pulse-activity' : ''} />
               <span>
-                <strong style={{ fontWeight: 700 }}>{liveLogsPerSec}</strong> logs/s
+                <strong style={{ fontWeight: 700 }}>avg {liveAvgLogsPerSec > 0 ? liveAvgLogsPerSec : (fileAvgLogsPerSec > 0 ? fileAvgLogsPerSec : 0)}</strong> logs/s
+                {liveLogsPerSec > 0 && <span style={{ opacity: 0.8, marginLeft: 4 }}>({liveLogsPerSec}/s)</span>}
               </span>
             </div>
           )}
@@ -889,6 +940,25 @@ export const Topbar: React.FC<TopbarProps> = ({
             <span>Wrap</span>
           </button>
 
+          {/* Remove / Strip [ ] Brackets Toggle */}
+          <button
+            className={`search-modifier-btn ${hideBrackets ? 'active' : ''}`}
+            onClick={onToggleHideBrackets}
+            style={{
+              height: 26,
+              padding: '0 8px',
+              gap: 4,
+              display: 'flex',
+              alignItems: 'center',
+              fontWeight: 600,
+            }}
+            title={hideBrackets ? 'Show [ ] markers' : 'Remove all [ ] markers from log lines'}
+          >
+            <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.74rem' }}>
+              {hideBrackets ? 'No [ ]' : '[ ]'}
+            </span>
+          </button>
+
           {/* Marker & Multi-Field Sort Dropdown */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginLeft: 6 }}>
             <span style={{ fontSize: '0.76rem', color: 'var(--text-muted)' }}>Sort by:</span>
@@ -947,6 +1017,13 @@ export const Topbar: React.FC<TopbarProps> = ({
               title="Click to toggle all: PID, TID, and Correlation ID"
             >
               Meta:
+            </button>
+            <button
+              className={`meta-toggle-btn ${showDatetime !== false ? 'active' : ''}`}
+              onClick={onToggleShowDatetime}
+              title={showDatetime !== false ? 'Hide Datetime column' : 'Show Datetime column'}
+            >
+              Time
             </button>
             <button
               className={`meta-toggle-btn ${showPid ? 'active' : ''}`}
@@ -1025,6 +1102,26 @@ export const Topbar: React.FC<TopbarProps> = ({
             <span>Shortcuts</span>
             <kbd style={{ fontSize: '0.65rem', background: 'var(--bg-surface)', padding: '1px 4px', borderRadius: 3, border: '1px solid var(--border-subtle)' }}>?</kbd>
           </button>
+
+          {/* Reset All Settings Button */}
+          {onResetSettings && (
+            <button
+              className="btn-secondary"
+              onClick={onResetSettings}
+              style={{
+                height: 28,
+                padding: '0 8px',
+                fontSize: '0.76rem',
+                gap: 4,
+                color: 'var(--text-secondary)',
+                borderColor: 'var(--border-subtle)',
+              }}
+              title="Reset all settings, views, and filters to default"
+            >
+              <RotateCcw size={12} />
+              <span>Reset Settings</span>
+            </button>
+          )}
         </div>
       </div>
 
@@ -1041,15 +1138,37 @@ export const Topbar: React.FC<TopbarProps> = ({
         {AVAILABLE_LEVELS.map(({ key, label }) => {
           const count = levelCounts[key] || 0;
           const isSelected = selectedLevels.includes(key);
+          const isExcluded = (excludeLevels || []).includes(key);
 
           return (
             <button
               key={key}
-              className={`level-pill ${key} ${isSelected ? 'active' : ''}`}
-              onClick={() => onToggleLevel(key)}
+              className={`level-pill ${key} ${isSelected ? 'active' : ''} ${isExcluded ? 'excluded' : ''}`}
+              onClick={(e) => {
+                if (e.altKey) {
+                  onToggleExcludeLevel?.(key);
+                } else {
+                  onToggleLevel(key);
+                }
+              }}
+              onContextMenu={(e) => {
+                e.preventDefault();
+                onToggleExcludeLevel?.(key);
+              }}
+              title={`Click to include ${label} (+)\nRight-click or Alt+click: Exclude ${label} (–)`}
             >
-              <span>{label}</span>
+              <span className="level-pill-label">{isExcluded ? `− ${label}` : label}</span>
               <span className="level-pill-count">{count}</span>
+              <span
+                className={`level-pill-neg-btn ${isExcluded ? 'active' : ''}`}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onToggleExcludeLevel?.(key);
+                }}
+                title={isExcluded ? `Remove exclusion of ${label}` : `Exclude ${label} logs (negative filter)`}
+              >
+                {isExcluded ? '✕' : '−'}
+              </span>
             </button>
           );
         })}
@@ -1126,10 +1245,10 @@ export const Topbar: React.FC<TopbarProps> = ({
                   position: 'absolute',
                   top: 'calc(100% + 6px)',
                   right: 0,
-                  background: '#0f172a',
-                  border: '1px solid rgba(192, 132, 252, 0.5)',
+                  background: 'var(--bg-card)',
+                  border: '1px solid var(--border-subtle)',
                   borderRadius: 8,
-                  boxShadow: '0 20px 40px rgba(0, 0, 0, 0.95), 0 0 15px rgba(192, 132, 252, 0.25)',
+                  boxShadow: '0 20px 40px rgba(0, 0, 0, 0.2), 0 0 15px rgba(192, 132, 252, 0.15)',
                   zIndex: 1000,
                   minWidth: 280,
                   maxWidth: 340,
@@ -1138,14 +1257,14 @@ export const Topbar: React.FC<TopbarProps> = ({
                   flexDirection: 'column',
                 }}
               >
-                <div style={{ padding: '8px 10px', borderBottom: '1px solid var(--border-subtle)', background: '#1e293b' }}>
+                <div style={{ padding: '8px 10px', borderBottom: '1px solid var(--border-subtle)', background: 'var(--bg-sidebar)' }}>
                   <input
                     type="text"
                     placeholder="Filter active workflows..."
                     value={workflowSearch}
                     onChange={(e) => setWorkflowSearch(e.target.value)}
                     className="sidebar-search-input"
-                    style={{ fontSize: '0.78rem', padding: '5px 10px', background: '#0f172a', border: '1px solid #334155' }}
+                    style={{ fontSize: '0.78rem', padding: '5px 10px', background: 'var(--bg-surface)', border: '1px solid var(--border-subtle)', color: 'var(--text-primary)' }}
                     autoFocus
                   />
                 </div>
@@ -1297,10 +1416,10 @@ export const Topbar: React.FC<TopbarProps> = ({
                   position: 'absolute',
                   top: 'calc(100% + 6px)',
                   right: 0,
-                  background: '#0f172a',
-                  border: '1px solid rgba(251, 146, 60, 0.5)',
+                  background: 'var(--bg-card)',
+                  border: '1px solid var(--border-subtle)',
                   borderRadius: 8,
-                  boxShadow: '0 20px 40px rgba(0, 0, 0, 0.95), 0 0 15px rgba(251, 146, 60, 0.25)',
+                  boxShadow: '0 20px 40px rgba(0, 0, 0, 0.2), 0 0 15px rgba(251, 146, 60, 0.15)',
                   zIndex: 1000,
                   minWidth: 280,
                   maxWidth: 360,
@@ -1309,14 +1428,14 @@ export const Topbar: React.FC<TopbarProps> = ({
                   flexDirection: 'column',
                 }}
               >
-                <div style={{ padding: '8px 10px', borderBottom: '1px solid var(--border-subtle)', background: '#1e293b' }}>
+                <div style={{ padding: '8px 10px', borderBottom: '1px solid var(--border-subtle)', background: 'var(--bg-sidebar)' }}>
                   <input
                     type="text"
                     placeholder="Filter active operations..."
                     value={operationSearch}
                     onChange={(e) => setOperationSearch(e.target.value)}
                     className="sidebar-search-input"
-                    style={{ fontSize: '0.78rem', padding: '5px 10px', background: '#0f172a', border: '1px solid #334155' }}
+                    style={{ fontSize: '0.78rem', padding: '5px 10px', background: 'var(--bg-surface)', border: '1px solid var(--border-subtle)', color: 'var(--text-primary)' }}
                     autoFocus
                   />
                 </div>
@@ -1478,10 +1597,10 @@ export const Topbar: React.FC<TopbarProps> = ({
                   position: 'absolute',
                   top: 'calc(100% + 6px)',
                   right: 0,
-                  background: '#0f172a',
-                  border: '1px solid rgba(52, 211, 153, 0.5)',
+                  background: 'var(--bg-card)',
+                  border: '1px solid var(--border-subtle)',
                   borderRadius: 8,
-                  boxShadow: '0 20px 40px rgba(0, 0, 0, 0.95), 0 0 15px rgba(52, 211, 153, 0.25)',
+                  boxShadow: '0 20px 40px rgba(0, 0, 0, 0.2), 0 0 15px rgba(52, 211, 153, 0.15)',
                   zIndex: 1000,
                   minWidth: 280,
                   maxWidth: 360,
@@ -1490,14 +1609,14 @@ export const Topbar: React.FC<TopbarProps> = ({
                   flexDirection: 'column',
                 }}
               >
-                <div style={{ padding: '8px 10px', borderBottom: '1px solid var(--border-subtle)', background: '#1e293b' }}>
+                <div style={{ padding: '8px 10px', borderBottom: '1px solid var(--border-subtle)', background: 'var(--bg-sidebar)' }}>
                   <input
                     type="text"
                     placeholder="Filter correlation IDs..."
                     value={correlationSearch}
                     onChange={(e) => setCorrelationSearch(e.target.value)}
                     className="sidebar-search-input"
-                    style={{ fontSize: '0.78rem', padding: '5px 10px', background: '#0f172a', border: '1px solid #334155' }}
+                    style={{ fontSize: '0.78rem', padding: '5px 10px', background: 'var(--bg-surface)', border: '1px solid var(--border-subtle)', color: 'var(--text-primary)' }}
                     autoFocus
                   />
                 </div>

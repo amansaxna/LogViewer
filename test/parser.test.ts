@@ -65,4 +65,33 @@ assert.strictEqual(parsedAudit.pid, '4421');
 assert.strictEqual(parsedAudit.tid, '8812');
 console.log('✓ Test 5 Passed: [AUDIT] level parsed and classified correctly');
 
+// Test 6: XML Log File parsing
+const sampleXmlFile = `<?xml version="1.0" encoding="UTF-8"?>
+<log>
+  <record>
+    <date>2026-09-02T04:15:00.120Z</date>
+    <level>WARNING</level>
+    <class>com.econ.orders.OrderDispatch</class>
+    <thread>worker-4</thread>
+    <message>High latency detected on upstream endpoint</message>
+  </record>
+  <record>
+    <date>2026-09-02T04:15:03.880Z</date>
+    <level>ERROR</level>
+    <class>com.econ.db.TransactionCoordinator</class>
+    <thread>pool-8</thread>
+    <message>Database connection failed</message>
+  </record>
+</log>`;
+
+const parsedXml = parseLogLines(sampleXmlFile);
+assert.strictEqual(parsedXml.length, 2, 'Parsed 2 XML log records');
+assert.strictEqual(parsedXml[0].level, 'warning');
+assert.strictEqual(parsedXml[0].workflow, 'com.econ.orders.OrderDispatch');
+assert.strictEqual(parsedXml[0].tid, 'worker-4');
+assert.strictEqual(parsedXml[0].message, 'High latency detected on upstream endpoint');
+assert.strictEqual(parsedXml[1].level, 'error');
+assert.strictEqual(parsedXml[1].workflow, 'com.econ.db.TransactionCoordinator');
+console.log('✓ Test 6 Passed: Native XML log file detected, identified, and parsed into structured LogEntries');
+
 console.log('All Parser Tests Passed Successfully!');

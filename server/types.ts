@@ -78,6 +78,7 @@ export interface LogQuery {
   caseSensitive?: boolean;
   invert?: boolean;
   levels?: LogLevel[];
+  excludeLevels?: LogLevel[];
   startDate?: string;
   endDate?: string;
   namespace?: string;

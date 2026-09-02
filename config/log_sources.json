@@ -39,6 +39,14 @@
       "path": "./logs/services.log",
       "format": "flat_file",
       "description": "Background worker jobs and inter-service dispatch messages"
+    },
+    {
+      "id": "xml-service-audit",
+      "name": "Security & SOAP Audit (XML)",
+      "category": "XML Logs",
+      "path": "./logs/service_audit.xml",
+      "format": "xml",
+      "description": "Native W3C XML log file with CDATA, structured exceptions, and SOAP payloads"
     }
   ]
 }

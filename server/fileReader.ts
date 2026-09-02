@@ -118,9 +118,15 @@ export function queryLogs(query: LogQuery): LogQueryResult {
 
   // 3. Filter entries
   const selectedLevels = query.levels && query.levels.length > 0 ? new Set(query.levels) : null;
+  const excludedLevels = query.excludeLevels && query.excludeLevels.length > 0 ? new Set(query.excludeLevels) : null;
 
   const filtered = allEntries.filter((entry) => {
-    // Level filter
+    // Negative Level Filter (e.g. do not want Error logs)
+    if (excludedLevels && excludedLevels.has(entry.level)) {
+      return false;
+    }
+
+    // Positive Level filter
     if (selectedLevels && !selectedLevels.has(entry.level)) {
       return false;
     }

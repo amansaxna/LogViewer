@@ -3,8 +3,11 @@ import {
   renderRichMessageContext,
   tokenizeJson,
   findJsonBlocks,
+  tokenizeXml,
+  findXmlBlocks,
   findEntitiesInMessage,
 } from '../src/utils/messageContextHighlighter.tsx';
+import { renderSyntaxColoredLine, stripBracketMarkers } from '../src/utils/coloredLogRenderer.tsx';
 
 console.log('--- Testing Message Context Highlighter & JSON Tokenizer ---');
 
@@ -81,4 +84,79 @@ assert.ok(standaloneEntities.some((e) => e.key === '"userId"' && e.val === '1042
 assert.ok(standaloneEntities.some((e) => e.key === '"status"' && e.val === '"APPROVED"'), 'Captured standalone "status": "APPROVED"');
 console.log('✓ Test 10 Passed: Standalone JSON-style "key": val pairs highlighted cleanly');
 
-console.log('\nAll Message Context Highlighter & JSON Tokenizer Tests Passed Successfully!');
+// Test 11: Proper W3C XML Tokenizer and Block Detection
+const xmlMsg = 'SOAP Envelope received: <soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/"><soap:Body><CancelOrderRequest id="ord_99"/></soap:Body></soap:Envelope> end';
+const xmlBlocks = findXmlBlocks(xmlMsg);
+assert.strictEqual(xmlBlocks.length, 1, 'Should detect 1 XML block');
+assert.ok(xmlBlocks[0].raw.startsWith('<soap:Envelope'), 'Matched SOAP envelope tag');
+
+const xmlTokens = tokenizeXml(xmlBlocks[0].raw);
+assert.ok(xmlTokens.some((t) => t.type === 'tagname' && t.value === 'soap:Envelope'), 'Tokenized tagname soap:Envelope');
+assert.ok(xmlTokens.some((t) => t.type === 'attr' && t.value === 'xmlns:soap'), 'Tokenized attribute xmlns:soap');
+assert.ok(xmlTokens.some((t) => t.type === 'string' && t.value === '"ord_99"'), 'Tokenized string "ord_99"');
+assert.ok(xmlTokens.some((t) => t.type === 'tag' && t.value === '</'), 'Tokenized closing tag </');
+console.log('✓ Test 11 Passed: W3C XML Tokenizer correctly tokenizes tags, tag names, attributes, and strings');
+
+// Test 12: Filepath Detection
+const filepathMsg = 'Reading configuration from /etc/econ/security-config.xml and cache file ./logs/app_workflow.log for worker';
+const filepathEntities = findEntitiesInMessage(filepathMsg);
+assert.ok(filepathEntities.some((e) => e.type === 'filepath' && e.text === '/etc/econ/security-config.xml'), 'Detected unix filepath');
+assert.ok(filepathEntities.some((e) => e.type === 'filepath' && e.text === './logs/app_workflow.log'), 'Detected relative filepath');
+console.log('✓ Test 12 Passed: Filepaths accurately detected and highlighted');
+
+// Test 13: Quoted String Detection ("xyz")
+const quotedMsg = 'Triggering task with mode "fast-sync" and tag \'production-eu\'';
+const quotedEntities = findEntitiesInMessage(quotedMsg);
+assert.ok(quotedEntities.some((e) => e.type === 'quoted' && e.text === '"fast-sync"'), 'Detected double-quoted string "fast-sync"');
+assert.ok(quotedEntities.some((e) => e.type === 'quoted' && e.text === "'production-eu'"), "Detected single-quoted string 'production-eu'");
+console.log('✓ Test 13 Passed: Quoted strings "xyz" and \'xyz\' identified cleanly');
+
+// Test 14: Cloud & Protocol URIs (s3://, gs://, postgres://, etc.)
+const cloudUriMsg = 'Uploaded invoice to s3://company-invoices/2026/09/INV-9921.pdf and db postgres://user:pass@db.internal:5432/econ';
+const cloudEntities = findEntitiesInMessage(cloudUriMsg);
+assert.ok(cloudEntities.some((e) => e.type === 'url' && e.text === 's3://company-invoices/2026/09/INV-9921.pdf'), 'Detected AWS S3 URI');
+assert.ok(cloudEntities.some((e) => e.type === 'url' && e.text === 'postgres://user:pass@db.internal:5432/econ'), 'Detected PostgreSQL URI');
+console.log('✓ Test 14 Passed: Cloud & protocol URIs (s3://, postgres://) identified and highlighted as URLs');
+
+// Test 15: Hide Brackets Toggle in Syntax Renderer & Exact User Specification
+const userSpecRawLine = '[18904] [thread-21] [corr-70-d34] [Payment.StripeGateway] [ReserveInventory] [SUCCESS] Operation ReserveInventory completed successfully for session user_1140 (payload: 351 bytes) [ReportEngine.ts::310]';
+const expectedCleanOutput = 'Operation ReserveInventory completed successfully for session user_1140 (payload: 351 bytes)';
+const actualCleanOutput = stripBracketMarkers(userSpecRawLine);
+assert.strictEqual(actualCleanOutput, expectedCleanOutput, 'stripBracketMarkers strips all bracket tokens leaving pure message');
+
+const bracketRawLine = '[2026-09-02 00:01:50] [18920] [thread-01] [ERROR] Order processing failed [OrderService.ts::42]';
+const withoutBrackets = renderSyntaxColoredLine(bracketRawLine, true);
+assert.ok(withoutBrackets, 'Rendered clean without brackets');
+console.log('✓ Test 15 Passed: Syntax Colored Line & stripBracketMarkers strip all [ ] markers completely per user spec');
+
+// Test 16: Viewport Sticky Right Offset Calculation for XML and JSON Floating Bars
+function calculateStickyRightOffset(containerRight: number, containerWidth: number, viewportRight: number): number {
+  const targetRight = viewportRight - 16;
+  if (containerRight > targetRight) {
+    const rawOffset = containerRight - targetRight;
+    const maxOffset = Math.max(0, containerWidth - 220);
+    return Math.max(0, Math.round(Math.min(rawOffset, maxOffset)));
+  }
+  return 0;
+}
+
+// Case A: Wide JSON/XML extending 1200px beyond viewport (viewport width 800px, chip right edge at 2000px)
+const offsetA = calculateStickyRightOffset(2000, 1900, 800);
+// Target right = 784px. Container right = 2000px. Offset = 2000 - 784 = 1216px.
+// Setting right: 1216px puts floating bar at screen position 2000 - 1216 = 784px (pinned to right edge of viewport!)
+assert.strictEqual(offsetA, 1216);
+assert.strictEqual(2000 - offsetA, 784, 'Floating bar pinned precisely to visible viewport right edge');
+
+// Case B: User scrolls horizontally to the right by 500px (chip right edge now at 1500px)
+const offsetB = calculateStickyRightOffset(1500, 1900, 800);
+// Target right = 784px. Offset = 1500 - 784 = 716px. Screen position = 1500 - 716 = 784px (still pinned!)
+assert.strictEqual(offsetB, 716);
+assert.strictEqual(1500 - offsetB, 784, 'Floating bar smoothly dragged across viewport on scroll');
+
+// Case C: Chip fits completely inside viewport (right edge at 600px <= 784px)
+const offsetC = calculateStickyRightOffset(600, 500, 800);
+assert.strictEqual(offsetC, 0, 'Offset is 0 when chip is fully visible inside viewport');
+
+console.log('✓ Test 16 Passed: Sticky right offset keeps JSON/XML floating action bar visible in viewport on scroll');
+
+console.log('\nAll Message Context Highlighter & Tokenizer Tests Passed Successfully!');

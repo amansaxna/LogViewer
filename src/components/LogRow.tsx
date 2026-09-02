@@ -3,11 +3,14 @@ import { Copy, Check, ExternalLink, ChevronDown, ChevronRight } from 'lucide-rea
 import { LogEntry, LogLevel } from '../types.ts';
 import { TraceViewer } from './TraceViewer.tsx';
 import { renderRichMessageContext } from '../utils/messageContextHighlighter.tsx';
+import { stripBracketMarkers } from '../utils/coloredLogRenderer.tsx';
 
 interface LogRowProps {
   entry: LogEntry;
   onViewContext: (lineNumber: number) => void;
   wrapLines?: boolean;
+  hideBrackets?: boolean;
+  showDatetime?: boolean;
   showPid?: boolean;
   showTid?: boolean;
   showCorrelation?: boolean;
@@ -32,6 +35,8 @@ export const LogRow: React.FC<LogRowProps> = ({
   entry,
   onViewContext,
   wrapLines = false,
+  hideBrackets = false,
+  showDatetime = true,
   showPid = true,
   showTid = true,
   showCorrelation = true,
@@ -66,71 +71,97 @@ export const LogRow: React.FC<LogRowProps> = ({
           {expanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
         </div>
 
-        {/* Line Number */}
-        <span className="log-line-num">#{entry.lineNumber}</span>
-
-        {/* Datetime (if present) */}
-        {entry.datetime && <span className="log-datetime">{entry.datetime}</span>}
-
-        {/* Process ID & Thread ID */}
-        {((showPid && entry.pid) || (showTid && entry.tid)) && (
-          <span className="badge-pid-tid">
-            {showPid && entry.pid ? `P:${entry.pid}` : ''}
-            {showPid && entry.pid && showTid && entry.tid ? ' ' : ''}
-            {showTid && entry.tid ? `T:${entry.tid}` : ''}
-          </span>
-        )}
-
-        {/* Correlation ID */}
-        {showCorrelation && entry.correlationId && (
-          <span
-            className="badge-correlation"
+        {/* Line Number with Fast Copy Button */}
+        <span
+          className="log-line-num"
+          style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}
+        >
+          <button
+            className="fast-copy-btn"
+            onClick={handleCopyRaw}
+            title={`Copy line #${entry.lineNumber}`}
             style={{
+              background: 'none',
+              border: 'none',
+              padding: 0,
+              cursor: 'pointer',
               display: 'inline-flex',
               alignItems: 'center',
-              gap: 4,
-              fontSize: '0.72rem',
-              padding: '1px 6px',
-              borderRadius: 4,
-              backgroundColor: 'var(--accent-bg)',
-              color: 'var(--tok-corr)',
-              border: '1px solid var(--accent-primary)',
-              fontFamily: 'var(--font-mono)',
+              color: copied ? '#22c55e' : 'var(--text-muted)',
+              opacity: copied ? 1 : undefined,
             }}
-            title={`Correlation ID: ${entry.correlationId}`}
           >
-            {entry.correlationId}
-          </span>
+            {copied ? <Check size={11} color="#22c55e" /> : <Copy size={11} />}
+          </button>
+          <span>#{entry.lineNumber}</span>
+        </span>
+
+        {!hideBrackets && (
+          <>
+            {/* Datetime (if present) */}
+            {showDatetime !== false && entry.datetime && <span className="log-datetime">{entry.datetime}</span>}
+
+            {/* Process ID & Thread ID */}
+            {((showPid && entry.pid) || (showTid && entry.tid)) && (
+              <span className="badge-pid-tid">
+                {showPid && entry.pid ? `P:${entry.pid}` : ''}
+                {showPid && entry.pid && showTid && entry.tid ? ' ' : ''}
+                {showTid && entry.tid ? `T:${entry.tid}` : ''}
+              </span>
+            )}
+
+            {/* Correlation ID */}
+            {showCorrelation && entry.correlationId && (
+              <span
+                className="badge-correlation"
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 4,
+                  fontSize: '0.72rem',
+                  padding: '1px 6px',
+                  borderRadius: 4,
+                  backgroundColor: 'var(--accent-bg)',
+                  color: 'var(--tok-corr)',
+                  border: '1px solid var(--accent-primary)',
+                  fontFamily: 'var(--font-mono)',
+                }}
+                title={`Correlation ID: ${entry.correlationId}`}
+              >
+                {entry.correlationId}
+              </span>
+            )}
+
+            {/* Namespace */}
+            {entry.namespace && <span className="badge-namespace">{entry.namespace}</span>}
+
+            {/* Workflow Marker */}
+            {entry.workflow && <span className="badge-workflow">{entry.workflow}</span>}
+
+            {/* Operation */}
+            {entry.operation && <span className="badge-operation">{entry.operation}</span>}
+
+            {/* Status */}
+            {entry.status && (
+              <span
+                className={`badge-status ${
+                  entry.status.toLowerCase().includes('success') || entry.status === '200'
+                    ? 'success'
+                    : entry.status.toLowerCase().includes('fail') ||
+                      entry.status.toLowerCase().includes('error') ||
+                      entry.status === '500'
+                    ? 'failed'
+                    : ''
+                }`}
+              >
+                {entry.status}
+              </span>
+            )}
+
+            {/* Duration */}
+            {entry.duration && <span className="badge-duration">{entry.duration}</span>}
+          </>
         )}
-
-        {/* Namespace */}
-        {entry.namespace && <span className="badge-namespace">{entry.namespace}</span>}
-
-        {/* Workflow Marker */}
-        {entry.workflow && <span className="badge-workflow">{entry.workflow}</span>}
-
-        {/* Operation */}
-        {entry.operation && <span className="badge-operation">{entry.operation}</span>}
-
-        {/* Status */}
-        {entry.status && (
-          <span
-            className={`badge-status ${
-              entry.status.toLowerCase().includes('success') || entry.status === '200'
-                ? 'success'
-                : entry.status.toLowerCase().includes('fail') ||
-                  entry.status.toLowerCase().includes('error') ||
-                  entry.status === '500'
-                ? 'failed'
-                : ''
-            }`}
-          >
-            {entry.status}
-          </span>
-        )}
-
-        {/* Duration */}
-        {entry.duration && <span className="badge-duration">{entry.duration}</span>}
 
         {/* Message */}
         <span
@@ -141,11 +172,18 @@ export const LogRow: React.FC<LogRowProps> = ({
               : undefined
           }
         >
-          {renderRichMessageContext(entry.message, [searchQuery])}
+          {renderRichMessageContext(
+            hideBrackets ? stripBracketMarkers(entry.raw || entry.message) : entry.message,
+            [searchQuery]
+          )}
         </span>
 
         {/* Trailing Location [FileName::LineNumber] */}
-        {entry.fileLocation && <span className="badge-location">{entry.fileLocation}</span>}
+        {!hideBrackets && entry.fileLocation && (
+          <span className="badge-location">
+            {entry.fileLocation}
+          </span>
+        )}
       </div>
 
       {/* Expanded Details */}

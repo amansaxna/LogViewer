@@ -19,9 +19,11 @@ interface LogTableProps {
   markerQuery?: string;
   correlationQuery?: string;
   targetScrollIndex?: number | null;
+  showDatetime?: boolean;
   showPid?: boolean;
   showTid?: boolean;
   showCorrelation?: boolean;
+  hideBrackets?: boolean;
 }
 
 export const LogTable: React.FC<LogTableProps> = ({
@@ -37,9 +39,11 @@ export const LogTable: React.FC<LogTableProps> = ({
   markerQuery,
   correlationQuery,
   targetScrollIndex,
+  showDatetime = true,
   showPid = true,
   showTid = true,
   showCorrelation = true,
+  hideBrackets = false,
 }) => {
   const parentRef = useRef<HTMLDivElement>(null);
 
@@ -152,7 +156,7 @@ export const LogTable: React.FC<LogTableProps> = ({
                 {e.lineNumber}
               </span>
               <div style={{ flex: 1 }}>
-                {renderSyntaxColoredLine(e.raw)}
+                {renderSyntaxColoredLine(e.raw, hideBrackets)}
               </div>
             </div>
           );
@@ -208,6 +212,8 @@ export const LogTable: React.FC<LogTableProps> = ({
                   markerQuery={markerQuery}
                   correlationQuery={correlationQuery}
                   wrapLines={wrapLines}
+                  hideBrackets={hideBrackets}
+                  showDatetime={showDatetime}
                   showPid={showPid}
                   showTid={showTid}
                   showCorrelation={showCorrelation}
@@ -217,6 +223,8 @@ export const LogTable: React.FC<LogTableProps> = ({
                   entry={entry}
                   onViewContext={onViewContext}
                   wrapLines={wrapLines}
+                  hideBrackets={hideBrackets}
+                  showDatetime={showDatetime}
                   showPid={showPid}
                   showTid={showTid}
                   showCorrelation={showCorrelation}

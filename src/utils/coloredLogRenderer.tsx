@@ -89,9 +89,27 @@ export function renderAnsiText(text: string): React.ReactNode {
 }
 
 /**
+ * Strips all surrounding [ ... ] bracket markers from a log line,
+ * e.g.:
+ * "[18904] [thread-21] [corr-70-d34] [Payment.StripeGateway] [ReserveInventory] [SUCCESS] Operation ReserveInventory completed successfully for session user_1140 (payload: 351 bytes) [ReportEngine.ts::310]"
+ * becomes:
+ * "Operation ReserveInventory completed successfully for session user_1140 (payload: 351 bytes)"
+ */
+export function stripBracketMarkers(text: string): string {
+  if (!text) return '';
+  // 1. Strip leading sequence of bracket markers (timestamps, PID, TID, workflow, level)
+  let cleaned = text.replace(/^(\s*\[[^\]]+\])+/g, '').trim();
+  // 2. Strip trailing sequence of bracket markers (e.g. [ReportEngine.ts::310])
+  cleaned = cleaned.replace(/(\s*\[[^\]]+\])+$/g, '').trim();
+  // 3. Strip any intermediate single-token bracket markers (e.g. [RefundProcess], [1520ms])
+  cleaned = cleaned.replace(/\s*\[[a-zA-Z0-9_.:/ -]+\](?!\s*[:,])/g, ' ').replace(/\s{2,}/g, ' ').trim();
+  return cleaned;
+}
+
+/**
  * Parses a flat log line into syntax-colored tokens matching Image 3 and Image 4.
  */
-export function renderSyntaxColoredLine(rawLine: string): React.ReactNode {
+export function renderSyntaxColoredLine(rawLine: string, hideBrackets = false): React.ReactNode {
   // Check if stack trace line
   const isTrace = /^\s*(Trace:|Error:|Exception:|at\s+|Caused by:)/i.test(rawLine);
   if (isTrace) {
@@ -100,6 +118,14 @@ export function renderSyntaxColoredLine(rawLine: string): React.ReactNode {
         {rawLine}
       </span>
     );
+  }
+
+  // If hideBrackets is true, strip all bracket markers completely and render clean message
+  if (hideBrackets) {
+    const cleaned = stripBracketMarkers(rawLine);
+    const ansiOnly = renderAnsiText(cleaned);
+    if (ansiOnly) return ansiOnly;
+    return renderRichMessageContext(cleaned);
   }
 
   // If no bracket tokens are present in this line, check for pure ANSI formatting
@@ -203,7 +229,7 @@ export function renderSyntaxColoredLine(rawLine: string): React.ReactNode {
           fontWeight,
         }}
       >
-        [{token}]
+        {hideBrackets ? token : `[${token}]`}
       </span>
     );
 

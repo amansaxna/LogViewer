@@ -209,7 +209,28 @@ async function runApiTests() {
   assert.strictEqual(auditFilterData.entries[0].status, 'AUDIT');
   console.log(`✓ Test 19 Passed: Filter by [AUDIT] level returned ${auditFilterData.entries.length} audit entries`);
 
-  console.log('\nAll 19 API Integration Tests Passed Successfully!');
+  // Test 20: Query XML log file source
+  const xmlRes = await fetch(`${BASE_URL}/api/logs/entries?sourceId=xml-service-audit`);
+  assert.strictEqual(xmlRes.status, 200);
+  const xmlData = await xmlRes.json();
+  assert.ok(xmlData.entries.length >= 5, `Expected at least 5 XML log entries, got ${xmlData.entries.length}`);
+  assert.ok(xmlData.entries.some((e: any) => e.workflow === 'com.econ.orders.OrderDispatch'), 'Found OrderDispatch XML entry');
+  assert.ok(xmlData.entries.some((e: any) => e.level === 'error'), 'Found ERROR level XML entry');
+  assert.ok(xmlData.entries.some((e: any) => e.level === 'audit'), 'Found AUDIT level XML entry');
+  console.log(`✓ Test 20 Passed: XML log source successfully queried with ${xmlData.entries.length} parsed XML entries`);
+
+  // Test 21: Negative Level Filtering (excludeLevels=error)
+  const excludeRes = await fetch(`${BASE_URL}/api/logs/entries?sourceId=app-workflow&excludeLevels=error`);
+  assert.strictEqual(excludeRes.status, 200);
+  const excludeData = await excludeRes.json();
+  assert.ok(excludeData.entries.length > 0, 'Should return non-error log entries');
+  assert.ok(
+    excludeData.entries.every((e: any) => e.level !== 'error'),
+    'Zero error log entries should be returned when error is excluded'
+  );
+  console.log(`✓ Test 21 Passed: Negative Level Filter successfully excluded all error logs (${excludeData.entries.length} non-error entries returned)`);
+
+  console.log('\nAll 21 API Integration Tests Passed Successfully!');
 }
 
 runApiTests().catch((err) => {

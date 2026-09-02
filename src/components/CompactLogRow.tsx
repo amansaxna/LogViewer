@@ -1,6 +1,8 @@
-import React from 'react';
+import React, { useState } from 'react';
+import { Copy, Check } from 'lucide-react';
 import { LogEntry } from '../types.ts';
 import { renderRichMessageContext } from '../utils/messageContextHighlighter.tsx';
+import { stripBracketMarkers } from '../utils/coloredLogRenderer.tsx';
 
 interface CompactLogRowProps {
   entry: LogEntry;
@@ -11,6 +13,8 @@ interface CompactLogRowProps {
   markerQuery?: string;
   correlationQuery?: string;
   wrapLines?: boolean;
+  hideBrackets?: boolean;
+  showDatetime?: boolean;
   showPid?: boolean;
   showTid?: boolean;
   showCorrelation?: boolean;
@@ -25,10 +29,13 @@ export const CompactLogRow: React.FC<CompactLogRowProps> = ({
   markerQuery,
   correlationQuery,
   wrapLines = false,
+  hideBrackets = false,
+  showDatetime = true,
   showPid = true,
   showTid = true,
   showCorrelation = true,
 }) => {
+  const [copied, setCopied] = useState(false);
   // Helper to highlight matching terms inside text
   const highlightMatches = (text: string, queries: (string | undefined)[]) => {
     const validQueries = queries
@@ -97,14 +104,14 @@ export const CompactLogRow: React.FC<CompactLogRowProps> = ({
       className="compact-log-row"
       title="Click to select, Double click to view full context"
     >
-      {/* Line Number Gutter */}
+      {/* Line Number Gutter with Fast Copy Button */}
       <span
         style={{
-          width: 54,
-          minWidth: 54,
+          width: 62,
+          minWidth: 62,
           color: isSelected ? 'var(--gutter-selected-text)' : 'var(--text-muted)',
           textAlign: 'right',
-          paddingRight: 14,
+          paddingRight: 10,
           userSelect: 'none',
           flexShrink: 0,
           fontWeight: isSelected ? 700 : 400,
@@ -112,84 +119,117 @@ export const CompactLogRow: React.FC<CompactLogRowProps> = ({
           left: 0,
           backgroundColor: isSelected ? 'var(--gutter-selected-bg)' : 'var(--bg-app)',
           zIndex: 3,
+          display: 'inline-flex',
+          alignItems: 'center',
+          justifyContent: 'flex-end',
+          gap: 5,
         }}
       >
-        {entry.lineNumber}
+        <button
+          className="fast-copy-btn"
+          onClick={(e) => {
+            e.stopPropagation();
+            navigator.clipboard.writeText(entry.raw);
+            setCopied(true);
+            setTimeout(() => setCopied(false), 1500);
+          }}
+          title={`Copy line #${entry.lineNumber}`}
+          style={{
+            background: 'none',
+            border: 'none',
+            padding: 0,
+            cursor: 'pointer',
+            display: 'inline-flex',
+            alignItems: 'center',
+            color: copied ? '#22c55e' : 'var(--text-muted)',
+            opacity: copied ? 1 : undefined,
+          }}
+        >
+          {copied ? <Check size={11} color="#22c55e" /> : <Copy size={11} />}
+        </button>
+        <span>{entry.lineNumber}</span>
       </span>
 
       {/* Structured Colored Log Line */}
       <div style={{ display: 'inline', flex: 1 }}>
-        {/* Datetime */}
-        {entry.datetime && (
-          <span style={{ color: 'var(--tok-datetime)', marginRight: 8 }}>[{entry.datetime}]</span>
-        )}
+        {!hideBrackets && (
+          <>
+            {/* Datetime */}
+            {showDatetime !== false && entry.datetime && (
+              <span style={{ color: 'var(--tok-datetime)', marginRight: 8 }}>[{entry.datetime}]</span>
+            )}
 
-        {/* PID & TID (Muted Slate) */}
-        {showPid && entry.pid && (
-          <span style={{ color: 'var(--tok-pid)', marginRight: 6 }}>[{entry.pid}]</span>
-        )}
-        {showTid && entry.tid && (
-          <span style={{ color: 'var(--tok-pid)', marginRight: 6 }}>[{entry.tid}]</span>
-        )}
+            {/* PID & TID (Muted Slate) */}
+            {showPid && entry.pid && (
+              <span style={{ color: 'var(--tok-pid)', marginRight: 6 }}>[{entry.pid}]</span>
+            )}
+            {showTid && entry.tid && (
+              <span style={{ color: 'var(--tok-pid)', marginRight: 6 }}>[{entry.tid}]</span>
+            )}
 
-        {/* Correlation ID */}
-        {showCorrelation && entry.correlationId && (
-          <span
-            style={{ color: 'var(--tok-corr)', fontWeight: 600, marginRight: 6 }}
-            title={`Correlation ID: ${entry.correlationId}`}
-          >
-            [{highlightMatches(entry.correlationId, [searchQuery, correlationQuery])}]
-          </span>
-        )}
+            {/* Correlation ID */}
+            {showCorrelation && entry.correlationId && (
+              <span
+                style={{ color: 'var(--tok-corr)', fontWeight: 600, marginRight: 6 }}
+                title={`Correlation ID: ${entry.correlationId}`}
+              >
+                [{highlightMatches(entry.correlationId, [searchQuery, correlationQuery])}]
+              </span>
+            )}
 
-        {/* Namespace */}
-        {entry.namespace && (
-          <span style={{ color: 'var(--tok-namespace)', marginRight: 6 }}>
-            [{highlightMatches(entry.namespace, [searchQuery])}]
-          </span>
-        )}
+            {/* Namespace */}
+            {entry.namespace && (
+              <span style={{ color: 'var(--tok-namespace)', marginRight: 6 }}>
+                [{highlightMatches(entry.namespace, [searchQuery])}]
+              </span>
+            )}
 
-        {/* Workflow Marker */}
-        {entry.workflow && (
-          <span style={{ color: 'var(--tok-workflow)', fontWeight: 600, marginRight: 6 }}>
-            [{highlightMatches(entry.workflow, [searchQuery, markerQuery])}]
-          </span>
-        )}
+            {/* Workflow Marker */}
+            {entry.workflow && (
+              <span style={{ color: 'var(--tok-workflow)', fontWeight: 600, marginRight: 6 }}>
+                [{highlightMatches(entry.workflow, [searchQuery, markerQuery])}]
+              </span>
+            )}
 
-        {/* Operation */}
-        {entry.operation && (
-          <span
-            style={{
-              color: isHttpOp ? 'var(--tok-op-http)' : 'var(--tok-op-action)',
-              fontWeight: 600,
-              marginRight: 6,
-            }}
-          >
-            [{highlightMatches(entry.operation, [searchQuery])}]
-          </span>
-        )}
+            {/* Operation */}
+            {entry.operation && (
+              <span
+                style={{
+                  color: isHttpOp ? 'var(--tok-op-http)' : 'var(--tok-op-action)',
+                  fontWeight: 600,
+                  marginRight: 6,
+                }}
+              >
+                [{highlightMatches(entry.operation, [searchQuery])}]
+              </span>
+            )}
 
-        {/* Status */}
-        {entry.status && (
-          <span style={{ color: getStatusColor(entry.status), fontWeight: 700, marginRight: 6 }}>
-            [{entry.status}]
-          </span>
-        )}
+            {/* Status */}
+            {entry.status && (
+              <span style={{ color: getStatusColor(entry.status), fontWeight: 700, marginRight: 6 }}>
+                [{entry.status}]
+              </span>
+            )}
 
-        {/* Duration */}
-        {entry.duration && (
-          <span style={{ color: 'var(--tok-duration)', fontWeight: 600, marginRight: 8 }}>
-            [{entry.duration}]
-          </span>
+            {/* Duration */}
+            {entry.duration && (
+              <span style={{ color: 'var(--tok-duration)', fontWeight: 600, marginRight: 8 }}>
+                [{entry.duration}]
+              </span>
+            )}
+          </>
         )}
 
         {/* Message Content with Rich Context Highlighting */}
         <span style={{ color: 'var(--tok-msg)' }}>
-          {renderRichMessageContext(entry.message, [searchQuery, markerQuery])}
+          {renderRichMessageContext(
+            hideBrackets ? stripBracketMarkers(entry.raw || entry.message) : entry.message,
+            [searchQuery, markerQuery]
+          )}
         </span>
 
         {/* Code Location */}
-        {entry.fileLocation && (
+        {!hideBrackets && entry.fileLocation && (
           <span style={{ color: 'var(--tok-file)', marginLeft: 8 }}>
             [{entry.fileLocation}]
           </span>

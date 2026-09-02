@@ -29,6 +29,7 @@ export const ContextModal: React.FC<ContextModalProps> = ({
   const [wrapLines, setWrapLines] = useState(false);
   const [selectedLineNumbers, setSelectedLineNumbers] = useState<Set<number>>(new Set());
   const [copied, setCopied] = useState(false);
+  const [copiedLineNumber, setCopiedLineNumber] = useState<number | null>(null);
 
   const targetLineRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -133,9 +134,9 @@ export const ContextModal: React.FC<ContextModalProps> = ({
           display: 'flex',
           flexDirection: 'column',
           transition: 'all 0.2s ease',
-          backgroundColor: '#080c14',
-          border: '1px solid rgba(56, 189, 248, 0.3)',
-          boxShadow: '0 20px 40px rgba(0, 0, 0, 0.8)',
+          backgroundColor: 'var(--bg-card)',
+          border: '1px solid var(--border-subtle)',
+          boxShadow: '0 20px 40px rgba(0, 0, 0, 0.3)',
         }}
         onClick={(e) => e.stopPropagation()}
       >
@@ -318,7 +319,7 @@ export const ContextModal: React.FC<ContextModalProps> = ({
             flex: 1,
             overflow: 'auto',
             padding: '8px 0',
-            background: '#080c14',
+            background: 'var(--bg-app)',
           }}
         >
           {loading ? (
@@ -349,33 +350,32 @@ export const ContextModal: React.FC<ContextModalProps> = ({
                       alignItems: 'baseline',
                       padding: isTarget ? '6px 16px' : '2px 16px',
                       backgroundColor: isTarget
-                        ? 'rgba(2, 132, 199, 0.35)'
+                        ? 'rgba(250, 204, 21, 0.18)'
                         : isSelected
-                        ? 'rgba(56, 189, 248, 0.14)'
+                        ? 'var(--row-selected-bg)'
                         : 'transparent',
                       borderLeft: isTarget
                         ? '6px solid #facc15'
                         : isSelected
-                        ? '6px solid #38bdf8'
+                        ? '6px solid var(--accent-primary)'
                         : '6px solid transparent',
                       boxShadow: isTarget
-                        ? 'inset 0 0 16px rgba(56, 189, 248, 0.25), 0 0 10px rgba(250, 204, 21, 0.2)'
+                        ? 'inset 0 0 16px rgba(250, 204, 21, 0.15)'
                         : isSelected
-                        ? 'inset 0 0 10px rgba(56, 189, 248, 0.15)'
+                        ? 'inset 0 0 10px var(--accent-bg)'
                         : 'none',
                       margin: isTarget ? '4px 0' : '0',
                       cursor: 'pointer',
                       transition: 'background-color 0.15s ease',
                     }}
-                    title={`Click to toggle line #${line.number} (Shift+Click for range selection)`}
+                    title="Click to toggle line selection, Shift+Click for range"
                   >
-                    {/* Line selection checkbox & Line number gutter */}
+                    {/* Line Selection Checkbox, Fast Copy & Line Number */}
                     <span
                       style={{
-                        width: 90,
-                        minWidth: 90,
-                        color: isTarget ? '#facc15' : isSelected ? '#38bdf8' : '#64748b',
                         userSelect: 'none',
+                        color: isTarget ? '#eab308' : isSelected ? 'var(--accent-primary)' : 'var(--text-muted)',
+                        width: 96,
                         flexShrink: 0,
                         textAlign: 'right',
                         paddingRight: 14,
@@ -387,6 +387,27 @@ export const ContextModal: React.FC<ContextModalProps> = ({
                         gap: 6,
                       }}
                     >
+                      <button
+                        className="fast-copy-btn"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          navigator.clipboard.writeText(line.content);
+                          setCopiedLineNumber(line.number);
+                          setTimeout(() => setCopiedLineNumber(null), 1500);
+                        }}
+                        style={{
+                          background: 'none',
+                          border: 'none',
+                          padding: 0,
+                          cursor: 'pointer',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          color: copiedLineNumber === line.number ? '#22c55e' : 'var(--text-muted)',
+                        }}
+                        title={`Copy line #${line.number}`}
+                      >
+                        {copiedLineNumber === line.number ? <Check size={11} color="#22c55e" /> : <Copy size={11} />}
+                      </button>
                       <input
                         type="checkbox"
                         checked={isSelected}
@@ -396,7 +417,7 @@ export const ContextModal: React.FC<ContextModalProps> = ({
                         }}
                         style={{
                           cursor: 'pointer',
-                          accentColor: '#38bdf8',
+                          accentColor: 'var(--accent-primary)',
                           width: 13,
                           height: 13,
                           flexShrink: 0,

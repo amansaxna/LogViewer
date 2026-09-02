@@ -26,7 +26,160 @@ const STATUS_LEVEL_MAP: Record<string, LogLevel> = {
   trace: 'trace',
 };
 
+export function isXmlLogContent(content: string): boolean {
+  const trimmed = content.trim();
+  return (
+    trimmed.startsWith('<?xml') ||
+    trimmed.includes('<log4j:event') ||
+    trimmed.includes('<record>') ||
+    trimmed.includes('<Event xmlns=') ||
+    trimmed.includes('<log:entry') ||
+    trimmed.includes('<event ')
+  );
+}
+
+export function parseXmlLogRecords(content: string): LogEntry[] | null {
+  const RECORD_REGEX = /(<(?:log4j:event|record|Event|entry|log:record|log:entry)\b[\s\S]*?<\/(?:log4j:event|record|Event|entry|log:record|log:entry)>|<(?:event|record|entry)\b[^>]*?\/>)/gi;
+  const matches: RegExpExecArray[] = [];
+  let m: RegExpExecArray | null;
+  while ((m = RECORD_REGEX.exec(content)) !== null) {
+    matches.push(m);
+  }
+
+  if (matches.length === 0) return null;
+
+  const entries: LogEntry[] = [];
+
+  for (let i = 0; i < matches.length; i++) {
+    const match = matches[i];
+    const xml = match[0];
+    const index = match.index;
+
+    // Calculate line number up to this index
+    const prefix = content.slice(0, index);
+    const lineNumber = (prefix.match(/\n/g) || []).length + 1;
+
+    // 1. Level extraction
+    let level: LogLevel = 'info';
+    const levelAttrMatch = xml.match(/\blevel=["']([a-zA-Z0-9_-]+)["']/i) || xml.match(/<level>([^<]+)<\/level>/i);
+    if (levelAttrMatch) {
+      const rawLvl = levelAttrMatch[1].toLowerCase();
+      if (rawLvl === 'severe' || rawLvl === 'error' || rawLvl === 'fatal' || rawLvl === '2') {
+        level = 'error';
+      } else if (rawLvl === 'warning' || rawLvl === 'warn' || rawLvl === '3') {
+        level = 'warning';
+      } else if (rawLvl === 'audit') {
+        level = 'audit';
+      } else if (rawLvl === 'debug' || rawLvl === 'config' || rawLvl === 'fine') {
+        level = 'debug';
+      } else if (rawLvl === 'trace' || rawLvl === 'finer' || rawLvl === 'finest') {
+        level = 'trace';
+      } else {
+        level = STATUS_LEVEL_MAP[rawLvl] || 'info';
+      }
+    } else {
+      level = inferLevelFromText(xml);
+    }
+
+    // 2. Timestamp extraction
+    let datetime: string | undefined = undefined;
+    const timeAttrMatch =
+      xml.match(/\b(?:timestamp|time)=["']([^"']+)["']/i) ||
+      xml.match(/<date>([^<]+)<\/date>/i) ||
+      xml.match(/\bSystemTime=["']([^"']+)["']/i);
+
+    if (timeAttrMatch) {
+      const val = timeAttrMatch[1];
+      if (/^\d{10,13}$/.test(val)) {
+        const ms = val.length === 10 ? parseInt(val, 10) * 1000 : parseInt(val, 10);
+        datetime = new Date(ms).toISOString();
+      } else {
+        datetime = val;
+      }
+    } else {
+      const millisMatch = xml.match(/<millis>(\d+)<\/millis>/i);
+      if (millisMatch) {
+        datetime = new Date(parseInt(millisMatch[1], 10)).toISOString();
+      }
+    }
+
+    // 3. Workflow / Logger
+    let workflow: string | undefined = undefined;
+    const loggerMatch =
+      xml.match(/\blogger=["']([^"']+)["']/i) ||
+      xml.match(/<class>([^<]+)<\/class>/i) ||
+      xml.match(/<Channel>([^<]+)<\/Channel>/i) ||
+      xml.match(/\bsource=["']([^"']+)["']/i);
+    if (loggerMatch) {
+      workflow = loggerMatch[1];
+    }
+
+    // 4. Thread / PID
+    let thread: string | undefined = undefined;
+    const threadMatch =
+      xml.match(/\bthread=["']([^"']+)["']/i) ||
+      xml.match(/<thread>([^<]+)<\/thread>/i) ||
+      xml.match(/\bThreadID=["']([^"']+)["']/i);
+    if (threadMatch) {
+      thread = threadMatch[1];
+    }
+
+    let pid: string | undefined = undefined;
+    const pidMatch = xml.match(/\b(?:ProcessID|pid)=["']([^"']+)["']/i);
+    if (pidMatch) {
+      pid = pidMatch[1];
+    }
+
+    // 5. Message
+    let message = '';
+    const cdataMatch = xml.match(/<!\[CDATA\[([\s\S]*?)\]\]>/i);
+    const messageTagMatch =
+      xml.match(/<(?:log4j:message|message)>([\s\S]*?)<\/(?:log4j:message|message)>/i) ||
+      xml.match(/<Data[^>]*>([\s\S]*?)<\/Data>/i) ||
+      xml.match(/\bmessage=["']([^"']+)["']/i);
+
+    if (cdataMatch) {
+      message = cdataMatch[1].trim();
+    } else if (messageTagMatch) {
+      message = messageTagMatch[1].trim();
+    } else {
+      message = xml.replace(/\s+/g, ' ').slice(0, 300);
+    }
+
+    // 6. Trace
+    let trace: TraceData | undefined = undefined;
+    const throwableMatch = xml.match(/<(?:log4j:throwable|throwable|exception|stackTrace)>([\s\S]*?)<\/(?:log4j:throwable|throwable|exception|stackTrace)>/i);
+    if (throwableMatch) {
+      const traceText = throwableMatch[1].replace(/<!\[CDATA\[([\s\S]*?)\]\]>/i, '$1').trim();
+      trace = parseTraceLines(traceText.split(/\r?\n/));
+    }
+
+    entries.push({
+      id: `xml-${lineNumber}-${i}`,
+      lineNumber,
+      datetime,
+      level,
+      workflow,
+      tid: thread,
+      pid,
+      message,
+      trace,
+      raw: xml,
+    });
+  }
+
+  return entries;
+}
+
 export function parseLogLines(rawContent: string): LogEntry[] {
+  // Check if content is an XML log file
+  if (isXmlLogContent(rawContent)) {
+    const xmlEntries = parseXmlLogRecords(rawContent);
+    if (xmlEntries && xmlEntries.length > 0) {
+      return xmlEntries;
+    }
+  }
+
   const lines = rawContent.split(/\r?\n/);
   const entries: LogEntry[] = [];
   let currentEntry: LogEntry | null = null;

@@ -443,3 +443,198 @@ This document captures the architectural decisions made during the design and im
      - Added `JSON_KV_REGEX` to highlight unbracketed JSON fields (`"userId": 1042`, `"status": "APPROVED"`).
   3. Added comprehensive automated tests in [`test/highlighter.test.ts`](file:///Users/amansaxena/Documents/Claude/Projects/LogViewer/test/highlighter.test.ts) (Tests 7, 8, 9, 10).
 - **Consequences**: Complex log messages containing nested JSON payloads, microservice webhooks, and raw variable assignments `x=y` are cleanly tokenized with IDE-grade syntax highlighting and interactive format/copy controls.
+
+---
+
+## ADR-029: Constant-Size Hover-Only Code Chips, W3C XML Tokenizer & Dedicated Payload Inspector Modal
+- **Status**: Accepted
+- **Context**: The user requested that the JSON chip size be kept completely constant without expanding log row height, with action buttons (Copy, Format, Inspect) hovering above the text only. Additionally, requested a proper XML tokenizer, native XML log file detection, filepath highlighting, quoted string `"xyz"` highlighting, and a dedicated JSON/XML viewer on another div/modal.
+- **Decision**:
+  1. **Constant-Size Hover-Only Code Chips**:
+     - Converted `.msg-chip-json` and `.msg-chip-xml` into inline baseline flow elements (`display: inline-block; vertical-align: baseline;`) with zero layout displacement.
+     - Extracted toolbar actions into a floating glassmorphic action pill (`.msg-chip-floating-bar`) with `position: absolute; bottom: calc(100% + 4px); right: 0;`.
+     - The floating action pill is hidden with `opacity: 0` by default and smoothly fades in on hover (`:hover`), keeping the parent container and log row height completely constant.
+  2. **W3C XML Lexer & Tokenizer**:
+     - Built `tokenizeXml()` in [`src/utils/messageContextHighlighter.tsx`](file:///Users/amansaxena/Documents/Claude/Projects/LogViewer/src/utils/messageContextHighlighter.tsx): tokens for tags (`<`, `>`, `</`, `/>`), tag names (`xml-tok-tagname`), attributes (`xml-tok-attr`), values (`xml-tok-string`), text content (`xml-tok-content`), comments, and CDATA.
+     - Built `findXmlBlocks()` for balanced XML fragment detection.
+  3. **Native XML Log Files Identification**:
+     - Upgraded server parser [`server/parser.ts`](file:///Users/amansaxena/Documents/Claude/Projects/LogViewer/server/parser.ts): `isXmlLogContent()` identifies Log4j XML, Java `java.util.logging.XMLFormatter`, Windows Event XML, and XML records.
+     - Extracts timestamp, severity levels (SEVERE, ERROR, WARN, AUDIT, INFO), workflow/class, thread/tid, message, and throwable stack traces into structured `LogEntry` objects.
+     - Added native XML source `logs/service_audit.xml` in [`config/log_sources.json`](file:///Users/amansaxena/Documents/Claude/Projects/LogViewer/config/log_sources.json).
+  4. **Filepaths & Quoted String Tokens**:
+     - Added `FILEPATH_REGEX`: highlights Unix/Linux, Windows, and project relative file paths with dedicated file badge (`.msg-chip-filepath`).
+     - Added `QUOTED_REGEX`: highlights standalone quoted strings `"xyz"` and `'xyz'` (`.msg-chip-quoted`).
+  5. **Dedicated JSON & XML Inspector Modal ("Another Div")**:
+     - Created [`src/components/JsonXmlInspectorModal.tsx`](file:///Users/amansaxena/Documents/Claude/Projects/LogViewer/src/components/JsonXmlInspectorModal.tsx) mounted in `App.tsx`.
+     - Triggered via decoupled window event (`open-payload-inspector`) from any chip's `↗ Inspect` button.
+     - Features syntax-highlighted code view, line numbers gutter, live search/filtering within payload, wrap toggle, format/compact toggle, and one-click copy buttons.
+  6. **Automated Verification**:
+     - Added Parser Test 6 for XML log files (`test/parser.test.ts`).
+     - Added Highlighter Tests 11, 12, 13 for XML, filepaths, and quoted strings (`test/highlighter.test.ts`).
+     - Added API Test 20 for XML log queries (`test/api.test.ts`). All 20 API tests and 19 unit tests passing.
+- **Consequences**: Log rows remain completely sleek and uniform in height, while developers gain instant access to rich inline syntax coloring and dedicated deep-inspection tools for JSON, XML, filepaths, and variables.
+
+---
+
+## ADR-030: Reachable Hover Action Bridge, Cloud URI Tokenization, Meta Datetime Toggle, and Negative Level Filters
+- **Status**: Accepted
+- **Context**:
+  1. The floating action toolbar above JSON/XML chips was disappearing when the user moved the mouse from the chip up toward the buttons because of a hover gap.
+  2. Cloud URIs like `s3://company-invoices/2026/09/INV-9921.pdf` were not highlighted as URLs.
+  3. The user requested a toggle to show/hide `Datetime` in the `Meta:` group (`Meta: [ Time ] [ PID ] [ TID ] [ Corr ]`).
+  4. The user requested removing cluttered `EMERGENCY`, `CRITICAL`, and `NOTICE` pills from the level filter bar.
+  5. The user requested a negative level filter feature (e.g. exclude `ERROR` logs to see only non-error logs).
+- **Decision**:
+  1. **Reachable Hover Bridge & Grace Period**:
+     - Added an invisible hover bridge pseudo-element (`.msg-chip-floating-bar::before`) extending 16px downwards to seamlessly bridge the mouse path between the code chip and the floating toolbar.
+     - Added React hover state with a 280ms grace timer (`isHovered`) on `JsonChip` and `XmlChip` so quick or diagonal mouse movements never cause the toolbar to disappear.
+     - Positioned toolbar flush at `bottom: calc(100% + 2px)` with `z-index: 10000`.
+  2. **Cloud & Protocol URIs**:
+     - Expanded `URL_REGEX` to match `s3://`, `gs://`, `azure://`, `blob://`, `ftp://`, `file://`, `postgres(ql)://`, `mysql://`, `redis://`, `mongodb://`, `amqp(s)://`, `kafka://`, `grpc://`, and `git://`.
+  3. **Meta Datetime Toggle**:
+     - Added `showDatetime` state persisted in `localStorage` (`lv_show_datetime`).
+     - Added `[ Time ]` button in the `Meta:` toggle group in [`src/components/Topbar.tsx`](file:///Users/amansaxena/Documents/Claude/Projects/LogViewer/src/components/Topbar.tsx).
+     - Dynamically shows/hides the Datetime column in [`src/components/LogTable.tsx`](file:///Users/amansaxena/Documents/Claude/Projects/LogViewer/src/components/LogTable.tsx), [`src/components/CompactLogRow.tsx`](file:///Users/amansaxena/Documents/Claude/Projects/LogViewer/src/components/CompactLogRow.tsx), and [`src/components/LogRow.tsx`](file:///Users/amansaxena/Documents/Claude/Projects/LogViewer/src/components/LogRow.tsx).
+  4. **Clean Level Filter Bar**:
+     - Removed `EMERGENCY`, `CRITICAL`, and `NOTICE` from `AVAILABLE_LEVELS`. Filter bar now cleanly displays: `ALL`, `ERROR`, `WARN`, `INFO`, `AUDIT`, `DEBUG`.
+  5. **Negative Level Filtering (Exclusion Mode)**:
+     - Added `excludeLevels` parameter in `LogQuery`, backend Express route, and `server/fileReader.ts` filter pipeline.
+     - Built tri-state level pills in `Topbar.tsx`:
+       - Normal Click: Includes level (`+`).
+       - Right-click or Alt-click: Excludes level (`−`).
+       - Dedicated interactive `−` / `✕` button on each pill for one-click exclusion.
+       - Excluded pills styled with distinct red glow, red strikethrough label (`− ERROR`), and exclusion badge.
+       - Clicking `ALL` resets both included and excluded filters.
+  6. **Automated Tests**:
+     - Added Highlighter Test 14 for cloud URIs (`test/highlighter.test.ts`).
+     - Added API Integration Test 21 for `excludeLevels` negative filtering (`test/api.test.ts`). All 21 API tests and 14 highlighter tests passing cleanly.
+- **Consequences**: Developers can seamlessly inspect floating code toolbars, detect all cloud URIs like `s3://`, toggle timestamps on/off to save horizontal screen real-estate, and exclude noisy log levels with one click.
+
+---
+
+## ADR-031: Global Bracket Marker Removal Toggle ([ ] vs No [ ])
+- **Status**: Accepted
+- **Context**: Standard enterprise logs wrap every token, timestamp, PID, TID, workflow, and marker in square brackets:
+  `[18904] [thread-21] [corr-70-d34] [Payment.StripeGateway] [ReserveInventory] [SUCCESS] Operation ReserveInventory completed successfully for session user_1140 (payload: 351 bytes) [ReportEngine.ts::310]`
+  The user clarified that "removal of marker []" means stripping all `[...]` bracket markers completely, transforming the line into:
+  `Operation ReserveInventory completed successfully for session user_1140 (payload: 351 bytes)`.
+- **Decision**:
+  1. **UI Toggle Button**:
+     - Added a dedicated button `[ ]` / `No [ ]` in Topbar Row 2 next to `Wrap` in [`src/components/Topbar.tsx`](file:///Users/amansaxena/Documents/Claude/Projects/LogViewer/src/components/Topbar.tsx#L900).
+     - State persisted in `localStorage` (`lv_hide_brackets`).
+  2. **View Modes Behavior**:
+     - Added `stripBracketMarkers(text: string): string` in [`src/utils/coloredLogRenderer.tsx`](file:///Users/amansaxena/Documents/Claude/Projects/LogViewer/src/utils/coloredLogRenderer.tsx).
+     - **Compact Log Rows**: When `hideBrackets` is enabled, all metadata marker badges (`datetime`, `pid`, `tid`, `correlationId`, `workflow`, `operation`, `status`, `duration`, `fileLocation`) are omitted, leaving purely the line number gutter and the clean message with rich context highlighting.
+     - **Detailed Card Rows**: In the summary preview, all metadata badges and bracket markers are omitted.
+     - **Raw & Plain Text View**: In `renderSyntaxColoredLine(rawLine, hideBrackets)`, `stripBracketMarkers` strips all leading, trailing, and isolated `[...]` markers before rendering rich context tokens.
+  3. **Automated Verification**:
+     - Added Test 15 in `test/highlighter.test.ts` verifying the exact user string transformation:
+       `[18904] [thread-21] [corr-70-d34] [Payment.StripeGateway] [ReserveInventory] [SUCCESS] Operation ReserveInventory completed successfully for session user_1140 (payload: 351 bytes) [ReportEngine.ts::310]`
+       transforms to:
+       `Operation ReserveInventory completed successfully for session user_1140 (payload: 351 bytes)`.
+- **Consequences**: Users can instantly eliminate all marker noise and view clean, readable log messages.
+
+---
+
+## ADR-032: Average Logs Added Per Second Velocity Badge
+- **Status**: Accepted
+- **Context**: The user identified that the live tail rate badge displayed `+0 logs/s` during intervals between write bursts, providing limited insight into real log ingestion throughput. The user requested displaying the average number of logs added per second.
+- **Decision**:
+  1. **Dual-Velocity Tracking (Instantaneous + Rolling/Session Average)**:
+     - When Live Tail is active, track `liveSessionStartRef`, `liveTotalAddedRef`, and a rolling 30-second arrival sliding window in `src/App.tsx`.
+     - Compute instantaneous rate over the last 1.5s (`liveLogsPerSec`) and rolling 30s/session average (`liveAvgLogsPerSec`).
+  2. **File Historical Average Rate**:
+     - Compute `fileAvgLogsPerSec` across loaded entries using first and last entry timestamps (`t_end - t_start`). For instance, `app-workflow.log` (5,221 lines across 60s) computes to `86.9 logs/s`.
+  3. **UI Display in Topbar & Sidebar**:
+     - **Line Stats Pill**:
+       - When streaming with active writes: displays `+{liveLogsPerSec} logs/s (avg {liveAvgLogsPerSec}/s)`.
+       - When idle between bursts: displays `avg {liveAvgLogsPerSec} logs/s` instead of dropping to an uninformative `+0 logs/s`.
+       - When not live tailing: displays the loaded file's average generation rate `avg {fileAvgLogsPerSec} logs/s`.
+     - **Right-side Live Speed Badge**: Prominently shows `avg {liveAvgLogsPerSec} logs/s`.
+     - **Sidebar Streaming Button**: Shows `Streaming File (avg {liveAvgLogsPerSec} logs/s)`.
+  4. **Verification**:
+     - Verified with `make test && make build`. All 21 API integration tests and 15 highlighter tests passed.
+- **Consequences**: Users always see a statistically stable and accurate average log velocity (`avg X logs/s`), whether actively live streaming or analyzing existing log files.
+
+---
+
+## ADR-033: Page Reload Settings Auto-Persistence & Global Reset Button
+- **Status**: Accepted
+- **Context**: Users customize filters, search terms, view modes, bracket toggles, sort options, and meta columns during log analysis. Previously, hard reloads reset several of these ephemeral states. The user requested:
+  1. Preserving all last used settings across page reloads.
+  2. Adding a button to reset all settings to defaults.
+- **Decision**:
+  1. **Comprehensive Auto-Persistence**:
+     - All user states auto-persist to `localStorage`:
+       - `lv_active_source`: Currently loaded log file
+       - `lv_marker_filter` & `lv_marker_regex`: Workflow marker filter & regex toggle
+       - `lv_search`, `lv_regex`, `lv_case_sensitive`, `lv_invert`: Search term and modifiers
+       - `lv_selected_levels` & `lv_exclude_levels`: Level inclusion and exclusion filters
+       - `lv_selected_workflow`, `lv_selected_operation`, `lv_selected_correlation`: Facet selections
+       - `lv_start_date` & `lv_end_date`: Date range filters
+       - `lv_sort_option`: Sort criteria
+       - `lv_wrap_lines`: Word wrap preference
+       - `lv_hide_brackets`: `No [ ]` clean marker mode
+       - `lv_view_mode`: `compact` | `standard` | `raw`
+       - `lv_show_datetime`, `lv_show_pid`, `lv_show_tid`, `lv_show_corr`: Metadata column toggles
+       - `lv_theme`: `dark` | `light`
+       - `lv_sidebar`: Panel open/collapse state
+     - States initialize from `localStorage` on component mount with safe JSON fallbacks.
+  2. **Global "Reset Settings" Button & Shortcut**:
+     - Placed in Topbar Row 2 beside `Shortcuts` with `RotateCcw` icon.
+     - Registered keyboard shortcut: `Alt + r`.
+     - Clears all stored `lv_*` preferences and restores all filters, views, columns, and search inputs to factory defaults.
+  3. **Verification**:
+     - Automated test suite `test/settings.test.ts` tests both storage persistence and clean reset.
+     - All 21 API tests, 15 highlighter tests, and settings unit tests passing.
+- **Consequences**: User customizations survive browser refreshes seamlessly, and can be wiped back to pristine defaults in one click.
+
+---
+
+## ADR-034: Fast Line Copy Icon & Complete Light Mode System Polish
+- **Status**: Accepted
+- **Context**:
+  1. The user requested adding a fast copy icon on log lines (e.g. next to the line number like `464 [Order.Checkout]...`) to immediately copy that single line to the clipboard with one click.
+  2. The user provided screenshots highlighting remaining dark mode remnants in light mode:
+     - The Topbar dropdown menus (`Operations`, `Workflows`, `Correlation`, `Datetime`) had hardcoded dark backgrounds (`#0f172a`), rendering dark text on dark backgrounds.
+     - The `ContextModal` had a hardcoded dark background (`#080c14`), conflicting with the light header.
+     - File size badges in the sidebar had hardcoded `#0f172a` backgrounds.
+- **Decision**:
+  1. **Fast Line Copy Icon**:
+     - Added a subtle copy icon (`<Copy size={11} />`) right next to the line number in `CompactLogRow.tsx`, `LogRow.tsx`, and `ContextModal.tsx`.
+     - Appears smoothly on row hover (`opacity: 0.75; transform: scale(1)`) with `.fast-copy-btn`.
+     - On click: immediately writes the line's raw content to the clipboard (`navigator.clipboard.writeText(entry.raw)`), displays an emerald checkmark (`<Check size={11} color="#22c55e" />`), and reverts after 1.5 seconds.
+  2. **Light Mode System Polish**:
+     - **Topbar Dropdown Popups**: Replaced hardcoded `#0f172a`, `#1e293b`, and `#334155` in `Workflow`, `Operation`, `Correlation`, and `Datetime` popups with theme CSS variables (`var(--bg-card)`, `var(--bg-sidebar)`, `var(--bg-surface)`, `var(--border-subtle)`, `var(--text-primary)`).
+     - **Context Modal**: Replaced `#080c14` with `var(--bg-card)` and `var(--bg-app)`. In light mode, the code area displays on crisp warm canvas with amber-tinted target line highlighting. Added fast copy buttons to every line in the context modal.
+     - **Sidebar Size Badges**: Replaced `#0f172a` in `.source-size-badge` with `var(--badge-bg)` and `var(--badge-val)`.
+     - **Row Hover in Light Mode**: Introduced `--row-hover-bg` (`rgba(0, 0, 0, 0.035)` in light mode, `rgba(255, 255, 255, 0.04)` in dark mode).
+  3. **Verification**:
+     - Updated automated test suite `test/settings.test.ts` to assert that light mode variables and fast copy rules exist and that hardcoded `#0f172a` colors are purged from Topbar dropdowns.
+     - All 21 API integration tests, 15 highlighter tests, 6 parser tests, and 4 settings/light mode tests pass (`make test`).
+     - Production build compiles cleanly in 790ms (`npm run build`).
+- **Consequences**: Every log line can be copied with one click via the hover copy icon, and all dropdowns, modals, badges, and row hovers seamlessly respect light mode.
+
+---
+
+## ADR-035: Viewport-Sticky Floating Action Bar for JSON and XML Chips
+- **Status**: Accepted
+- **Context**: When a log line contains a wide JSON or XML block extending horizontally beyond the visible screen, the floating action bar (`Format`, `Copy`, `Inspect`) was pinned to the far right edge of the entire element (`right: 0`), requiring the user to scroll horizontally hundreds or thousands of pixels to the right just to see or click the selector. The user requested:
+  - Keep the floating bar on the right side of the container.
+  - Keep it visible inside the current viewport.
+  - Dynamically drag/stick it as the user scrolls left to right.
+- **Decision**:
+  1. **Dynamic Viewport Right-Offset Computation (`useStickyRightOffset`)**:
+     - Built `useStickyRightOffset(containerRef, isHovered)` hook in `src/utils/messageContextHighlighter.tsx`.
+     - Determines the nearest scroll ancestor (or window) and inspects `containerRect.right` relative to `viewportRight - 16`.
+     - If `containerRect.right > targetRight`, computes `offset = containerRect.right - targetRight` (clamped to prevent overflowing past the visible chip's left edge).
+     - Dynamically applies `style={{ right: rightOffset > 0 ? `${rightOffset}px` : undefined }}` on `.msg-chip-floating-bar`.
+  2. **Real-Time Dragging on Horizontal Scroll**:
+     - Attached global capture scroll listener (`window.addEventListener('scroll', updateOffset, { passive: true, capture: true })`) and resize listener while hovered.
+     - As the user scrolls horizontally left and right, the action bar repositions synchronously with zero jitter, remaining pinned to the right edge of the visible viewport.
+     - When the true right edge of the chip comes into view, the offset returns to `0`, seating the bar naturally at the end of the chip.
+  3. **Verification**:
+     - Added Test 16 in `test/highlighter.test.ts` validating viewport-sticky offset calculations across wide elements, scrolled viewports, and short chips.
+     - All 21 API tests, 16 highlighter tests, 6 parser tests, and 4 settings tests pass cleanly (`make test`).
+     - Production build compiles in 820ms (`npm run build`).
+- **Consequences**: Users can immediately interact with the JSON and XML action bars regardless of how wide the log message or code block is, without having to scroll horizontally to the end of the line.

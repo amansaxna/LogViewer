@@ -62,6 +62,14 @@ app.get('/api/logs/entries', (req: Request, res: Response) => {
       levels = levelsParam.map(String).filter(Boolean) as LogLevel[];
     }
 
+    const excludeLevelsParam = req.query.excludeLevels;
+    let excludeLevels: LogLevel[] | undefined;
+    if (typeof excludeLevelsParam === 'string') {
+      excludeLevels = excludeLevelsParam.split(',').filter(Boolean) as LogLevel[];
+    } else if (Array.isArray(excludeLevelsParam)) {
+      excludeLevels = excludeLevelsParam.map(String).filter(Boolean) as LogLevel[];
+    }
+
     const query: LogQuery = {
       sourceId,
       search: req.query.search as string | undefined,
@@ -69,6 +77,7 @@ app.get('/api/logs/entries', (req: Request, res: Response) => {
       caseSensitive: req.query.caseSensitive === 'true',
       invert: req.query.invert === 'true',
       levels,
+      excludeLevels,
       startDate: req.query.startDate as string | undefined,
       endDate: req.query.endDate as string | undefined,
       namespace: req.query.namespace as string | undefined,

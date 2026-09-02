@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<log>
+  <record>
+    <date>2026-09-02T04:15:00.120Z</date>
+    <millis>1788293700120</millis>
+    <level>INFO</level>
+    <class>com.econ.gateway.AuthFilter</class>
+    <thread>main-101</thread>
+    <message>Initializing security filter chain using config /etc/econ/security-config.xml with strict_mode=true and timeout_ms=5000</message>
+  </record>
+
+  <record>
+    <date>2026-09-02T04:15:01.340Z</date>
+    <millis>1788293701340</millis>
+    <level>AUDIT</level>
+    <class>com.econ.security.AuditManager</class>
+    <thread>audit-worker-2</thread>
+    <message><![CDATA[User authenticated via OAuth2 from client 192.168.1.105:8080 with user_id=9821 and claims={"sub": "user_9821", "role": "admin", "scope": ["read", "write"]}]]></message>
+  </record>
+
+  <record>
+    <date>2026-09-02T04:15:02.500Z</date>
+    <millis>1788293702500</millis>
+    <level>WARNING</level>
+    <class>com.econ.orders.OrderDispatch</class>
+    <thread>order-exec-4</thread>
+    <message>High latency detected on upstream payment gateway endpoint /api/v1/payments/authorize elapsed=1240ms threshold=1000ms</message>
+  </record>
+
+  <record>
+    <date>2026-09-02T04:15:03.880Z</date>
+    <millis>1788293703880</millis>
+    <level>ERROR</level>
+    <class>com.econ.db.TransactionCoordinator</class>
+    <thread>pool-db-8</thread>
+    <message><![CDATA[Failed commit on transaction tx_id=9941a error="Connection timeout to PostgreSQL replica" state=ROLLBACK]]></message>
+    <exception><![CDATA[java.sql.SQLTransientConnectionException: Connection to database timed out after 3000ms
+	at com.econ.db.ConnectionPool.getConnection(ConnectionPool.java:142)
+	at com.econ.db.TransactionCoordinator.commit(TransactionCoordinator.java:88)
+	at com.econ.orders.OrderProcessor.execute(OrderProcessor.java:55)]]></exception>
+  </record>
+
+  <record>
+    <date>2026-09-02T04:15:04.210Z</date>
+    <millis>1788293704210</millis>
+    <level>INFO</level>
+    <class>com.econ.soap.BillingClient</class>
+    <thread>soap-worker-1</thread>
+    <message><![CDATA[Dispatched SOAP message: <soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/"><soap:Body><CancelOrderRequest orderId="ord_502" reason="timeout"/></soap:Body></soap:Envelope>]]></message>
+  </record>
+</log>

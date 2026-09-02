@@ -37,6 +37,7 @@ const SHORTCUTS: ShortcutItem[] = [
   { keys: ['c'], description: 'Toggle Compact / Detailed Cards view', category: 'View' },
   { keys: ['w'], description: 'Toggle word wrap', category: 'View' },
   { keys: ['t'], description: 'Toggle Live Tail streaming', category: 'View' },
+  { keys: ['Alt', 'r'], description: 'Reset all settings & filters to default', category: 'General' },
   { keys: ['?'], description: 'Show keyboard shortcuts cheat sheet', category: 'General' },
 ];
 
