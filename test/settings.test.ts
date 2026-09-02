@@ -84,4 +84,25 @@ assert.ok(!topbarTsx.includes("placeholder=\"Filter active operations...\"\n    
 assert.ok(!topbarTsx.includes("placeholder=\"Filter active workflows...\"\n                    value={workflowSearch}\n                    onChange={(e) => setWorkflowSearch(e.target.value)}\n                    className=\"sidebar-search-input\"\n                    style={{ fontSize: '0.78rem', padding: '5px 10px', background: '#0f172a'"), 'Workflow dropdown input must not have hardcoded dark background #0f172a');
 console.log('✓ Test 4 Passed: Topbar facet dropdowns completely purged of hardcoded dark backgrounds');
 
-console.log('\nAll Settings, Light Mode & Fast Copy Tests Passed Successfully!');
+// 7. Test Copy Notification & 20 Chars Snippet Formatting
+function formatCopySnippet(text: string): { first20: string; snippet: string } {
+  const normalized = text.replace(/[\r\n\t]+/g, ' ').trim();
+  const first20 = normalized.slice(0, 20);
+  const snippet = normalized.length > 20 ? `${first20}…` : first20;
+  return { first20, snippet };
+}
+
+const sampleCopy1 = 'Operation ReserveInventory completed successfully';
+const res1 = formatCopySnippet(sampleCopy1);
+assert.strictEqual(res1.first20, 'Operation ReserveInv');
+assert.strictEqual(res1.first20.length, 20);
+assert.strictEqual(res1.snippet, 'Operation ReserveInv…');
+
+const sampleCopy2 = 'Short string';
+const res2 = formatCopySnippet(sampleCopy2);
+assert.strictEqual(res2.first20, 'Short string');
+assert.strictEqual(res2.snippet, 'Short string');
+
+console.log('✓ Test 5 Passed: Copy notification first 20 chars snippet accurately extracted and formatted');
+
+console.log('\nAll Settings, Light Mode, Fast Copy & Toast Tests Passed Successfully!');

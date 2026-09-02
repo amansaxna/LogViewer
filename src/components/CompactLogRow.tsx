@@ -3,6 +3,7 @@ import { Copy, Check } from 'lucide-react';
 import { LogEntry } from '../types.ts';
 import { renderRichMessageContext } from '../utils/messageContextHighlighter.tsx';
 import { stripBracketMarkers } from '../utils/coloredLogRenderer.tsx';
+import { copyWithToast } from '../utils/copyNotifier.ts';
 
 interface CompactLogRowProps {
   entry: LogEntry;
@@ -129,7 +130,7 @@ export const CompactLogRow: React.FC<CompactLogRowProps> = ({
           className="fast-copy-btn"
           onClick={(e) => {
             e.stopPropagation();
-            navigator.clipboard.writeText(entry.raw);
+            copyWithToast(entry.raw, `Line #${entry.lineNumber}`);
             setCopied(true);
             setTimeout(() => setCopied(false), 1500);
           }}

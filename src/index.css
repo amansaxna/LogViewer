@@ -1863,4 +1863,31 @@ mark {
   padding: 0 2px;
 }
 
+/* Copy Toast Notification Animations & Styling */
+@keyframes copyToastSlideIn {
+  0% {
+    opacity: 0;
+    transform: translateY(16px) scale(0.96);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes copyToastProgress {
+  0% {
+    width: 100%;
+  }
+  100% {
+    width: 0%;
+  }
+}
+
+[data-theme='light'] .copy-toast-item {
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.12), 0 0 16px rgba(16, 185, 129, 0.22) !important;
+  border-color: #059669 !important;
+}
+
+
 

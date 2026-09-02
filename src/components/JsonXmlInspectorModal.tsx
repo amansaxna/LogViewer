@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { X, Copy, Check, Code2, Search, WrapText, Minimize2 } from 'lucide-react';
 import { tokenizeJson } from '../utils/messageContextHighlighter.tsx';
+import { copyWithToast } from '../utils/copyNotifier.ts';
 
 export interface InspectorPayload {
   type: 'json' | 'xml';
@@ -52,7 +53,7 @@ export const JsonXmlInspectorModal: React.FC<JsonXmlInspectorModalProps> = ({
 
   const handleCopy = async (text: string) => {
     try {
-      await navigator.clipboard.writeText(text);
+      copyWithToast(text, payload.type.toUpperCase());
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch (err) {

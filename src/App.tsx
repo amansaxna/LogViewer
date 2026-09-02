@@ -9,6 +9,7 @@ import { PasteLogsModal } from './components/PasteLogsModal.tsx';
 import { GoToLineModal } from './components/GoToLineModal.tsx';
 import { KeyboardShortcutsModal } from './components/KeyboardShortcutsModal.tsx';
 import { JsonXmlInspectorModal, InspectorPayload } from './components/JsonXmlInspectorModal.tsx';
+import { CopyToast } from './components/CopyToast.tsx';
 
 export const App: React.FC = () => {
   const [sources, setSources] = useState<LogSource[]>([]);
@@ -1084,6 +1085,9 @@ export const App: React.FC = () => {
         payload={inspectorPayload}
         onClose={() => setInspectorPayload(null)}
       />
+
+      {/* Sleek bright copy notification */}
+      <CopyToast />
     </div>
   );
 };

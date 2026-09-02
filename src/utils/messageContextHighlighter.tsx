@@ -1,5 +1,6 @@
 import React, { useState, useMemo, useRef, useCallback, useEffect } from 'react';
 import { ExternalLink, Copy, Check, FileCode, Tag } from 'lucide-react';
+import { copyWithToast } from './copyNotifier.ts';
 
 /**
  * Helper to highlight search query matches in any text node
@@ -591,11 +592,11 @@ export const JsonChip: React.FC<{
     e.stopPropagation();
     try {
       const textToCopy = pretty ? JSON.stringify(JSON.parse(rawJson), null, 2) : rawJson;
-      navigator.clipboard.writeText(textToCopy);
+      copyWithToast(textToCopy, 'JSON Payload');
       setCopied(true);
       setTimeout(() => setCopied(false), 1800);
     } catch {
-      navigator.clipboard.writeText(rawJson);
+      copyWithToast(rawJson, 'JSON Payload');
       setCopied(true);
       setTimeout(() => setCopied(false), 1800);
     }
@@ -724,11 +725,11 @@ export const XmlChip: React.FC<{
     e.stopPropagation();
     try {
       const textToCopy = pretty ? formatXmlString(rawXml) : rawXml;
-      navigator.clipboard.writeText(textToCopy);
+      copyWithToast(textToCopy, 'XML Document');
       setCopied(true);
       setTimeout(() => setCopied(false), 1800);
     } catch {
-      navigator.clipboard.writeText(rawXml);
+      copyWithToast(rawXml, 'XML Document');
       setCopied(true);
       setTimeout(() => setCopied(false), 1800);
     }
@@ -1092,7 +1093,7 @@ export function renderRichMessageContext(
           title={`File path: ${entity.text}`}
           onClick={(e) => {
             e.stopPropagation();
-            navigator.clipboard.writeText(entity.text);
+            copyWithToast(entity.text, 'File Path');
           }}
         >
           <FileCode size={11} className="msg-chip-icon" />

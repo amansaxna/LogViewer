@@ -638,3 +638,38 @@ This document captures the architectural decisions made during the design and im
      - All 21 API tests, 16 highlighter tests, 6 parser tests, and 4 settings tests pass cleanly (`make test`).
      - Production build compiles in 820ms (`npm run build`).
 - **Consequences**: Users can immediately interact with the JSON and XML action bars regardless of how wide the log message or code block is, without having to scroll horizontally to the end of the line.
+
+---
+
+## ADR-036: Bright Sleek Copy Toast Notification with 20-Character Snippet
+- **Status**: Accepted
+- **Context**: The user requested that whenever any item is copied in the application, a sleek, bright-colored notification should pop up showing the first 20 characters of what was copied.
+- **Decision**:
+  1. **Global Copy Notification Utility (`src/utils/copyNotifier.ts`)**:
+     - Created `copyWithToast(text, label)` and `triggerCopyToast(text, label)`.
+     - Normalizes whitespace and extracts the first 20 characters (`text.slice(0, 20)`).
+     - If text is longer than 20 characters, appends an ellipsis (`…`).
+     - Dispatches a custom event `app-copy-toast` containing `{ id, label, snippet, first20, fullLength }`.
+  2. **Sleek, Bright Toast Component (`src/components/CopyToast.tsx`)**:
+     - Rendered globally at root in `src/App.tsx`.
+     - Fixed at the bottom-right corner (`bottom: 24px; right: 24px; z-index: 999999`).
+     - Visual aesthetics:
+       - Vibrant electric emerald theme (`#10b981` / `#059669`) with neon luminous glow (`box-shadow: 0 12px 32px rgba(0, 0, 0, 0.5), 0 0 20px rgba(16, 185, 129, 0.35)`).
+       - Glowing circular checkmark badge (`<Check size={14} strokeWidth={3} />`).
+       - Display label (e.g. `LINE #464`, `JSON PAYLOAD`, `XML DOCUMENT`, `STACK TRACE`, `FILE PATH`).
+       - Character count badge `(X chars)`.
+       - Monospace code chip quoting the exact first 20 characters: `"Operation ReserveInv…"`.
+       - Animated shrinking progress line at the bottom (`copyToastProgress`) timing the 2.8s auto-dismiss.
+       - Instant manual dismiss button `(×)`.
+     - Integrated across all copy trigger points:
+       - Fast line copy in `CompactLogRow` and `LogRow`.
+       - Fast line copy and multi-line selection copy in `ContextModal`.
+       - JSON & XML code chips in log messages.
+       - JSON/XML Inspector Modal.
+       - Stack Trace Viewer.
+       - Filepath and entity chips.
+  3. **Verification**:
+     - Added Test 5 in `test/settings.test.ts` validating first 20 characters snippet extraction and ellipsis formatting.
+     - All 21 API tests, 16 highlighter tests, 6 parser tests, and 5 settings/toast tests pass (`make test`).
+     - Production build compiles cleanly in 809ms (`npm run build`).
+- **Consequences**: Users receive instant, visually striking feedback on every copy action, knowing precisely what was copied to the clipboard.

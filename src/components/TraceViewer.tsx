@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Copy, Check, ChevronDown, ChevronRight } from 'lucide-react';
 import { TraceData } from '../types.ts';
+import { copyWithToast } from '../utils/copyNotifier.ts';
 
 interface TraceViewerProps {
   trace: TraceData;
@@ -12,7 +13,7 @@ export const TraceViewer: React.FC<TraceViewerProps> = ({ trace }) => {
 
   const handleCopy = (e: React.MouseEvent) => {
     e.stopPropagation();
-    navigator.clipboard.writeText(trace.raw);
+    copyWithToast(trace.raw, 'Stack Trace');
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };

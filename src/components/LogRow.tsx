@@ -4,6 +4,7 @@ import { LogEntry, LogLevel } from '../types.ts';
 import { TraceViewer } from './TraceViewer.tsx';
 import { renderRichMessageContext } from '../utils/messageContextHighlighter.tsx';
 import { stripBracketMarkers } from '../utils/coloredLogRenderer.tsx';
+import { copyWithToast } from '../utils/copyNotifier.ts';
 
 interface LogRowProps {
   entry: LogEntry;
@@ -49,7 +50,7 @@ export const LogRow: React.FC<LogRowProps> = ({
 
   const handleCopyRaw = (e: React.MouseEvent) => {
     e.stopPropagation();
-    navigator.clipboard.writeText(entry.raw);
+    copyWithToast(entry.raw, `Line #${entry.lineNumber}`);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };

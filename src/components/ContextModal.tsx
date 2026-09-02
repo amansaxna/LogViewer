@@ -2,6 +2,7 @@ import React, { useEffect, useState, useRef } from 'react';
 import { X, AlignLeft, Maximize2, Minimize2, WrapText, Target, Copy, Check } from 'lucide-react';
 import { renderSyntaxColoredLine } from '../utils/coloredLogRenderer.tsx';
 import { ModalLoadingState } from './Loaders.tsx';
+import { copyWithToast } from '../utils/copyNotifier.ts';
 
 interface ContextLine {
   number: number;
@@ -112,7 +113,7 @@ export const ContextModal: React.FC<ContextModalProps> = ({
       .join('\n');
 
     try {
-      await navigator.clipboard.writeText(selectedContent);
+      copyWithToast(selectedContent, `${selectedLineNumbers.size} Line${selectedLineNumbers.size > 1 ? 's' : ''}`);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch (err) {
@@ -391,7 +392,7 @@ export const ContextModal: React.FC<ContextModalProps> = ({
                         className="fast-copy-btn"
                         onClick={(e) => {
                           e.stopPropagation();
-                          navigator.clipboard.writeText(line.content);
+                          copyWithToast(line.content, `Line #${line.number}`);
                           setCopiedLineNumber(line.number);
                           setTimeout(() => setCopiedLineNumber(null), 1500);
                         }}
