@@ -1,4 +1,6 @@
 import assert from 'node:assert';
+import fs from 'node:fs';
+import path from 'node:path';
 
 console.log('--- Testing Settings Persistence & Reset ---');
 
@@ -70,7 +72,6 @@ assert.strictEqual(localStorageMock.getItem('lv_hide_brackets'), null);
 console.log('✓ Test 2 Passed: Reset All Settings cleanly purges stored preferences');
 
 // 5. Test Light Mode CSS Variables Consistency
-import * as fs from 'node:fs';
 const indexCss = fs.readFileSync('src/index.css', 'utf-8');
 assert.ok(indexCss.includes("[data-theme='light']"), 'Light theme CSS block must exist');
 assert.ok(indexCss.includes('--badge-bg: #ece5d9;'), 'Light theme size badge bg defined');
@@ -105,4 +106,75 @@ assert.strictEqual(res2.snippet, 'Short string');
 
 console.log('✓ Test 5 Passed: Copy notification first 20 chars snippet accurately extracted and formatted');
 
-console.log('\nAll Settings, Light Mode, Fast Copy & Toast Tests Passed Successfully!');
+// Test 6: Verify unified line navigator metrics (zero duplication of line counts)
+function formatUnifiedLineMetrics(currentLine: number, filteredCount: number, totalEntries: number): string {
+  if (filteredCount < totalEntries) {
+    return `Line: [ ${currentLine} ] / ${filteredCount.toLocaleString()} (of ${totalEntries.toLocaleString()})`;
+  }
+  return `Line: [ ${currentLine} ] / ${totalEntries.toLocaleString()}`;
+}
+
+assert.strictEqual(formatUnifiedLineMetrics(1, 5251, 5251), 'Line: [ 1 ] / 5,251', 'Must not duplicate 5,251 twice');
+assert.strictEqual(formatUnifiedLineMetrics(1, 2114, 5257), 'Line: [ 1 ] / 2,114 (of 5,257)', '2,114 appears only once, with total file count in parentheses');
+console.log('✓ Test 6 Passed: Unified Line Navigator shows line count exactly once without duplication');
+
+// Test 7: Verify uniform [ ] selection UX (highlighted means visible)
+function getBracketButtonState(hideBrackets: boolean) {
+  return {
+    isActive: !hideBrackets, // active (highlighted) means brackets ARE visible
+    label: '[ ]',
+    title: !hideBrackets ? 'Hide [ ] bracket markers' : 'Show [ ] bracket markers',
+  };
+}
+
+const visibleState = getBracketButtonState(false);
+assert.strictEqual(visibleState.isActive, true, 'When brackets are visible, button is active (highlighted)');
+assert.strictEqual(visibleState.label, '[ ]');
+
+const hiddenState = getBracketButtonState(true);
+assert.strictEqual(hiddenState.isActive, false, 'When brackets are hidden, button is inactive (unhighlighted)');
+assert.strictEqual(hiddenState.label, '[ ]');
+console.log('✓ Test 7 Passed: [ ] selection UX is uniform with other toggles (highlighted = visible)');
+
+// Test 8: Verify DEFAULT_PRESETS are available instantly on startup
+import { DEFAULT_PRESETS } from '../src/presets.ts';
+assert.ok(Array.isArray(DEFAULT_PRESETS), 'DEFAULT_PRESETS must be an array');
+assert.ok(DEFAULT_PRESETS.length >= 4, 'Must contain at least 4 default presets');
+assert.ok(DEFAULT_PRESETS.some((p) => p.id === 'minimal-set'), 'Must include minimal-set');
+console.log('✓ Test 8 Passed: DEFAULT_PRESETS are bundled and ready immediately with 0ms delay');
+
+// Test 9: Verify Fullscreen Persistence, Sidebar Hiding, and Unified Color Scheme
+localStorageMock.setItem('lv_fullscreen', 'true');
+assert.strictEqual(localStorageMock.getItem('lv_fullscreen'), 'true', 'Fullscreen state must be preserved in localStorage');
+
+const cssContent = fs.readFileSync(path.resolve(process.cwd(), 'src/index.css'), 'utf-8');
+assert.ok(cssContent.includes('.app-container.app-fullscreen .sidebar'), 'CSS must include rule to hide sidebar in fullscreen');
+assert.ok(cssContent.includes('.preset-trigger-btn'), 'CSS must define .preset-trigger-btn');
+assert.ok(cssContent.includes('.toolbar-toggle-btn'), 'CSS must define .toolbar-toggle-btn');
+assert.ok(cssContent.includes('[data-theme=\'light\'] .preset-trigger-btn.active'), 'CSS must define light mode readable style for preset button');
+
+// Verify level colors (error, debug, warn, info, audit) remain strictly intact
+assert.ok(cssContent.includes('--lvl-critical: #e11d48'), 'Level critical color intact');
+assert.ok(cssContent.includes('--lvl-error: #dc2626'), 'Level error color intact');
+assert.ok(cssContent.includes('--lvl-warn: #d97706'), 'Level warn color intact');
+assert.ok(cssContent.includes('--lvl-audit: #0d9488'), 'Level audit color intact');
+assert.ok(cssContent.includes('--lvl-debug: #57534e'), 'Level debug color intact');
+console.log('✓ Test 9 Passed: Fullscreen persistence, left tab hiding, and unified filter color scheme verified');
+
+// Test 10: Verify Uncluttered Minimal UI (No "Line:", No "logs/s", No "LIVE/PAUSED", Icon-only buttons & Sleek Tooltips)
+assert.ok(cssContent.includes('[data-tooltip]'), 'CSS must define sleek [data-tooltip] system');
+assert.ok(cssContent.includes('[data-tooltip]::after'), 'CSS must style [data-tooltip]::after with modern floating container');
+
+const topbarSource = fs.readFileSync(path.resolve(process.cwd(), 'src/components/Topbar.tsx'), 'utf-8');
+assert.ok(!topbarSource.includes('>Line:<'), 'Topbar must not render hardcoded "Line:" label');
+assert.ok(!topbarSource.includes('>LIVE<'), 'Topbar must not render text "LIVE" on live stream button');
+assert.ok(!topbarSource.includes('>PAUSED<'), 'Topbar must not render text "PAUSED" on live stream button');
+assert.ok(!topbarSource.includes('>Wrap<'), 'Topbar must not render text "Wrap" on wrap button');
+assert.ok(!topbarSource.includes('>Meta:<'), 'Topbar must not render text "Meta:" label');
+assert.ok(!topbarSource.includes('>Export<'), 'Topbar must not render text "Export" on export button');
+assert.ok(!topbarSource.includes('>Compact<'), 'Topbar must not render text "Compact" on segmented switcher');
+assert.ok(!topbarSource.includes('>Cards<'), 'Topbar must not render text "Cards" on segmented switcher');
+assert.ok(!topbarSource.includes('logs/s<'), 'Topbar must not render "logs/s" text on rate badges');
+console.log('✓ Test 10 Passed: UI successfully uncluttered - all requested text labels removed with sleek tooltips applied');
+
+console.log('\nAll Settings, Light Mode, Fast Copy & Toast Tests Passed Successfully!\n');

@@ -24,6 +24,7 @@ interface LogTableProps {
   showTid?: boolean;
   showCorrelation?: boolean;
   hideBrackets?: boolean;
+  sortOption?: string;
 }
 
 export const LogTable: React.FC<LogTableProps> = ({
@@ -44,8 +45,12 @@ export const LogTable: React.FC<LogTableProps> = ({
   showTid = true,
   showCorrelation = true,
   hideBrackets = false,
+  sortOption = 'time-asc',
 }) => {
   const parentRef = useRef<HTMLDivElement>(null);
+  const [isAutoScrollPaused, setIsAutoScrollPaused] = React.useState(false);
+
+  const isTailAtTop = Boolean(sortOption && sortOption.endsWith('desc'));
 
   const virtualizer = useVirtualizer({
     count: entries.length,
@@ -54,12 +59,46 @@ export const LogTable: React.FC<LogTableProps> = ({
     overscan: 30,
   });
 
-  // Auto-scroll to top if live tail is active
-  useEffect(() => {
-    if (isLiveTail && entries.length > 0 && parentRef.current) {
+  const scrollToTail = React.useCallback(() => {
+    if (!parentRef.current || entries.length === 0) return;
+    setIsAutoScrollPaused(false);
+    if (isTailAtTop) {
       parentRef.current.scrollTop = 0;
+    } else {
+      parentRef.current.scrollTop = parentRef.current.scrollHeight;
     }
-  }, [entries.length, isLiveTail]);
+  }, [isTailAtTop, entries.length]);
+
+  // Handle user manual scroll: if user scrolls away from tail, pause auto-scroll
+  const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
+    if (!isLiveTail) return;
+    const el = e.currentTarget;
+    if (isTailAtTop) {
+      if (el.scrollTop > 50) {
+        setIsAutoScrollPaused(true);
+      } else {
+        setIsAutoScrollPaused(false);
+      }
+    } else {
+      const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
+      if (distanceFromBottom > 80) {
+        setIsAutoScrollPaused(true);
+      } else {
+        setIsAutoScrollPaused(false);
+      }
+    }
+  };
+
+  // Auto-scroll when new logs arrive in live tail mode
+  useEffect(() => {
+    if (isLiveTail && entries.length > 0 && !isAutoScrollPaused && parentRef.current) {
+      if (isTailAtTop) {
+        parentRef.current.scrollTop = 0;
+      } else {
+        parentRef.current.scrollTop = parentRef.current.scrollHeight;
+      }
+    }
+  }, [entries.length, isLiveTail, isAutoScrollPaused, isTailAtTop]);
 
   // Scroll to target index when match, arrow keys, or go-to-line changes
   useEffect(() => {
@@ -170,6 +209,7 @@ export const LogTable: React.FC<LogTableProps> = ({
   return (
     <div
       ref={parentRef}
+      onScroll={handleScroll}
       className="log-feed-container"
       style={{
         position: 'relative',
@@ -178,6 +218,47 @@ export const LogTable: React.FC<LogTableProps> = ({
       }}
     >
       <TopProgressBar isVisible={isLoading} />
+
+      {/* Floating Follow Live Tail Button */}
+      {isLiveTail && isAutoScrollPaused && (
+        <button
+          onClick={scrollToTail}
+          style={{
+            position: 'sticky',
+            bottom: 24,
+            left: '50%',
+            transform: 'translateX(-50%)',
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: 8,
+            padding: '7px 16px',
+            borderRadius: 20,
+            backgroundColor: 'rgba(15, 23, 42, 0.95)',
+            border: '1.5px solid #38bdf8',
+            color: '#38bdf8',
+            fontSize: '0.78rem',
+            fontWeight: 700,
+            cursor: 'pointer',
+            boxShadow: '0 10px 25px rgba(0, 0, 0, 0.5), 0 0 14px rgba(56, 189, 248, 0.4)',
+            zIndex: 100,
+            backdropFilter: 'blur(8px)',
+          }}
+          title="Resume auto-scrolling to newest logs"
+        >
+          <span
+            style={{
+              width: 8,
+              height: 8,
+              borderRadius: '50%',
+              backgroundColor: '#22c55e',
+              boxShadow: '0 0 8px #22c55e',
+              display: 'inline-block',
+            }}
+          />
+          <span>{isTailAtTop ? '↑ Resume Live Tail' : '↓ Follow Live Tail'}</span>
+        </button>
+      )}
+
       <div
         style={{
           height: `${virtualizer.getTotalSize()}px`,

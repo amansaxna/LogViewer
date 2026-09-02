@@ -1,0 +1,116 @@
+{
+  "presets": [
+    {
+      "id": "minimal-set",
+      "name": "Minimal Set",
+      "description": "Removes brackets, hides correlation IDs, excludes noise words, and filters markers",
+      "isBuiltIn": true,
+      "rules": {
+        "hideBrackets": true,
+        "showCorrelation": false,
+        "showDatetime": true,
+        "showPid": false,
+        "showTid": false,
+        "excludeKeywords": [
+          "x",
+          "y",
+          "ping",
+          "heartbeat"
+        ],
+        "excludeMarkers": [
+          "Deregister unavailable",
+          "Heartbeat"
+        ],
+        "includeMarkers": [
+          "Register"
+        ],
+        "levels": [],
+        "excludeLevels": [
+          "debug"
+        ],
+        "viewMode": "compact",
+        "wrapLines": false
+      }
+    },
+    {
+      "id": "clean-messages",
+      "name": "Clean Human Messages",
+      "description": "Hides technical PID, TID, Correlation ID, and bracket noise for readable narrative logs",
+      "isBuiltIn": true,
+      "rules": {
+        "hideBrackets": true,
+        "showCorrelation": false,
+        "showDatetime": true,
+        "showPid": false,
+        "showTid": false,
+        "excludeKeywords": [],
+        "excludeMarkers": [],
+        "includeMarkers": [],
+        "levels": [],
+        "excludeLevels": [],
+        "viewMode": "compact",
+        "wrapLines": true
+      }
+    },
+    {
+      "id": "errors-critical",
+      "name": "Errors & Critical Only",
+      "description": "Focuses strictly on errors, warnings, alerts, and system exceptions",
+      "isBuiltIn": true,
+      "rules": {
+        "hideBrackets": false,
+        "showCorrelation": true,
+        "showDatetime": true,
+        "showPid": true,
+        "showTid": true,
+        "excludeKeywords": [],
+        "excludeMarkers": [],
+        "includeMarkers": [],
+        "levels": [
+          "error",
+          "warning",
+          "critical",
+          "alert",
+          "emergency"
+        ],
+        "excludeLevels": [
+          "debug",
+          "info",
+          "notice"
+        ],
+        "viewMode": "standard",
+        "wrapLines": true
+      }
+    },
+    {
+      "id": "audit-security",
+      "name": "Security & Audit Trail",
+      "description": "Emphasizes authorization, settlements, and audit entries with full correlation tracking",
+      "isBuiltIn": true,
+      "rules": {
+        "hideBrackets": false,
+        "showCorrelation": true,
+        "showDatetime": true,
+        "showPid": false,
+        "showTid": false,
+        "excludeKeywords": [],
+        "excludeMarkers": [],
+        "includeMarkers": [
+          "Payment",
+          "OrderCheckout",
+          "ReserveInventory"
+        ],
+        "levels": [
+          "audit",
+          "notice",
+          "info"
+        ],
+        "excludeLevels": [
+          "debug"
+        ],
+        "viewMode": "compact",
+        "wrapLines": false
+      }
+    }
+  ]
+}

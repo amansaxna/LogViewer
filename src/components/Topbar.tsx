@@ -32,8 +32,9 @@ import {
   History,
   Activity,
   RotateCcw,
+  Sliders,
 } from 'lucide-react';
-import { LogLevel, LogSource, SortOption } from '../types.ts';
+import { LogLevel, LogSource, SortOption, LogPreset } from '../types.ts';
 import { Spinner } from './Loaders.tsx';
 
 interface TopbarProps {
@@ -134,6 +135,12 @@ interface TopbarProps {
   onToggleShowCorrelation?: () => void;
   onToggleAllMeta?: () => void;
   isLoading?: boolean;
+
+  // Presets
+  presets?: LogPreset[];
+  activePresetId?: string | null;
+  onSelectPreset?: (id: string | null) => void;
+  onOpenPresetModal?: () => void;
 }
 
 const AVAILABLE_LEVELS: { key: LogLevel; label: string }[] = [
@@ -142,6 +149,16 @@ const AVAILABLE_LEVELS: { key: LogLevel; label: string }[] = [
   { key: 'info', label: 'INFO' },
   { key: 'audit', label: 'AUDIT' },
   { key: 'debug', label: 'DEBUG' },
+];
+
+const SORT_CONFIG: { key: SortOption; short: string; label: string }[] = [
+  { key: 'time-desc', short: 'Time ↓', label: 'Time (Newest at Top)' },
+  { key: 'time-asc', short: 'Time ↑', label: 'Time (Oldest First)' },
+  { key: 'marker-asc', short: 'Marker A→Z', label: 'Workflow Marker (A → Z)' },
+  { key: 'marker-desc', short: 'Marker Z→A', label: 'Workflow Marker (Z → A)' },
+  { key: 'line-asc', short: 'Line ↑', label: 'Line Number (Asc)' },
+  { key: 'line-desc', short: 'Line ↓', label: 'Line Number (Desc)' },
+  { key: 'duration-desc', short: 'Duration ↓', label: 'Duration (Longest First)' },
 ];
 
 export const Topbar: React.FC<TopbarProps> = ({
@@ -216,6 +233,10 @@ export const Topbar: React.FC<TopbarProps> = ({
   onToggleShowCorrelation,
   onToggleAllMeta,
   isLoading = false,
+  presets = [],
+  activePresetId = null,
+  onSelectPreset,
+  onOpenPresetModal,
 }) => {
   const [lineInput, setLineInput] = useState<string>(currentMatchIndex ? currentMatchIndex.toString() : '1');
   const [showDatePicker, setShowDatePicker] = useState(false);
@@ -224,6 +245,7 @@ export const Topbar: React.FC<TopbarProps> = ({
   const [isWorkflowDropdownOpen, setIsWorkflowDropdownOpen] = useState(false);
   const [isOperationDropdownOpen, setIsOperationDropdownOpen] = useState(false);
   const [isCorrelationDropdownOpen, setIsCorrelationDropdownOpen] = useState(false);
+  const [isPresetDropdownOpen, setIsPresetDropdownOpen] = useState(false);
   const [workflowSearch, setWorkflowSearch] = useState('');
   const [operationSearch, setOperationSearch] = useState('');
   const [correlationSearch, setCorrelationSearch] = useState('');
@@ -234,11 +256,17 @@ export const Topbar: React.FC<TopbarProps> = ({
   const operationRef = React.useRef<HTMLDivElement>(null);
   const correlationRef = React.useRef<HTMLDivElement>(null);
   const datePickerRef = React.useRef<HTMLDivElement>(null);
+  const presetDropdownRef = React.useRef<HTMLDivElement>(null);
+  const sortDropdownRef = React.useRef<HTMLDivElement>(null);
+
+  const [isSortDropdownOpen, setIsSortDropdownOpen] = useState(false);
 
   const wfLeaveTimer = React.useRef<any>(null);
   const opLeaveTimer = React.useRef<any>(null);
   const corrLeaveTimer = React.useRef<any>(null);
   const dtLeaveTimer = React.useRef<any>(null);
+
+  const activePreset = presets.find((p) => p.id === activePresetId);
 
   // Sync local date strings when props change
   React.useEffect(() => {
@@ -266,6 +294,12 @@ export const Topbar: React.FC<TopbarProps> = ({
       }
       if (datePickerRef.current && !datePickerRef.current.contains(target)) {
         setShowDatePicker(false);
+      }
+      if (presetDropdownRef.current && !presetDropdownRef.current.contains(target)) {
+        setIsPresetDropdownOpen(false);
+      }
+      if (sortDropdownRef.current && !sortDropdownRef.current.contains(target)) {
+        setIsSortDropdownOpen(false);
       }
     };
     document.addEventListener('mousedown', handleDocumentClick);
@@ -310,13 +344,14 @@ export const Topbar: React.FC<TopbarProps> = ({
   };
 
   const isAllSelected = selectedLevels.length === 0 && (excludeLevels || []).length === 0;
+  const currentSortConfig = SORT_CONFIG.find((s) => s.key === sortOption) || SORT_CONFIG[0];
 
   return (
     <header className="topbar" style={{ gap: 8, padding: '10px 16px' }}>
-      {/* ROW 1: DUAL FILTERS, MATCH NAVIGATOR, GO TO LINE, LINE STATS (Image 4) */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-        {/* Toggle Left Panel Button - ONLY shown when sidebar is collapsed to avoid duplicate button */}
-        {onToggleSidebar && !isSidebarOpen && (
+      {/* TIER 1: DUAL FILTERS, MATCH NAVIGATOR, GO TO LINE, LINE STATS, STREAM STATUS */}
+      <div className="topbar-tier-1">
+        {/* Toggle Left Panel Button - ONLY shown when sidebar is collapsed and not in fullscreen */}
+        {onToggleSidebar && !isSidebarOpen && !isFullscreen && (
           <button
             className="btn-icon"
             onClick={onToggleSidebar}
@@ -334,217 +369,11 @@ export const Topbar: React.FC<TopbarProps> = ({
           </button>
         )}
 
-        {/* Filter Box 1: Marker / Workflow Filter */}
+        {/* Primary Full-Text Search Box (Hero Input) */}
         <div
           className="search-container"
           style={{
             flex: '1 1 240px',
-            maxWidth: '360px',
-            background: 'var(--bg-surface)',
-            borderRadius: 6,
-            height: 34,
-            padding: '2px 8px',
-            position: 'relative',
-          }}
-        >
-          <Filter size={14} style={{ color: '#c084fc', flexShrink: 0 }} />
-          <input
-            type="text"
-            className="search-input"
-            placeholder="Marker / WF (e.g. RefundProcess)..."
-            value={markerFilter}
-            onChange={(e) => onMarkerFilterChange(e.target.value)}
-            style={{ fontSize: '0.82rem' }}
-            title="Filter by Workflow Marker regex or plain text"
-          />
-
-          <div className="search-modifiers" style={{ gap: 2 }}>
-            <button
-              className={`search-modifier-btn ${isMarkerRegex ? 'active' : ''}`}
-              onClick={onToggleMarkerRegex}
-              title="Toggle Marker Regex (.*)"
-              style={{ padding: '2px 5px' }}
-            >
-              <Code2 size={12} />
-            </button>
-
-            {/* Datetime Picker Trigger Button */}
-            <div style={{ position: 'relative' }} ref={datePickerRef}>
-              <button
-                className={`search-modifier-btn ${showDatePicker || startDate || endDate ? 'active' : ''}`}
-                onClick={() => setShowDatePicker(!showDatePicker)}
-                title={startDate || endDate ? `Date filter active: ${startDate || '...'} to ${endDate || '...'}` : "Filter by datetime range"}
-                style={{
-                  padding: '2px 5px',
-                  color: (startDate || endDate) ? '#38bdf8' : undefined,
-                  borderColor: (startDate || endDate) ? '#38bdf8' : undefined,
-                  backgroundColor: (startDate || endDate) ? 'var(--accent-bg)' : undefined,
-                }}
-              >
-                <Calendar size={12} />
-              </button>
-
-              {/* Datetime Range Picker Dropdown */}
-              {showDatePicker && (
-                <div
-                  onMouseEnter={cancelDtMouseLeave}
-                  onMouseLeave={handleDtMouseLeave}
-                  style={{
-                    position: 'absolute',
-                    top: 'calc(100% + 8px)',
-                    left: -120,
-                    background: 'var(--bg-card)',
-                    border: '1px solid var(--border-subtle)',
-                    borderRadius: 8,
-                    boxShadow: '0 20px 40px rgba(0, 0, 0, 0.25), 0 0 15px rgba(56, 189, 248, 0.15)',
-                    zIndex: 1000,
-                    minWidth: 310,
-                    padding: 14,
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: 10,
-                  }}
-                >
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid var(--border-subtle)', paddingBottom: 8 }}>
-                    <span style={{ fontSize: '0.82rem', fontWeight: 600, color: '#38bdf8', display: 'flex', alignItems: 'center', gap: 6 }}>
-                      <Calendar size={14} /> Filter by Datetime
-                    </span>
-                    {(startDate || endDate) && (
-                      <button
-                        onClick={() => {
-                          onDateRangeChange?.(null, null);
-                          setShowDatePicker(false);
-                        }}
-                        style={{ background: 'none', border: 'none', color: '#ef4444', fontSize: '0.72rem', cursor: 'pointer', fontWeight: 600 }}
-                        title="Reset datetime filter"
-                      >
-                        Clear
-                      </button>
-                    )}
-                  </div>
-
-                  {/* Quick Presets */}
-                  <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                    <button
-                      className="level-pill"
-                      style={{ fontSize: '0.7rem', padding: '2px 8px' }}
-                      onClick={() => {
-                        const now = Date.now();
-                        const from = new Date(now - 15 * 60 * 1000).toISOString().slice(0, 16);
-                        const to = new Date(now).toISOString().slice(0, 16);
-                        onDateRangeChange?.(from, to);
-                        setShowDatePicker(false);
-                      }}
-                      title="Filter logs in the last 15 minutes"
-                    >
-                      Last 15m
-                    </button>
-                    <button
-                      className="level-pill"
-                      style={{ fontSize: '0.7rem', padding: '2px 8px' }}
-                      onClick={() => {
-                        const now = Date.now();
-                        const from = new Date(now - 60 * 60 * 1000).toISOString().slice(0, 16);
-                        const to = new Date(now).toISOString().slice(0, 16);
-                        onDateRangeChange?.(from, to);
-                        setShowDatePicker(false);
-                      }}
-                      title="Filter logs in the last 1 hour"
-                    >
-                      Last 1h
-                    </button>
-                    <button
-                      className="level-pill"
-                      style={{ fontSize: '0.7rem', padding: '2px 8px' }}
-                      onClick={() => {
-                        const now = Date.now();
-                        const from = new Date(now - 24 * 60 * 60 * 1000).toISOString().slice(0, 16);
-                        const to = new Date(now).toISOString().slice(0, 16);
-                        onDateRangeChange?.(from, to);
-                        setShowDatePicker(false);
-                      }}
-                      title="Filter logs in the last 24 hours"
-                    >
-                      Last 24h
-                    </button>
-                    <button
-                      className="level-pill"
-                      style={{ fontSize: '0.7rem', padding: '2px 8px' }}
-                      onClick={() => {
-                        onDateRangeChange?.(null, null);
-                        setShowDatePicker(false);
-                      }}
-                      title="Clear time filter to show all"
-                    >
-                      All Time
-                    </button>
-                  </div>
-
-                  {/* Manual Start / End Datetime */}
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                    <label style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>From Datetime:</label>
-                    <input
-                      type="datetime-local"
-                      value={localStartDate}
-                      onChange={(e) => setLocalStartDate(e.target.value)}
-                      className="sidebar-search-input"
-                      style={{ fontSize: '0.78rem', padding: '5px 8px', background: '#1e293b', border: '1px solid #334155' }}
-                    />
-                  </div>
-
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                    <label style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>To Datetime:</label>
-                    <input
-                      type="datetime-local"
-                      value={localEndDate}
-                      onChange={(e) => setLocalEndDate(e.target.value)}
-                      className="sidebar-search-input"
-                      style={{ fontSize: '0.78rem', padding: '5px 8px', background: '#1e293b', border: '1px solid #334155' }}
-                    />
-                  </div>
-
-                  <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
-                    <button
-                      className="btn-primary"
-                      style={{ flex: 1, padding: '6px 12px', fontSize: '0.78rem', justifyContent: 'center' }}
-                      onClick={() => {
-                        onDateRangeChange?.(localStartDate || null, localEndDate || null);
-                        setShowDatePicker(false);
-                      }}
-                      title="Apply date range filter"
-                    >
-                      Apply Filter
-                    </button>
-                    <button
-                      className="toolbar-btn"
-                      style={{ padding: '6px 10px', fontSize: '0.78rem' }}
-                      onClick={() => setShowDatePicker(false)}
-                      title="Close date picker"
-                    >
-                      Cancel
-                    </button>
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {markerFilter && (
-              <button
-                style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', display: 'flex' }}
-                onClick={() => onMarkerFilterChange('')}
-                title="Clear marker filter"
-              >
-                <X size={12} />
-              </button>
-            )}
-          </div>
-        </div>
-
-        {/* Filter Box 2: Search Text Filter */}
-        <div
-          className="search-container"
-          style={{
-            flex: '1 1 260px',
             maxWidth: '380px',
             background: 'var(--bg-surface)',
             borderRadius: 6,
@@ -552,7 +381,7 @@ export const Topbar: React.FC<TopbarProps> = ({
             padding: '2px 8px',
           }}
         >
-          <Search size={14} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
+          <Search size={14} style={{ color: '#38bdf8', flexShrink: 0 }} />
           <input
             type="text"
             className="search-input"
@@ -566,10 +395,10 @@ export const Topbar: React.FC<TopbarProps> = ({
             <button
               className={`search-modifier-btn ${isRegex ? 'active' : ''}`}
               onClick={onToggleRegex}
-              title="Toggle Regex"
+              data-tooltip="Toggle Regex (.*)"
               style={{ padding: '2px 5px' }}
             >
-              <Code2 size={12} />
+              <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.72rem', fontWeight: 700 }}>.*</span>
             </button>
             <button
               className={`search-modifier-btn ${caseSensitive ? 'active' : ''}`}
@@ -591,6 +420,7 @@ export const Topbar: React.FC<TopbarProps> = ({
               <button
                 style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', display: 'flex' }}
                 onClick={() => onSearchChange('')}
+                title="Clear search"
               >
                 <X size={12} />
               </button>
@@ -598,12 +428,221 @@ export const Topbar: React.FC<TopbarProps> = ({
           </div>
         </div>
 
-        {/* Combined Go to Line & Match Navigation (Directly Editable, e.g. [ 1 ] / 5,200 < >) */}
+        {/* Filter Box 2: Scoped Marker / Workflow Filter */}
+        <div
+          className="search-container"
+          style={{
+            flex: '0 0 190px',
+            maxWidth: '220px',
+            background: 'var(--bg-surface)',
+            borderRadius: 6,
+            height: 34,
+            padding: '2px 8px',
+            position: 'relative',
+          }}
+        >
+          <Filter size={13} style={{ color: '#c084fc', flexShrink: 0 }} />
+          <input
+            type="text"
+            className="search-input"
+            placeholder="Marker / WF..."
+            value={markerFilter}
+            onChange={(e) => onMarkerFilterChange(e.target.value)}
+            style={{ fontSize: '0.82rem' }}
+            title="Filter by Workflow Marker regex or plain text"
+          />
+
+          <div className="search-modifiers" style={{ gap: 2 }}>
+            <button
+              className={`search-modifier-btn ${isMarkerRegex ? 'active' : ''}`}
+              onClick={onToggleMarkerRegex}
+              data-tooltip="Toggle Marker Regex (.*)"
+              style={{ padding: '2px 5px' }}
+            >
+              <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.72rem', fontWeight: 700 }}>.*</span>
+            </button>
+
+            {markerFilter && (
+              <button
+                style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', display: 'flex' }}
+                onClick={() => onMarkerFilterChange('')}
+                title="Clear marker filter"
+              >
+                <X size={12} />
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* Datetime Picker Trigger Button (Dedicated Toolbar Control) */}
+        <div style={{ position: 'relative', flexShrink: 0 }} ref={datePickerRef}>
+          <button
+            className={`toolbar-toggle-btn ${showDatePicker || startDate || endDate ? 'active' : ''}`}
+            onClick={() => setShowDatePicker(!showDatePicker)}
+            data-tooltip={startDate || endDate ? `Date filter active: ${startDate || '...'} to ${endDate || '...'}` : 'Filter by datetime range'}
+            style={{
+              height: 34,
+              padding: '0 9px',
+              gap: 5,
+            }}
+          >
+            <Calendar size={13} style={{ color: (startDate || endDate) ? 'var(--accent-primary)' : undefined }} />
+            {(startDate || endDate) && <span style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--accent-primary)' }}>Range</span>}
+          </button>
+
+          {/* Datetime Range Picker Dropdown */}
+          {showDatePicker && (
+            <div
+              onMouseEnter={cancelDtMouseLeave}
+              onMouseLeave={handleDtMouseLeave}
+              style={{
+                position: 'absolute',
+                top: 'calc(100% + 6px)',
+                left: 0,
+                background: 'var(--bg-card)',
+                border: '1px solid var(--border-subtle)',
+                borderRadius: 8,
+                boxShadow: '0 20px 40px rgba(0, 0, 0, 0.25), 0 0 15px rgba(56, 189, 248, 0.15)',
+                zIndex: 1000,
+                minWidth: 310,
+                padding: 14,
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 10,
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid var(--border-subtle)', paddingBottom: 8 }}>
+                <span style={{ fontSize: '0.82rem', fontWeight: 600, color: '#38bdf8', display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <Calendar size={14} /> Filter by Datetime
+                </span>
+                {(startDate || endDate) && (
+                  <button
+                    onClick={() => {
+                      onDateRangeChange?.(null, null);
+                      setShowDatePicker(false);
+                    }}
+                    style={{ background: 'none', border: 'none', color: '#ef4444', fontSize: '0.72rem', cursor: 'pointer', fontWeight: 600 }}
+                    title="Reset datetime filter"
+                  >
+                    Clear
+                  </button>
+                )}
+              </div>
+
+              {/* Quick Presets */}
+              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                <button
+                  className="level-pill"
+                  style={{ fontSize: '0.7rem', padding: '2px 8px' }}
+                  onClick={() => {
+                    const now = Date.now();
+                    const from = new Date(now - 15 * 60 * 1000).toISOString().slice(0, 16);
+                    const to = new Date(now).toISOString().slice(0, 16);
+                    onDateRangeChange?.(from, to);
+                    setShowDatePicker(false);
+                  }}
+                  title="Filter logs in the last 15 minutes"
+                >
+                  Last 15m
+                </button>
+                <button
+                  className="level-pill"
+                  style={{ fontSize: '0.7rem', padding: '2px 8px' }}
+                  onClick={() => {
+                    const now = Date.now();
+                    const from = new Date(now - 60 * 60 * 1000).toISOString().slice(0, 16);
+                    const to = new Date(now).toISOString().slice(0, 16);
+                    onDateRangeChange?.(from, to);
+                    setShowDatePicker(false);
+                  }}
+                  title="Filter logs in the last 1 hour"
+                >
+                  Last 1h
+                </button>
+                <button
+                  className="level-pill"
+                  style={{ fontSize: '0.7rem', padding: '2px 8px' }}
+                  onClick={() => {
+                    const now = Date.now();
+                    const from = new Date(now - 24 * 60 * 60 * 1000).toISOString().slice(0, 16);
+                    const to = new Date(now).toISOString().slice(0, 16);
+                    onDateRangeChange?.(from, to);
+                    setShowDatePicker(false);
+                  }}
+                  title="Filter logs in the last 24 hours"
+                >
+                  Last 24h
+                </button>
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                <label style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>From:</label>
+                <input
+                  type="datetime-local"
+                  value={localStartDate}
+                  onChange={(e) => setLocalStartDate(e.target.value)}
+                  style={{
+                    backgroundColor: 'var(--bg-app)',
+                    border: '1px solid var(--border-subtle)',
+                    borderRadius: 4,
+                    padding: '4px 8px',
+                    color: 'var(--text-primary)',
+                    fontSize: '0.78rem',
+                    outline: 'none',
+                    width: '100%',
+                  }}
+                />
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                <label style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>To:</label>
+                <input
+                  type="datetime-local"
+                  value={localEndDate}
+                  onChange={(e) => setLocalEndDate(e.target.value)}
+                  style={{
+                    backgroundColor: 'var(--bg-app)',
+                    border: '1px solid var(--border-subtle)',
+                    borderRadius: 4,
+                    padding: '4px 8px',
+                    color: 'var(--text-primary)',
+                    fontSize: '0.78rem',
+                    outline: 'none',
+                    width: '100%',
+                  }}
+                />
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 6, marginTop: 4 }}>
+                <button
+                  className="btn-primary"
+                  style={{ padding: '4px 12px', fontSize: '0.75rem', height: 26 }}
+                  onClick={() => {
+                    onDateRangeChange?.(localStartDate || null, localEndDate || null);
+                    setShowDatePicker(false);
+                  }}
+                >
+                  Apply
+                </button>
+                <button
+                  className="btn-secondary"
+                  style={{ padding: '4px 8px', fontSize: '0.75rem', height: 26 }}
+                  onClick={() => setShowDatePicker(false)}
+                  title="Close date picker"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Unified Line Navigator & Metrics (Zero Duplication) */}
         <div
           style={{
             display: 'flex',
             alignItems: 'center',
-            gap: 4,
+            gap: 6,
             background: 'var(--bg-surface)',
             padding: '2px 8px',
             borderRadius: 6,
@@ -611,10 +650,29 @@ export const Topbar: React.FC<TopbarProps> = ({
             fontSize: '0.8rem',
             fontFamily: 'var(--font-mono)',
             height: 34,
+            flexShrink: 0,
+            whiteSpace: 'nowrap',
           }}
-          title="Directly edit current line number and press Enter to jump (or use < >)"
+          data-tooltip="Jump to line: edit number and press Enter, or use arrows"
         >
-          {/* Editable current line number input */}
+          {isLoading && (
+            <span
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 4,
+                color: 'var(--accent-primary)',
+                fontSize: '0.74rem',
+                marginRight: 2,
+                fontWeight: 600,
+              }}
+              title="Querying & updating logs..."
+            >
+              <Spinner size={12} />
+            </span>
+          )}
+
+          {/* Editable line number input */}
           <input
             type="text"
             value={lineInput}
@@ -637,7 +695,7 @@ export const Topbar: React.FC<TopbarProps> = ({
             }}
             onFocus={(e) => e.target.select()}
             style={{
-              width: 54,
+              width: 50,
               padding: '2px 4px',
               textAlign: 'center',
               backgroundColor: 'var(--bg-app)',
@@ -655,18 +713,40 @@ export const Topbar: React.FC<TopbarProps> = ({
 
           <span style={{ color: 'var(--text-muted)' }}>/</span>
 
+          {/* Matching line count */}
           <span
             style={{
-              color: 'var(--text-primary)',
-              minWidth: 44,
-              textAlign: 'center',
-              paddingRight: 4,
+              color: '#38bdf8',
+              fontWeight: 800,
             }}
-            title={`Total matching lines: ${filteredCount.toLocaleString()}`}
+            title={`Matching lines: ${filteredCount.toLocaleString()}`}
           >
             {filteredCount > 0 ? filteredCount.toLocaleString() : '0'}
           </span>
 
+          {/* Total source lines if filtered */}
+          {filteredCount < totalEntries && (
+            <span
+              style={{
+                color: 'var(--text-muted)',
+                fontSize: '0.75rem',
+              }}
+              title={`Total lines in source: ${totalEntries.toLocaleString()}`}
+            >
+              (of {totalEntries.toLocaleString()})
+            </span>
+          )}
+
+          {/* Query duration */}
+          {durationMs !== undefined && (
+            <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
+              ({durationMs}ms)
+            </span>
+          )}
+
+          <div style={{ width: 1, height: 16, background: 'var(--border-subtle)', margin: '0 2px' }} />
+
+          {/* Prev / Next Match navigation */}
           <button
             className="btn-icon"
             onClick={onPrevMatch}
@@ -687,190 +767,652 @@ export const Topbar: React.FC<TopbarProps> = ({
           </button>
         </div>
 
-        {/* Line Count Stats (Lines: 623 / 5,688) */}
-        <div
-          style={{
-            fontSize: '0.82rem',
-            color: 'var(--text-muted)',
-            fontFamily: 'var(--font-mono)',
-            marginLeft: 'auto',
-            display: 'flex',
-            alignItems: 'center',
-            gap: 4,
-          }}
-        >
-          {isLoading && (
-            <span
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: 4,
-                color: 'var(--accent-primary)',
-                fontSize: '0.74rem',
-                marginRight: 6,
-                fontWeight: 600,
-              }}
-              title="Querying & updating logs..."
+        {/* Right: Live Telemetry Cluster + Window Controls */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginLeft: 'auto', flexShrink: 0, whiteSpace: 'nowrap' }}>
+          {/* Unified Live Telemetry Cluster */}
+          <div className={`live-telemetry-cluster ${isLiveTail ? 'active' : ''}`}>
+            {/* Interactive Live Stream Toggle Button */}
+            <button
+              className={`live-telemetry-toggle stream-live-pill ${isLiveTail ? 'active' : 'paused'}`}
+              onClick={onToggleLiveTail}
+              data-tooltip={isLiveTail ? `Live stream active (+${liveLogsPerSec || 0}/s) • Click to pause` : 'Live stream paused • Click to resume'}
             >
-              <Spinner size={12} />
-              <span>Updating...</span>
-            </span>
-          )}
-          <span>Lines:</span>
-          <span style={{ color: '#38bdf8', fontWeight: 700 }}>{filteredCount.toLocaleString()}</span>
-          <span>/</span>
-          <span>{totalEntries.toLocaleString()}</span>
-          {/* Logs Added / s pill (supports average & instantaneous) */}
-          {isLiveTail ? (
-            <span
-              style={{
-                marginLeft: 6,
-                padding: '1px 8px',
-                borderRadius: 4,
-                fontSize: '0.72rem',
-                fontWeight: 600,
-                fontFamily: 'var(--font-mono)',
-                backgroundColor: (liveAvgLogsPerSec > 0 || liveLogsPerSec > 0) ? 'rgba(34, 197, 94, 0.15)' : 'rgba(100, 116, 139, 0.12)',
-                color: (liveAvgLogsPerSec > 0 || liveLogsPerSec > 0) ? '#16a34a' : 'var(--text-muted)',
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: 4,
-              }}
-              title={`Live stream rate: ${liveLogsPerSec} logs/s current | ${liveAvgLogsPerSec} logs/s average | Total streamed: ${liveTotalAdded} logs`}
-            >
-              {liveLogsPerSec > 0 ? (
-                <>+{liveLogsPerSec} logs/s <span style={{ opacity: 0.8, fontWeight: 500 }}>(avg {liveAvgLogsPerSec}/s)</span></>
-              ) : liveAvgLogsPerSec > 0 ? (
-                <>avg {liveAvgLogsPerSec} logs/s</>
-              ) : fileAvgLogsPerSec > 0 ? (
-                <>avg {fileAvgLogsPerSec} logs/s</>
-              ) : (
-                <>avg 0 logs/s</>
-              )}
-            </span>
-          ) : fileAvgLogsPerSec > 0 ? (
-            <span
-              style={{
-                marginLeft: 6,
-                padding: '1px 8px',
-                borderRadius: 4,
-                fontSize: '0.72rem',
-                fontWeight: 600,
-                fontFamily: 'var(--font-mono)',
-                backgroundColor: 'rgba(100, 116, 139, 0.12)',
-                color: 'var(--text-muted)',
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: 4,
-              }}
-              title={`Average log generation rate across loaded file: ${fileAvgLogsPerSec} logs/s`}
-            >
-              avg {fileAvgLogsPerSec} logs/s
-            </span>
-          ) : null}
-          {durationMs !== undefined && (
-            <span style={{ marginLeft: 6, fontSize: '0.74rem', color: 'var(--text-muted)' }}>
-              ({durationMs}ms)
-            </span>
-          )}
-        </div>
+              <Radio size={13} />
+            </button>
 
-        {/* Live Tail & Theme Switcher */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          {/* Live Speed Badge */}
-          {isLiveTail && (
-            <div
-              className="live-speed-badge"
-              title={`Live stream rate: ${liveLogsPerSec} logs/s current | ${liveAvgLogsPerSec} logs/s session average | ${liveTotalAdded} new logs streamed`}
-            >
-              <Activity size={12} className={liveLogsPerSec > 0 || liveAvgLogsPerSec > 0 ? 'pulse-activity' : ''} />
-              <span>
-                <strong style={{ fontWeight: 700 }}>avg {liveAvgLogsPerSec > 0 ? liveAvgLogsPerSec : (fileAvgLogsPerSec > 0 ? fileAvgLogsPerSec : 0)}</strong> logs/s
-                {liveLogsPerSec > 0 && <span style={{ opacity: 0.8, marginLeft: 4 }}>({liveLogsPerSec}/s)</span>}
-              </span>
-            </div>
-          )}
+            {/* Dual Rate Calculation Badges */}
+            {isLiveTail ? (
+              <>
+                <div className="live-telemetry-divider" />
+                {/* Metric 1: New Added / sec (Instantaneous velocity) */}
+                <span
+                  className={`rate-badge instant ${Number(liveLogsPerSec) > 0 ? 'active-burst' : ''}`}
+                  data-tooltip={`Instant velocity: ${liveLogsPerSec || 0} new logs added in the last second`}
+                >
+                  <Zap size={11} />
+                  <span>+{liveLogsPerSec || 0}</span>
+                </span>
 
-          <button
-            className={`btn-live-tail ${isLiveTail ? 'active' : ''}`}
-            onClick={onToggleLiveTail}
-            title={isLiveTail ? `Live tailing active: ${liveLogsPerSec} logs/s - click to pause` : 'Enable live tailing'}
-            style={{ height: 32, padding: '0 10px', fontSize: '0.75rem' }}
-          >
-            {isLiveTail && <span className="pulse-dot" />}
-            <Radio size={12} />
-            {isLiveTail ? 'LIVE' : 'Live'}
-          </button>
+                <div className="live-telemetry-divider" />
+                {/* Metric 2: Average Addition / sec (Rolling session average) */}
+                <span
+                  className="rate-badge average"
+                  data-tooltip={`Rolling average: ${liveAvgLogsPerSec || 0} logs/sec (Session total: ${liveTotalAdded || 0} logs)`}
+                >
+                  <Activity size={11} />
+                  <span>avg {liveAvgLogsPerSec || 0}</span>
+                </span>
+              </>
+            ) : (fileAvgLogsPerSec || 0) > 0 ? (
+              <>
+                <div className="live-telemetry-divider" />
+                <span
+                  className="rate-badge average"
+                  data-tooltip={`Historical average log generation rate: ${fileAvgLogsPerSec} logs/sec`}
+                >
+                  <Activity size={11} />
+                  <span>avg {fileAvgLogsPerSec}</span>
+                </span>
+              </>
+            ) : null}
+          </div>
 
-          <button
-            className="btn-icon"
-            onClick={onToggleTheme}
-            title={`Switch to ${theme === 'dark' ? 'Light' : 'Dark'} mode`}
-            style={{ width: 32, height: 32 }}
-          >
-            {theme === 'dark' ? <Sun size={14} /> : <Moon size={14} />}
-          </button>
+          <div className="topbar-divider-v" />
 
-          {/* Full Screen Button */}
-          {onToggleFullscreen && (
+          {/* Window Actions Group (Theme & Fullscreen) */}
+          <div className="window-actions-group">
             <button
               className="btn-icon"
-              onClick={onToggleFullscreen}
-              title={isFullscreen ? 'Exit Full Screen (F11)' : 'Full Screen (F11)'}
+              onClick={onToggleTheme}
+              data-tooltip={`Switch to ${theme === 'dark' ? 'Light' : 'Dark'} mode`}
               style={{ width: 32, height: 32 }}
             >
-              {isFullscreen ? <Minimize size={14} /> : <Maximize size={14} />}
+              {theme === 'dark' ? <Sun size={14} /> : <Moon size={14} />}
             </button>
-          )}
+
+            {onToggleFullscreen && (
+              <button
+                className="btn-icon"
+                onClick={onToggleFullscreen}
+                data-tooltip={isFullscreen ? 'Exit Full Screen' : 'Full Screen'}
+                style={{ width: 32, height: 32 }}
+              >
+                {isFullscreen ? <Minimize size={14} /> : <Maximize size={14} />}
+              </button>
+            )}
+          </div>
         </div>
       </div>
 
-      {/* ROW 2: SECONDARY TOOLBAR (EXPORT, COMPACT VIEW, SORTING, ASCII, PLAIN TEXT) */}
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          borderTop: '1px solid var(--border-subtle)',
-          paddingTop: 6,
-          flexWrap: 'wrap',
-          gap: 8,
-        }}
-      >
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-          {/* Export Button */}
+      {/* TIER 2: SEVERITY LEVEL PILLS (LEFT) + DIMENSION FACETS & ARCHIVE (RIGHT) */}
+      <div className="topbar-tier-2">
+        {/* Left: Severity Level Pills */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, overflowX: 'auto' }}>
           <button
-            className="btn-secondary"
-            onClick={onExportFiltered}
-            style={{ height: 28, padding: '0 10px', fontSize: '0.78rem', gap: 5 }}
-            title="Download current filtered log lines"
+            className={`level-pill all ${isAllSelected ? 'active' : ''}`}
+            onClick={() => onToggleLevel('all')}
           >
-            <Download size={13} />
-            Export
+            <span>ALL</span>
+            <span className="level-pill-count">{levelCounts.all || 0}</span>
           </button>
 
-          {/* Copy Log Path Button */}
-          {activeSource?.path && (
+          {AVAILABLE_LEVELS.map(({ key, label }) => {
+            const count = levelCounts[key] || 0;
+            const isSelected = selectedLevels.includes(key);
+            const isExcluded = (excludeLevels || []).includes(key);
+
+            return (
+              <button
+                key={key}
+                className={`level-pill ${key} ${isSelected ? 'active' : ''} ${isExcluded ? 'excluded' : ''}`}
+                onClick={(e) => {
+                  if (e.altKey) {
+                    onToggleExcludeLevel?.(key);
+                  } else {
+                    onToggleLevel(key);
+                  }
+                }}
+                onContextMenu={(e) => {
+                  e.preventDefault();
+                  onToggleExcludeLevel?.(key);
+                }}
+                title={`Click to include ${label} (+)\nRight-click or Alt+click: Exclude ${label} (–)`}
+              >
+                <span className="level-pill-label">{isExcluded ? `− ${label}` : label}</span>
+                <span className="level-pill-count">{count}</span>
+                <span
+                  className={`level-pill-neg-btn ${isExcluded ? 'active' : ''}`}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onToggleExcludeLevel?.(key);
+                  }}
+                  title={isExcluded ? `Remove exclusion of ${label}` : `Exclude ${label} logs (negative filter)`}
+                >
+                  {isExcluded ? '✕' : '−'}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Vertical Divider */}
+        <div className="topbar-divider-v" />
+
+        {/* Right: Facet Dimension Dropdowns (Workflows, Operations, Correlation) */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginLeft: 'auto' }}>
+          {/* WORKFLOW DROPDOWN */}
+          <div style={{ position: 'relative' }}>
             <button
-              className={`btn-secondary ${isPathCopied ? 'active' : ''}`}
-              onClick={handleCopyPath}
-              style={{
-                height: 28,
-                padding: '0 10px',
-                fontSize: '0.78rem',
-                gap: 5,
-                borderColor: isPathCopied ? '#4ade80' : undefined,
-                color: isPathCopied ? '#4ade80' : undefined,
-                backgroundColor: isPathCopied ? 'rgba(74, 222, 128, 0.15)' : undefined,
+              className={`level-pill ${selectedWorkflow ? 'active' : ''}`}
+              onClick={() => {
+                setIsWorkflowDropdownOpen(!isWorkflowDropdownOpen);
+                setIsOperationDropdownOpen(false);
+                setIsCorrelationDropdownOpen(false);
               }}
-              title={`Copy system path to clipboard: ${activeSource.path}`}
+              style={{
+                backgroundColor: selectedWorkflow ? 'rgba(192, 132, 252, 0.2)' : undefined,
+                borderColor: selectedWorkflow ? '#c084fc' : undefined,
+                color: selectedWorkflow ? '#c084fc' : undefined,
+                fontWeight: selectedWorkflow ? 700 : undefined,
+              }}
             >
-              {isPathCopied ? <Check size={13} color="#4ade80" /> : <Copy size={13} />}
-              {isPathCopied ? 'Path Copied!' : 'Copy Path'}
+              <GitBranch size={12} />
+              <span>{selectedWorkflow ? selectedWorkflow : 'Workflows'}</span>
+              <span className="level-pill-count">
+                {selectedWorkflow ? (workflowCounts[selectedWorkflow] || 0) : Object.keys(workflowCounts).length}
+              </span>
+              <ChevronDown size={11} />
             </button>
+
+            {selectedWorkflow && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onSelectWorkflow(null);
+                }}
+                style={{
+                  position: 'absolute',
+                  top: -4,
+                  right: -4,
+                  background: '#ef4444',
+                  color: '#ffffff',
+                  border: 'none',
+                  borderRadius: '50%',
+                  width: 15,
+                  height: 15,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  cursor: 'pointer',
+                  fontSize: '0.65rem',
+                  fontWeight: 'bold',
+                  zIndex: 2,
+                }}
+                title="Clear workflow filter"
+              >
+                ×
+              </button>
+            )}
+
+            {isWorkflowDropdownOpen && (
+              <>
+                <div
+                  style={{ position: 'fixed', inset: 0, zIndex: 999 }}
+                  onClick={() => setIsWorkflowDropdownOpen(false)}
+                />
+                <div
+                  ref={workflowRef}
+                  onMouseEnter={cancelWfMouseLeave}
+                  onMouseLeave={handleWfMouseLeave}
+                  style={{
+                    position: 'absolute',
+                    top: 'calc(100% + 6px)',
+                    right: 0,
+                    background: 'var(--bg-card)',
+                    border: '1px solid var(--border-subtle)',
+                    borderRadius: 8,
+                    boxShadow: '0 20px 40px rgba(0, 0, 0, 0.25), 0 0 15px rgba(192, 132, 252, 0.15)',
+                    zIndex: 1000,
+                    minWidth: 280,
+                    maxWidth: 340,
+                    overflow: 'hidden',
+                    display: 'flex',
+                    flexDirection: 'column',
+                  }}
+                >
+                  <div style={{ padding: '8px 10px', borderBottom: '1px solid var(--border-subtle)', background: 'var(--bg-sidebar)' }}>
+                    <input
+                      type="text"
+                      placeholder="Filter active workflows..."
+                      value={workflowSearch}
+                      onChange={(e) => setWorkflowSearch(e.target.value)}
+                      className="sidebar-search-input"
+                      style={{ fontSize: '0.78rem', padding: '5px 10px', background: 'var(--bg-surface)', border: '1px solid var(--border-subtle)', color: 'var(--text-primary)' }}
+                      autoFocus
+                    />
+                  </div>
+
+                  <div style={{ maxHeight: 260, overflowY: 'auto', padding: '4px 6px' }}>
+                    <div
+                      onClick={() => {
+                        onSelectWorkflow(null);
+                        setIsWorkflowDropdownOpen(false);
+                      }}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        padding: '6px 8px',
+                        borderRadius: 4,
+                        cursor: 'pointer',
+                        fontSize: '0.78rem',
+                        backgroundColor: !selectedWorkflow ? 'var(--accent-bg)' : 'transparent',
+                        color: !selectedWorkflow ? 'var(--accent-primary)' : 'var(--text-primary)',
+                        fontWeight: !selectedWorkflow ? 600 : 400,
+                      }}
+                    >
+                      <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <GitBranch size={12} />
+                        All Workflows
+                      </span>
+                      {!selectedWorkflow && <Check size={13} color="var(--accent-primary)" />}
+                    </div>
+
+                    {Object.entries(workflowCounts)
+                      .filter(([wf]) => wf.toLowerCase().includes(workflowSearch.toLowerCase()))
+                      .sort((a, b) => a[0].localeCompare(b[0], undefined, { numeric: true, sensitivity: 'base' }))
+                      .map(([wf, count]) => {
+                        const isSelected = selectedWorkflow === wf;
+                        return (
+                          <div
+                            key={wf}
+                            onClick={() => {
+                              onSelectWorkflow(isSelected ? null : wf);
+                              setIsWorkflowDropdownOpen(false);
+                            }}
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'space-between',
+                              padding: '6px 8px',
+                              borderRadius: 4,
+                              cursor: 'pointer',
+                              fontSize: '0.78rem',
+                              backgroundColor: isSelected ? 'rgba(192, 132, 252, 0.2)' : 'transparent',
+                              color: isSelected ? '#c084fc' : 'var(--text-primary)',
+                              fontWeight: isSelected ? 600 : 400,
+                            }}
+                          >
+                            <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                              {wf}
+                            </span>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                              <span
+                                style={{
+                                  fontSize: '0.7rem',
+                                  fontFamily: 'var(--font-mono)',
+                                  backgroundColor: 'var(--bg-surface)',
+                                  padding: '1px 6px',
+                                  borderRadius: 4,
+                                  color: isSelected ? '#c084fc' : 'var(--text-muted)',
+                                }}
+                              >
+                                {count}
+                              </span>
+                              {isSelected && <Check size={13} color="#c084fc" />}
+                            </div>
+                          </div>
+                        );
+                      })}
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
+
+          {/* OPERATION DROPDOWN */}
+          <div style={{ position: 'relative' }}>
+            <button
+              className={`level-pill ${selectedOperation ? 'active' : ''}`}
+              onClick={() => {
+                setIsOperationDropdownOpen(!isOperationDropdownOpen);
+                setIsWorkflowDropdownOpen(false);
+                setIsCorrelationDropdownOpen(false);
+              }}
+              style={{
+                backgroundColor: selectedOperation ? 'rgba(56, 189, 248, 0.2)' : undefined,
+                borderColor: selectedOperation ? '#38bdf8' : undefined,
+                color: selectedOperation ? '#38bdf8' : undefined,
+                fontWeight: selectedOperation ? 700 : undefined,
+              }}
+            >
+              <GitCommit size={12} />
+              <span>{selectedOperation ? selectedOperation : 'Operations'}</span>
+              <span className="level-pill-count">
+                {selectedOperation ? (operationCounts[selectedOperation] || 0) : Object.keys(operationCounts).length}
+              </span>
+              <ChevronDown size={11} />
+            </button>
+
+            {selectedOperation && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onSelectOperation(null);
+                }}
+                style={{
+                  position: 'absolute',
+                  top: -4,
+                  right: -4,
+                  background: '#ef4444',
+                  color: '#ffffff',
+                  border: 'none',
+                  borderRadius: '50%',
+                  width: 15,
+                  height: 15,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  cursor: 'pointer',
+                  fontSize: '0.65rem',
+                  fontWeight: 'bold',
+                  zIndex: 2,
+                }}
+                title="Clear operation filter"
+              >
+                ×
+              </button>
+            )}
+
+            {isOperationDropdownOpen && (
+              <>
+                <div
+                  style={{ position: 'fixed', inset: 0, zIndex: 999 }}
+                  onClick={() => setIsOperationDropdownOpen(false)}
+                />
+                <div
+                  ref={operationRef}
+                  onMouseEnter={cancelOpMouseLeave}
+                  onMouseLeave={handleOpMouseLeave}
+                  style={{
+                    position: 'absolute',
+                    top: 'calc(100% + 6px)',
+                    right: 0,
+                    background: 'var(--bg-card)',
+                    border: '1px solid var(--border-subtle)',
+                    borderRadius: 8,
+                    boxShadow: '0 20px 40px rgba(0, 0, 0, 0.25), 0 0 15px rgba(56, 189, 248, 0.15)',
+                    zIndex: 1000,
+                    minWidth: 280,
+                    maxWidth: 340,
+                    overflow: 'hidden',
+                    display: 'flex',
+                    flexDirection: 'column',
+                  }}
+                >
+                  <div style={{ padding: '8px 10px', borderBottom: '1px solid var(--border-subtle)', background: 'var(--bg-sidebar)' }}>
+                    <input
+                      type="text"
+                      placeholder="Filter operations..."
+                      value={operationSearch}
+                      onChange={(e) => setOperationSearch(e.target.value)}
+                      className="sidebar-search-input"
+                      style={{ fontSize: '0.78rem', padding: '5px 10px', background: 'var(--bg-surface)', border: '1px solid var(--border-subtle)', color: 'var(--text-primary)' }}
+                      autoFocus
+                    />
+                  </div>
+
+                  <div style={{ maxHeight: 260, overflowY: 'auto', padding: '4px 6px' }}>
+                    <div
+                      onClick={() => {
+                        onSelectOperation(null);
+                        setIsOperationDropdownOpen(false);
+                      }}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        padding: '6px 8px',
+                        borderRadius: 4,
+                        cursor: 'pointer',
+                        fontSize: '0.78rem',
+                        backgroundColor: !selectedOperation ? 'var(--accent-bg)' : 'transparent',
+                        color: !selectedOperation ? 'var(--accent-primary)' : 'var(--text-primary)',
+                        fontWeight: !selectedOperation ? 600 : 400,
+                      }}
+                    >
+                      <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <GitCommit size={12} />
+                        All Operations
+                      </span>
+                      {!selectedOperation && <Check size={13} color="var(--accent-primary)" />}
+                    </div>
+
+                    {Object.entries(operationCounts)
+                      .filter(([op]) => op.toLowerCase().includes(operationSearch.toLowerCase()))
+                      .sort((a, b) => a[0].localeCompare(b[0], undefined, { numeric: true, sensitivity: 'base' }))
+                      .map(([op, count]) => {
+                        const isSelected = selectedOperation === op;
+                        return (
+                          <div
+                            key={op}
+                            onClick={() => {
+                              onSelectOperation(isSelected ? null : op);
+                              setIsOperationDropdownOpen(false);
+                            }}
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'space-between',
+                              padding: '6px 8px',
+                              borderRadius: 4,
+                              cursor: 'pointer',
+                              fontSize: '0.78rem',
+                              backgroundColor: isSelected ? 'rgba(56, 189, 248, 0.2)' : 'transparent',
+                              color: isSelected ? '#38bdf8' : 'var(--text-primary)',
+                              fontWeight: isSelected ? 600 : 400,
+                            }}
+                          >
+                            <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                              {op}
+                            </span>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                              <span
+                                style={{
+                                  fontSize: '0.7rem',
+                                  fontFamily: 'var(--font-mono)',
+                                  backgroundColor: 'var(--bg-surface)',
+                                  padding: '1px 6px',
+                                  borderRadius: 4,
+                                  color: isSelected ? '#38bdf8' : 'var(--text-muted)',
+                                }}
+                              >
+                                {count}
+                              </span>
+                              {isSelected && <Check size={13} color="#38bdf8" />}
+                            </div>
+                          </div>
+                        );
+                      })}
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
+
+          {/* CORRELATION DROPDOWN */}
+          {correlationCounts && Object.keys(correlationCounts).length > 0 && (
+            <div style={{ position: 'relative' }}>
+              <button
+                className={`level-pill ${selectedCorrelation ? 'active' : ''}`}
+                onClick={() => {
+                  setIsCorrelationDropdownOpen(!isCorrelationDropdownOpen);
+                  setIsWorkflowDropdownOpen(false);
+                  setIsOperationDropdownOpen(false);
+                }}
+                style={{
+                  backgroundColor: selectedCorrelation ? 'rgba(52, 211, 153, 0.2)' : undefined,
+                  borderColor: selectedCorrelation ? '#34d399' : undefined,
+                  color: selectedCorrelation ? '#34d399' : undefined,
+                  fontWeight: selectedCorrelation ? 700 : undefined,
+                }}
+              >
+                <Zap size={12} />
+                <span>{selectedCorrelation ? selectedCorrelation : 'Correlation'}</span>
+                <span className="level-pill-count">
+                  {selectedCorrelation ? (correlationCounts[selectedCorrelation] || 0) : Object.keys(correlationCounts).length}
+                </span>
+                <ChevronDown size={11} />
+              </button>
+
+              {selectedCorrelation && (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onSelectCorrelation?.(null);
+                  }}
+                  style={{
+                    position: 'absolute',
+                    top: -4,
+                    right: -4,
+                    background: '#ef4444',
+                    color: '#ffffff',
+                    border: 'none',
+                    borderRadius: '50%',
+                    width: 15,
+                    height: 15,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    cursor: 'pointer',
+                    fontSize: '0.65rem',
+                    fontWeight: 'bold',
+                    zIndex: 2,
+                  }}
+                  title="Clear correlation filter"
+                >
+                  ×
+                </button>
+              )}
+
+              {isCorrelationDropdownOpen && (
+                <>
+                  <div
+                    style={{ position: 'fixed', inset: 0, zIndex: 999 }}
+                    onClick={() => setIsCorrelationDropdownOpen(false)}
+                  />
+                  <div
+                    ref={correlationRef}
+                    onMouseEnter={cancelCorrMouseLeave}
+                    onMouseLeave={handleCorrMouseLeave}
+                    style={{
+                      position: 'absolute',
+                      top: 'calc(100% + 6px)',
+                      right: 0,
+                      background: 'var(--bg-card)',
+                      border: '1px solid var(--border-subtle)',
+                      borderRadius: 8,
+                      boxShadow: '0 20px 40px rgba(0, 0, 0, 0.25), 0 0 15px rgba(52, 211, 153, 0.15)',
+                      zIndex: 1000,
+                      minWidth: 280,
+                      maxWidth: 360,
+                      overflow: 'hidden',
+                      display: 'flex',
+                      flexDirection: 'column',
+                    }}
+                  >
+                    <div style={{ padding: '8px 10px', borderBottom: '1px solid var(--border-subtle)', background: 'var(--bg-sidebar)' }}>
+                      <input
+                        type="text"
+                        placeholder="Filter correlation IDs..."
+                        value={correlationSearch}
+                        onChange={(e) => setCorrelationSearch(e.target.value)}
+                        className="sidebar-search-input"
+                        style={{ fontSize: '0.78rem', padding: '5px 10px', background: 'var(--bg-surface)', border: '1px solid var(--border-subtle)', color: 'var(--text-primary)' }}
+                        autoFocus
+                      />
+                    </div>
+
+                    <div style={{ maxHeight: 260, overflowY: 'auto', padding: '4px 6px' }}>
+                      <div
+                        onClick={() => {
+                          onSelectCorrelation?.(null);
+                          setIsCorrelationDropdownOpen(false);
+                        }}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          padding: '6px 8px',
+                          borderRadius: 4,
+                          cursor: 'pointer',
+                          fontSize: '0.78rem',
+                          backgroundColor: !selectedCorrelation ? 'var(--accent-bg)' : 'transparent',
+                          color: !selectedCorrelation ? 'var(--accent-primary)' : 'var(--text-primary)',
+                          fontWeight: !selectedCorrelation ? 600 : 400,
+                        }}
+                      >
+                        <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                          <Zap size={12} />
+                          All Correlations
+                        </span>
+                        {!selectedCorrelation && <Check size={13} color="var(--accent-primary)" />}
+                      </div>
+
+                      {Object.entries(correlationCounts)
+                        .filter(([corr]) => corr.toLowerCase().includes(correlationSearch.toLowerCase()))
+                        .sort((a, b) => a[0].localeCompare(b[0], undefined, { numeric: true, sensitivity: 'base' }))
+                        .map(([corr, count]) => {
+                          const isSelected = selectedCorrelation === corr;
+                          return (
+                            <div
+                              key={corr}
+                              onClick={() => {
+                                onSelectCorrelation?.(isSelected ? null : corr);
+                                setIsCorrelationDropdownOpen(false);
+                              }}
+                              style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'space-between',
+                                padding: '6px 8px',
+                                borderRadius: 4,
+                                cursor: 'pointer',
+                                fontSize: '0.78rem',
+                                backgroundColor: isSelected ? 'rgba(52, 211, 153, 0.2)' : 'transparent',
+                                color: isSelected ? '#34d399' : 'var(--text-primary)',
+                                fontWeight: isSelected ? 600 : 400,
+                              }}
+                            >
+                              <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', fontFamily: 'var(--font-mono)' }}>
+                                {corr}
+                              </span>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                <span
+                                  style={{
+                                    fontSize: '0.7rem',
+                                    fontFamily: 'var(--font-mono)',
+                                    backgroundColor: 'var(--bg-surface)',
+                                    padding: '1px 6px',
+                                    borderRadius: 4,
+                                    color: isSelected ? '#34d399' : 'var(--text-muted)',
+                                  }}
+                                >
+                                  {count}
+                                </span>
+                                {isSelected && <Check size={13} color="#34d399" />}
+                              </div>
+                            </div>
+                          );
+                        })}
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
           )}
 
-          {/* Rotated archive indicator */}
+          {/* Rotated Archive Indicator */}
           {activeSource?.isRotated && (
             <span
               style={{
@@ -891,389 +1433,77 @@ export const Topbar: React.FC<TopbarProps> = ({
               Rotated Archive {activeSource.rotationSuffix && `(${activeSource.rotationSuffix})`}
             </span>
           )}
-
-          {/* Compact View Toggle */}
-          <button
-            className={`btn-secondary ${viewMode === 'compact' ? 'active' : ''}`}
-            onClick={() => onChangeViewMode(viewMode === 'compact' ? 'standard' : 'compact')}
-            style={{
-              height: 28,
-              padding: '0 10px',
-              fontSize: '0.78rem',
-              gap: 5,
-              background: viewMode === 'compact' ? 'var(--accent-bg)' : undefined,
-              borderColor: viewMode === 'compact' ? 'var(--accent-primary)' : undefined,
-              color: viewMode === 'compact' ? 'var(--accent-primary)' : undefined,
-              fontWeight: 600,
-            }}
-          >
-            <List size={13} />
-            Compact View
-          </button>
-
-          {/* Structured View Toggle */}
-          <button
-            className={`btn-secondary ${viewMode === 'standard' ? 'active' : ''}`}
-            onClick={() => onChangeViewMode('standard')}
-            style={{
-              height: 28,
-              padding: '0 10px',
-              fontSize: '0.78rem',
-              gap: 5,
-              background: viewMode === 'standard' ? 'var(--accent-bg)' : undefined,
-              borderColor: viewMode === 'standard' ? 'var(--accent-primary)' : undefined,
-              color: viewMode === 'standard' ? 'var(--accent-primary)' : undefined,
-            }}
-          >
-            <LayoutList size={13} />
-            Detailed Cards
-          </button>
-
-          {/* Word Wrap Toggle */}
-          <button
-            className={`search-modifier-btn ${wrapLines ? 'active' : ''}`}
-            onClick={onToggleWrapLines}
-            style={{ height: 26, padding: '0 8px', gap: 4, display: 'flex', alignItems: 'center' }}
-            title="Toggle word wrap for long log lines"
-          >
-            <WrapText size={12} />
-            <span>Wrap</span>
-          </button>
-
-          {/* Remove / Strip [ ] Brackets Toggle */}
-          <button
-            className={`search-modifier-btn ${hideBrackets ? 'active' : ''}`}
-            onClick={onToggleHideBrackets}
-            style={{
-              height: 26,
-              padding: '0 8px',
-              gap: 4,
-              display: 'flex',
-              alignItems: 'center',
-              fontWeight: 600,
-            }}
-            title={hideBrackets ? 'Show [ ] markers' : 'Remove all [ ] markers from log lines'}
-          >
-            <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.74rem' }}>
-              {hideBrackets ? 'No [ ]' : '[ ]'}
-            </span>
-          </button>
-
-          {/* Marker & Multi-Field Sort Dropdown */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginLeft: 6 }}>
-            <span style={{ fontSize: '0.76rem', color: 'var(--text-muted)' }}>Sort by:</span>
-            <select
-              value={sortOption}
-              onChange={(e) => onChangeSortOption(e.target.value as SortOption)}
-              style={{
-                background: 'var(--bg-surface)',
-                color: 'var(--text-primary)',
-                border: '1px solid var(--border-subtle)',
-                borderRadius: 4,
-                padding: '3px 8px',
-                fontSize: '0.76rem',
-                outline: 'none',
-                fontFamily: 'var(--font-sans)',
-                cursor: 'pointer',
-              }}
-            >
-              <option value="time-asc">Time (Log Flow: Oldest → Newest)</option>
-              <option value="time-desc">Time (Tail: Latest at Top)</option>
-              <option value="marker-asc">Workflow Marker (A → Z)</option>
-              <option value="marker-desc">Workflow Marker (Z → A)</option>
-              <option value="line-asc">Line Number (Asc)</option>
-              <option value="line-desc">Line Number (Desc)</option>
-              <option value="duration-desc">Duration (Slowest First)</option>
-              <option value="duration-asc">Duration (Fastest First)</option>
-              <option value="namespace-asc">Namespace (A → Z)</option>
-            </select>
-          </div>
-
-          {/* Metadata Columns Toggle (PID, TID, Correlation ID) */}
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 2,
-              marginLeft: 6,
-              background: 'var(--bg-surface)',
-              border: '1px solid var(--border-subtle)',
-              borderRadius: 6,
-              padding: '2px 4px',
-            }}
-            title="Toggle visibility of Process ID, Thread ID, and Correlation ID tokens"
-          >
-            <button
-              onClick={onToggleAllMeta}
-              style={{
-                background: 'none',
-                border: 'none',
-                fontSize: '0.72rem',
-                color: showPid || showTid || showCorrelation ? 'var(--accent-primary)' : 'var(--text-muted)',
-                padding: '1px 4px',
-                cursor: 'pointer',
-                fontWeight: 600,
-              }}
-              title="Click to toggle all: PID, TID, and Correlation ID"
-            >
-              Meta:
-            </button>
-            <button
-              className={`meta-toggle-btn ${showDatetime !== false ? 'active' : ''}`}
-              onClick={onToggleShowDatetime}
-              title={showDatetime !== false ? 'Hide Datetime column' : 'Show Datetime column'}
-            >
-              Time
-            </button>
-            <button
-              className={`meta-toggle-btn ${showPid ? 'active' : ''}`}
-              onClick={onToggleShowPid}
-              title={showPid ? 'Hide Process ID [PID]' : 'Show Process ID [PID]'}
-            >
-              PID
-            </button>
-            <button
-              className={`meta-toggle-btn ${showTid ? 'active' : ''}`}
-              onClick={onToggleShowTid}
-              title={showTid ? 'Hide Thread ID [TID]' : 'Show Thread ID [TID]'}
-            >
-              TID
-            </button>
-            <button
-              className={`meta-toggle-btn ${showCorrelation ? 'active' : ''}`}
-              onClick={onToggleShowCorrelation}
-              title={showCorrelation ? 'Hide Correlation ID [Corr]' : 'Show Correlation ID [Corr]'}
-            >
-              Corr
-            </button>
-          </div>
-
-          <span style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>
-            Showing full log lines
-          </span>
-        </div>
-
-        {/* Right Buttons: ASCII & Plain Text (Image 4) */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          <button
-            className={`btn-secondary ${viewMode === 'raw' ? 'active' : ''}`}
-            onClick={() => onChangeViewMode(viewMode === 'raw' ? 'compact' : 'raw')}
-            style={{
-              height: 28,
-              padding: '0 8px',
-              fontSize: '0.76rem',
-              gap: 4,
-              background: viewMode === 'raw' ? 'var(--accent-bg)' : undefined,
-              borderColor: viewMode === 'raw' ? 'var(--accent-primary)' : undefined,
-            }}
-          >
-            <Binary size={12} />
-            ASCII
-          </button>
-
-          <button
-            className={`btn-secondary ${viewMode === 'raw' ? 'active' : ''}`}
-            onClick={() => onChangeViewMode(viewMode === 'raw' ? 'compact' : 'raw')}
-            style={{
-              height: 28,
-              padding: '0 8px',
-              fontSize: '0.76rem',
-              gap: 4,
-            }}
-          >
-            <FileText size={12} />
-            Plain Text
-          </button>
-
-          {/* Keyboard Shortcuts Button */}
-          <button
-            className="btn-secondary"
-            onClick={onOpenShortcuts}
-            style={{
-              height: 28,
-              padding: '0 8px',
-              fontSize: '0.76rem',
-              gap: 4,
-              color: 'var(--text-secondary)',
-            }}
-            title="View Keyboard Shortcuts (?)"
-          >
-            <Keyboard size={12} />
-            <span>Shortcuts</span>
-            <kbd style={{ fontSize: '0.65rem', background: 'var(--bg-surface)', padding: '1px 4px', borderRadius: 3, border: '1px solid var(--border-subtle)' }}>?</kbd>
-          </button>
-
-          {/* Reset All Settings Button */}
-          {onResetSettings && (
-            <button
-              className="btn-secondary"
-              onClick={onResetSettings}
-              style={{
-                height: 28,
-                padding: '0 8px',
-                fontSize: '0.76rem',
-                gap: 4,
-                color: 'var(--text-secondary)',
-                borderColor: 'var(--border-subtle)',
-              }}
-              title="Reset all settings, views, and filters to default"
-            >
-              <RotateCcw size={12} />
-              <span>Reset Settings</span>
-            </button>
-          )}
         </div>
       </div>
 
-      {/* ROW 3: LEVEL PILLS (REAL-TIME COUNTS) */}
-      <div className="level-pills-row" style={{ paddingTop: 2 }}>
-        <button
-          className={`level-pill all ${isAllSelected ? 'active' : ''}`}
-          onClick={() => onToggleLevel('all')}
-        >
-          <span>ALL</span>
-          <span className="level-pill-count">{levelCounts.all || 0}</span>
-        </button>
-
-        {AVAILABLE_LEVELS.map(({ key, label }) => {
-          const count = levelCounts[key] || 0;
-          const isSelected = selectedLevels.includes(key);
-          const isExcluded = (excludeLevels || []).includes(key);
-
-          return (
+      {/* TIER 3: VIEW MODES, PRESETS, VISIBILITY & ACTION TOOLS */}
+      <div className="topbar-tier-3">
+        {/* Left: View Mode Segmented + Preset Dropdown + Wrap + [ ] Markers + Meta */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', minWidth: 0 }}>
+          {/* Segmented View Mode Switcher (Icons Only) */}
+          <div className="view-mode-segmented" style={{ flexShrink: 0, whiteSpace: 'nowrap' }}>
             <button
-              key={key}
-              className={`level-pill ${key} ${isSelected ? 'active' : ''} ${isExcluded ? 'excluded' : ''}`}
-              onClick={(e) => {
-                if (e.altKey) {
-                  onToggleExcludeLevel?.(key);
-                } else {
-                  onToggleLevel(key);
-                }
-              }}
-              onContextMenu={(e) => {
-                e.preventDefault();
-                onToggleExcludeLevel?.(key);
-              }}
-              title={`Click to include ${label} (+)\nRight-click or Alt+click: Exclude ${label} (–)`}
+              className={`view-mode-btn ${viewMode === 'compact' ? 'active' : ''}`}
+              onClick={() => onChangeViewMode('compact')}
+              data-tooltip="Compact View (Dense rows)"
             >
-              <span className="level-pill-label">{isExcluded ? `− ${label}` : label}</span>
-              <span className="level-pill-count">{count}</span>
-              <span
-                className={`level-pill-neg-btn ${isExcluded ? 'active' : ''}`}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onToggleExcludeLevel?.(key);
-                }}
-                title={isExcluded ? `Remove exclusion of ${label}` : `Exclude ${label} logs (negative filter)`}
-              >
-                {isExcluded ? '✕' : '−'}
-              </span>
+              <List size={13} />
             </button>
-          );
-        })}
-
-        {/* DIVIDER */}
-        <div style={{ width: 1, height: 20, backgroundColor: 'var(--border-subtle)', margin: '0 4px', flexShrink: 0 }} />
-
-        {/* WORKFLOW DROPDOWN TOGGLE */}
-        <div style={{ position: 'relative' }}>
-          <button
-            className={`level-pill ${selectedWorkflow ? 'active' : ''}`}
-            onClick={() => {
-              setIsWorkflowDropdownOpen(!isWorkflowDropdownOpen);
-              setIsOperationDropdownOpen(false);
-            }}
-            style={{
-              backgroundColor: selectedWorkflow ? 'rgba(192, 132, 252, 0.2)' : undefined,
-              borderColor: selectedWorkflow ? '#c084fc' : undefined,
-              color: selectedWorkflow ? '#c084fc' : undefined,
-              fontWeight: selectedWorkflow ? 700 : undefined,
-            }}
-          >
-            <GitBranch size={12} />
-            <span>{selectedWorkflow ? selectedWorkflow : 'Workflows'}</span>
-            <span className="level-pill-count">
-              {selectedWorkflow ? (workflowCounts[selectedWorkflow] || 0) : Object.keys(workflowCounts).length}
-            </span>
-            <ChevronDown size={11} />
-          </button>
-
-          {/* Active workflow clear button */}
-          {selectedWorkflow && (
             <button
-              onClick={(e) => {
-                e.stopPropagation();
-                onSelectWorkflow(null);
-              }}
-              style={{
-                position: 'absolute',
-                top: -4,
-                right: -4,
-                background: '#ef4444',
-                color: '#ffffff',
-                border: 'none',
-                borderRadius: '50%',
-                width: 15,
-                height: 15,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                cursor: 'pointer',
-                fontSize: '0.65rem',
-                fontWeight: 'bold',
-                zIndex: 2,
-              }}
-              title="Clear workflow filter"
+              className={`view-mode-btn ${viewMode === 'standard' ? 'active' : ''}`}
+              onClick={() => onChangeViewMode('standard')}
+              data-tooltip="Cards View (Detailed cards)"
             >
-              ×
+              <LayoutList size={13} />
             </button>
-          )}
+            <button
+              className={`view-mode-btn ${viewMode === 'raw' ? 'active' : ''}`}
+              onClick={() => onChangeViewMode('raw')}
+              data-tooltip="Raw Plain Text View"
+            >
+              <FileText size={13} />
+            </button>
+          </div>
 
-          {/* Workflow Dropdown Popup */}
-          {isWorkflowDropdownOpen && (
-            <>
+          {/* Preset Selector Dropdown */}
+          <div style={{ position: 'relative', flexShrink: 0, whiteSpace: 'nowrap' }} ref={presetDropdownRef}>
+            <button
+              className={`preset-trigger-btn ${activePreset ? 'active' : ''}`}
+              onClick={() => setIsPresetDropdownOpen(!isPresetDropdownOpen)}
+              title={activePreset ? `Active Preset: ${activePreset.name} (Click to change or manage)` : 'Select or manage Log Presets'}
+            >
+              <Sliders size={12} />
+              <span>{activePreset ? activePreset.name : 'Preset: None'}</span>
+              <ChevronDown size={11} />
+            </button>
+
+            {isPresetDropdownOpen && (
               <div
-                style={{ position: 'fixed', inset: 0, zIndex: 999 }}
-                onClick={() => setIsWorkflowDropdownOpen(false)}
-              />
-              <div
-                ref={workflowRef}
-                onMouseEnter={cancelWfMouseLeave}
-                onMouseLeave={handleWfMouseLeave}
                 style={{
                   position: 'absolute',
                   top: 'calc(100% + 6px)',
-                  right: 0,
+                  left: 0,
                   background: 'var(--bg-card)',
                   border: '1px solid var(--border-subtle)',
                   borderRadius: 8,
-                  boxShadow: '0 20px 40px rgba(0, 0, 0, 0.2), 0 0 15px rgba(192, 132, 252, 0.15)',
+                  boxShadow: '0 20px 40px rgba(0, 0, 0, 0.25), 0 0 15px rgba(56, 189, 248, 0.15)',
                   zIndex: 1000,
-                  minWidth: 280,
-                  maxWidth: 340,
-                  overflow: 'hidden',
+                  minWidth: 230,
+                  padding: '6px',
                   display: 'flex',
                   flexDirection: 'column',
+                  gap: 2,
                 }}
               >
-                <div style={{ padding: '8px 10px', borderBottom: '1px solid var(--border-subtle)', background: 'var(--bg-sidebar)' }}>
-                  <input
-                    type="text"
-                    placeholder="Filter active workflows..."
-                    value={workflowSearch}
-                    onChange={(e) => setWorkflowSearch(e.target.value)}
-                    className="sidebar-search-input"
-                    style={{ fontSize: '0.78rem', padding: '5px 10px', background: 'var(--bg-surface)', border: '1px solid var(--border-subtle)', color: 'var(--text-primary)' }}
-                    autoFocus
-                  />
+                <div style={{ padding: '4px 8px', fontSize: '0.7rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase' }}>
+                  Log View Presets
                 </div>
 
-                <div style={{ maxHeight: 260, overflowY: 'auto', padding: '4px 6px' }}>
-                <div
+                {/* Clear Preset option */}
+                <button
                   onClick={() => {
-                    onSelectWorkflow(null);
-                    setIsWorkflowDropdownOpen(false);
+                    onSelectPreset?.(null);
+                    setIsPresetDropdownOpen(false);
                   }}
                   style={{
                     display: 'flex',
@@ -1281,137 +1511,158 @@ export const Topbar: React.FC<TopbarProps> = ({
                     justifyContent: 'space-between',
                     padding: '6px 8px',
                     borderRadius: 4,
-                    cursor: 'pointer',
                     fontSize: '0.78rem',
-                    backgroundColor: !selectedWorkflow ? 'var(--accent-bg)' : 'transparent',
-                    color: !selectedWorkflow ? 'var(--accent-primary)' : 'var(--text-primary)',
-                    fontWeight: !selectedWorkflow ? 600 : 400,
+                    border: 'none',
+                    background: !activePresetId ? 'var(--accent-bg)' : 'transparent',
+                    color: !activePresetId ? 'var(--accent-primary)' : 'var(--text-primary)',
+                    fontWeight: !activePresetId ? 700 : 400,
+                    cursor: 'pointer',
+                    textAlign: 'left',
                   }}
                 >
-                  <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                    <GitBranch size={12} />
-                    All Workflows
-                  </span>
-                  {!selectedWorkflow && <Check size={13} color="var(--accent-primary)" />}
-                </div>
+                  <span>None (Default / All Logs)</span>
+                  {!activePresetId && <Check size={13} color="var(--accent-primary)" />}
+                </button>
 
-                {Object.entries(workflowCounts)
-                  .filter(([wf]) => wf.toLowerCase().includes(workflowSearch.toLowerCase()))
-                  .sort((a, b) => b[1] - a[1])
-                  .map(([wf, count]) => {
-                    const isSelected = selectedWorkflow === wf;
-                    return (
-                      <div
-                        key={wf}
-                        onClick={() => {
-                          onSelectWorkflow(isSelected ? null : wf);
-                          setIsWorkflowDropdownOpen(false);
-                        }}
-                        style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'space-between',
-                          padding: '6px 8px',
-                          borderRadius: 4,
-                          cursor: 'pointer',
-                          fontSize: '0.78rem',
-                          backgroundColor: isSelected ? 'rgba(192, 132, 252, 0.2)' : 'transparent',
-                          color: isSelected ? '#c084fc' : 'var(--text-primary)',
-                          fontWeight: isSelected ? 600 : 400,
-                        }}
-                      >
-                        <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                          {wf}
-                        </span>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                          <span
-                            style={{
-                              fontSize: '0.7rem',
-                              fontFamily: 'var(--font-mono)',
-                              backgroundColor: 'var(--bg-surface)',
-                              padding: '1px 6px',
-                              borderRadius: 4,
-                              color: isSelected ? '#c084fc' : 'var(--text-muted)',
-                            }}
-                          >
-                            {count}
+                <div style={{ height: 1, background: 'var(--border-subtle)', margin: '4px 0' }} />
+
+                {/* Preset items */}
+                {presets.map((p) => {
+                  const isSelected = p.id === activePresetId;
+                  return (
+                    <button
+                      key={p.id}
+                      onClick={() => {
+                        onSelectPreset?.(p.id);
+                        setIsPresetDropdownOpen(false);
+                      }}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        padding: '6px 8px',
+                        borderRadius: 4,
+                        fontSize: '0.78rem',
+                        border: 'none',
+                        background: isSelected ? 'rgba(56, 189, 248, 0.15)' : 'transparent',
+                        color: isSelected ? 'var(--accent-primary)' : 'var(--text-primary)',
+                        fontWeight: isSelected ? 700 : 400,
+                        cursor: 'pointer',
+                        textAlign: 'left',
+                      }}
+                    >
+                      <div style={{ display: 'flex', flexDirection: 'column' }}>
+                        <span>{p.name}</span>
+                        {p.description && (
+                          <span style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>
+                            {p.description}
                           </span>
-                          {isSelected && <Check size={13} color="#c084fc" />}
-                        </div>
+                        )}
                       </div>
-                    );
-                  })}
-              </div>
-            </div>
-            </>
-          )}
-        </div>
+                      {isSelected && <Check size={13} color="var(--accent-primary)" />}
+                    </button>
+                  );
+                })}
 
-        {/* OPERATION DROPDOWN TOGGLE */}
-        <div style={{ position: 'relative' }}>
+                <div style={{ height: 1, background: 'var(--border-subtle)', margin: '4px 0' }} />
+
+                <button
+                  onClick={() => {
+                    setIsPresetDropdownOpen(false);
+                    onOpenPresetModal?.();
+                  }}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 6,
+                    padding: '6px 8px',
+                    borderRadius: 4,
+                    fontSize: '0.76rem',
+                    border: 'none',
+                    background: 'transparent',
+                    color: 'var(--accent-primary)',
+                    cursor: 'pointer',
+                    fontWeight: 600,
+                  }}
+                >
+                  <Sliders size={12} />
+                  <span>Manage Presets...</span>
+                </button>
+              </div>
+            )}
+          </div>
+
+          {/* Word Wrap Toggle (Icon-Only) */}
           <button
-            className={`level-pill ${selectedOperation ? 'active' : ''}`}
-            onClick={() => {
-              setIsOperationDropdownOpen(!isOperationDropdownOpen);
-              setIsWorkflowDropdownOpen(false);
-            }}
-            style={{
-              backgroundColor: selectedOperation ? 'rgba(251, 146, 60, 0.2)' : undefined,
-              borderColor: selectedOperation ? '#fb923c' : undefined,
-              color: selectedOperation ? '#fb923c' : undefined,
-              fontWeight: selectedOperation ? 700 : undefined,
-            }}
+            className={`toolbar-toggle-btn ${wrapLines ? 'active' : ''}`}
+            onClick={onToggleWrapLines}
+            data-tooltip={wrapLines ? 'Word wrap enabled (click to disable)' : 'Word wrap disabled (click to enable)'}
           >
-            <Zap size={12} />
-            <span>{selectedOperation ? selectedOperation : 'Operations'}</span>
-            <span className="level-pill-count">
-              {selectedOperation ? (operationCounts[selectedOperation] || 0) : Object.keys(operationCounts).length}
-            </span>
-            <ChevronDown size={11} />
+            <WrapText size={13} />
           </button>
 
-          {/* Active operation clear button */}
-          {selectedOperation && (
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                onSelectOperation(null);
-              }}
-              style={{
-                position: 'absolute',
-                top: -4,
-                right: -4,
-                background: '#ef4444',
-                color: '#ffffff',
-                border: 'none',
-                borderRadius: '50%',
-                width: 15,
-                height: 15,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                cursor: 'pointer',
-                fontSize: '0.65rem',
-                fontWeight: 'bold',
-                zIndex: 2,
-              }}
-              title="Clear operation filter"
-            >
-              ×
-            </button>
-          )}
+          {/* [ ] Brackets Visibility Toggle - Uniform: active = visible! */}
+          <button
+            className={`toolbar-toggle-btn ${!hideBrackets ? 'active' : ''}`}
+            onClick={onToggleHideBrackets}
+            data-tooltip={!hideBrackets ? 'Hide [ ] bracket markers' : 'Show [ ] bracket markers'}
+          >
+            <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.74rem' }}>
+              [ ]
+            </span>
+          </button>
 
-          {/* Operation Dropdown Popup */}
-          {isOperationDropdownOpen && (
-            <>
+          {/* Metadata Toggles Group (Clean Tokens Without Redundant "Meta:" label) */}
+          <div className="meta-toggles-group" style={{ flexShrink: 0, whiteSpace: 'nowrap' }}>
+            <button
+              className={`meta-toggle-btn ${showDatetime ? 'active' : ''}`}
+              onClick={onToggleShowDatetime}
+              data-tooltip={showDatetime ? 'Hide Datetime column' : 'Show Datetime column'}
+            >
+              Time
+            </button>
+            <button
+              className={`meta-toggle-btn ${showPid ? 'active' : ''}`}
+              onClick={onToggleShowPid}
+              data-tooltip={showPid ? 'Hide Process ID [PID]' : 'Show Process ID [PID]'}
+            >
+              PID
+            </button>
+            <button
+              className={`meta-toggle-btn ${showTid ? 'active' : ''}`}
+              onClick={onToggleShowTid}
+              data-tooltip={showTid ? 'Hide Thread ID [TID]' : 'Show Thread ID [TID]'}
+            >
+              TID
+            </button>
+            <button
+              className={`meta-toggle-btn ${showCorrelation ? 'active' : ''}`}
+              onClick={onToggleShowCorrelation}
+              data-tooltip={showCorrelation ? 'Hide Correlation ID [Corr]' : 'Show Correlation ID [Corr]'}
+            >
+              Corr
+            </button>
+          </div>
+        </div>
+
+        {/* Right: Sort + Actions */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginLeft: 'auto', flexShrink: 0, whiteSpace: 'nowrap' }}>
+          {/* Multi-Field Sort Dropdown (Ultra-Compact Space-Saving Pill) */}
+          <div style={{ position: 'relative', flexShrink: 0, whiteSpace: 'nowrap' }} ref={sortDropdownRef}>
+            <button
+              className="toolbar-toggle-btn"
+              onClick={() => setIsSortDropdownOpen(!isSortDropdownOpen)}
+              data-tooltip={`Sort: ${currentSortConfig.label} (click to change)`}
+              data-tooltip-align="right"
+              style={{ height: 28, padding: '0 8px', gap: 5, fontSize: '0.74rem' }}
+            >
+              <ArrowUpDown size={12} style={{ color: 'var(--accent-primary)' }} />
+              <span style={{ fontWeight: 600 }}>{currentSortConfig.short}</span>
+              <ChevronDown size={10} style={{ opacity: 0.7 }} />
+            </button>
+
+            {isSortDropdownOpen && (
               <div
-                style={{ position: 'fixed', inset: 0, zIndex: 999 }}
-                onClick={() => setIsOperationDropdownOpen(false)}
-              />
-              <div
-                ref={operationRef}
-                onMouseEnter={cancelOpMouseLeave}
-                onMouseLeave={handleOpMouseLeave}
                 style={{
                   position: 'absolute',
                   top: 'calc(100% + 6px)',
@@ -1419,283 +1670,110 @@ export const Topbar: React.FC<TopbarProps> = ({
                   background: 'var(--bg-card)',
                   border: '1px solid var(--border-subtle)',
                   borderRadius: 8,
-                  boxShadow: '0 20px 40px rgba(0, 0, 0, 0.2), 0 0 15px rgba(251, 146, 60, 0.15)',
+                  boxShadow: '0 16px 32px rgba(0, 0, 0, 0.3), 0 0 12px rgba(56, 189, 248, 0.12)',
                   zIndex: 1000,
-                  minWidth: 280,
-                  maxWidth: 360,
-                  overflow: 'hidden',
+                  minWidth: 210,
+                  padding: '5px',
                   display: 'flex',
                   flexDirection: 'column',
+                  gap: 2,
                 }}
               >
-                <div style={{ padding: '8px 10px', borderBottom: '1px solid var(--border-subtle)', background: 'var(--bg-sidebar)' }}>
-                  <input
-                    type="text"
-                    placeholder="Filter active operations..."
-                    value={operationSearch}
-                    onChange={(e) => setOperationSearch(e.target.value)}
-                    className="sidebar-search-input"
-                    style={{ fontSize: '0.78rem', padding: '5px 10px', background: 'var(--bg-surface)', border: '1px solid var(--border-subtle)', color: 'var(--text-primary)' }}
-                    autoFocus
-                  />
+                <div style={{ padding: '4px 8px', fontSize: '0.68rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase' }}>
+                  Sort Order
                 </div>
 
-                <div style={{ maxHeight: 260, overflowY: 'auto', padding: '4px 6px' }}>
-                  <div
-                    onClick={() => {
-                      onSelectOperation(null);
-                      setIsOperationDropdownOpen(false);
-                    }}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'space-between',
-                      padding: '6px 8px',
-                      borderRadius: 4,
-                      cursor: 'pointer',
-                      fontSize: '0.78rem',
-                      backgroundColor: !selectedOperation ? 'var(--accent-bg)' : 'transparent',
-                      color: !selectedOperation ? 'var(--accent-primary)' : 'var(--text-primary)',
-                      fontWeight: !selectedOperation ? 600 : 400,
-                    }}
-                  >
-                    <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                      <Zap size={12} />
-                      All Operations
-                    </span>
-                    {!selectedOperation && <Check size={13} color="var(--accent-primary)" />}
-                  </div>
-
-                  {Object.entries(operationCounts)
-                    .filter(([op]) => op.toLowerCase().includes(operationSearch.toLowerCase()))
-                    .sort((a, b) => b[1] - a[1])
-                    .map(([op, count]) => {
-                      const isSelected = selectedOperation === op;
-                      return (
-                        <div
-                          key={op}
-                          onClick={() => {
-                            onSelectOperation(isSelected ? null : op);
-                            setIsOperationDropdownOpen(false);
-                          }}
-                          style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'space-between',
-                            padding: '6px 8px',
-                            borderRadius: 4,
-                            cursor: 'pointer',
-                            fontSize: '0.78rem',
-                            backgroundColor: isSelected ? 'rgba(251, 146, 60, 0.2)' : 'transparent',
-                            color: isSelected ? '#fb923c' : 'var(--text-primary)',
-                            fontWeight: isSelected ? 600 : 400,
-                          }}
-                        >
-                          <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                            {op}
-                          </span>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                            <span
-                              style={{
-                                fontSize: '0.7rem',
-                                fontFamily: 'var(--font-mono)',
-                                backgroundColor: 'var(--bg-surface)',
-                                padding: '1px 6px',
-                                borderRadius: 4,
-                                color: isSelected ? '#fb923c' : 'var(--text-muted)',
-                              }}
-                            >
-                              {count}
-                            </span>
-                            {isSelected && <Check size={13} color="#fb923c" />}
-                          </div>
-                        </div>
-                      );
-                    })}
-                </div>
+                {SORT_CONFIG.map((opt) => {
+                  const isSelected = opt.key === sortOption;
+                  return (
+                    <button
+                      key={opt.key}
+                      onClick={() => {
+                        onChangeSortOption(opt.key);
+                        setIsSortDropdownOpen(false);
+                      }}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        padding: '6px 8px',
+                        borderRadius: 4,
+                        fontSize: '0.76rem',
+                        border: 'none',
+                        background: isSelected ? 'rgba(56, 189, 248, 0.15)' : 'transparent',
+                        color: isSelected ? 'var(--accent-primary)' : 'var(--text-primary)',
+                        fontWeight: isSelected ? 700 : 400,
+                        cursor: 'pointer',
+                        textAlign: 'left',
+                        gap: 8,
+                      }}
+                    >
+                      <span>{opt.label}</span>
+                      {isSelected && <Check size={12} color="var(--accent-primary)" />}
+                    </button>
+                  );
+                })}
               </div>
-            </>
-          )}
-        </div>
+            )}
+          </div>
 
-        {/* CORRELATION ID DROPDOWN TOGGLE */}
-        <div style={{ position: 'relative' }}>
+          <div className="topbar-divider-v" />
+
+          {/* Export Button (Icon-Only + Micro-Tooltip) */}
           <button
-            className={`level-pill ${selectedCorrelation ? 'active' : ''}`}
-            onClick={() => {
-              setIsCorrelationDropdownOpen(!isCorrelationDropdownOpen);
-              setIsWorkflowDropdownOpen(false);
-              setIsOperationDropdownOpen(false);
-            }}
-            style={{
-              backgroundColor: selectedCorrelation ? 'rgba(52, 211, 153, 0.2)' : undefined,
-              borderColor: selectedCorrelation ? '#34d399' : undefined,
-              color: selectedCorrelation ? '#34d399' : undefined,
-              fontWeight: selectedCorrelation ? 700 : undefined,
-            }}
-            title="Filter by Correlation ID"
+            className="btn-secondary"
+            onClick={onExportFiltered}
+            style={{ height: 28, padding: '0 8px', fontSize: '0.74rem' }}
+            data-tooltip="Export filtered log lines"
           >
-            <GitCommit size={12} />
-            <span>{selectedCorrelation ? selectedCorrelation : 'Correlation'}</span>
-            <span
-              className="level-pill-count"
-              style={{
-                backgroundColor: selectedCorrelation ? '#34d399' : undefined,
-                color: selectedCorrelation ? '#000' : undefined,
-              }}
-            >
-              {selectedCorrelation
-                ? (correlationCounts[selectedCorrelation] || 0)
-                : Object.keys(correlationCounts).length}
-            </span>
-            <ChevronDown size={11} />
+            <Download size={13} />
           </button>
 
-          {/* Active correlation clear button */}
-          {selectedCorrelation && onSelectCorrelation && (
+          {/* Copy Path */}
+          {activeSource?.path && (
             <button
-              onClick={(e) => {
-                e.stopPropagation();
-                onSelectCorrelation(null);
-              }}
+              className={`btn-secondary ${isPathCopied ? 'active' : ''}`}
+              onClick={handleCopyPath}
               style={{
-                position: 'absolute',
-                top: -4,
-                right: -4,
-                background: '#ef4444',
-                color: '#ffffff',
-                border: 'none',
-                borderRadius: '50%',
-                width: 15,
-                height: 15,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                cursor: 'pointer',
-                fontSize: '0.65rem',
-                fontWeight: 'bold',
-                zIndex: 2,
+                height: 28,
+                padding: '0 8px',
+                fontSize: '0.74rem',
+                gap: 4,
+                borderColor: isPathCopied ? '#4ade80' : undefined,
+                color: isPathCopied ? '#4ade80' : undefined,
+                backgroundColor: isPathCopied ? 'rgba(74, 222, 128, 0.15)' : undefined,
               }}
-              title="Clear correlation filter"
+              title={`Copy system path: ${activeSource.path}`}
             >
-              ×
+              {isPathCopied ? <Check size={12} color="#4ade80" /> : <Copy size={12} />}
+              <span>{isPathCopied ? 'Copied' : 'Path'}</span>
             </button>
           )}
 
-          {/* Correlation Dropdown Popup */}
-          {isCorrelationDropdownOpen && (
-            <>
-              <div
-                style={{ position: 'fixed', inset: 0, zIndex: 999 }}
-                onClick={() => setIsCorrelationDropdownOpen(false)}
-              />
-              <div
-                ref={correlationRef}
-                onMouseEnter={cancelCorrMouseLeave}
-                onMouseLeave={handleCorrMouseLeave}
-                style={{
-                  position: 'absolute',
-                  top: 'calc(100% + 6px)',
-                  right: 0,
-                  background: 'var(--bg-card)',
-                  border: '1px solid var(--border-subtle)',
-                  borderRadius: 8,
-                  boxShadow: '0 20px 40px rgba(0, 0, 0, 0.2), 0 0 15px rgba(52, 211, 153, 0.15)',
-                  zIndex: 1000,
-                  minWidth: 280,
-                  maxWidth: 360,
-                  overflow: 'hidden',
-                  display: 'flex',
-                  flexDirection: 'column',
-                }}
-              >
-                <div style={{ padding: '8px 10px', borderBottom: '1px solid var(--border-subtle)', background: 'var(--bg-sidebar)' }}>
-                  <input
-                    type="text"
-                    placeholder="Filter correlation IDs..."
-                    value={correlationSearch}
-                    onChange={(e) => setCorrelationSearch(e.target.value)}
-                    className="sidebar-search-input"
-                    style={{ fontSize: '0.78rem', padding: '5px 10px', background: 'var(--bg-surface)', border: '1px solid var(--border-subtle)', color: 'var(--text-primary)' }}
-                    autoFocus
-                  />
-                </div>
+          {/* Shortcuts Modal Button */}
+          {onOpenShortcuts && (
+            <button
+              className="btn-secondary"
+              onClick={onOpenShortcuts}
+              style={{ height: 28, padding: '0 8px', fontSize: '0.74rem', gap: 4 }}
+              title="Keyboard Shortcuts (?)"
+            >
+              <Keyboard size={12} />
+              <span>?</span>
+            </button>
+          )}
 
-                <div style={{ maxHeight: 260, overflowY: 'auto', padding: '4px 6px' }}>
-                  <div
-                    onClick={() => {
-                      onSelectCorrelation?.(null);
-                      setIsCorrelationDropdownOpen(false);
-                    }}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'space-between',
-                      padding: '6px 8px',
-                      borderRadius: 4,
-                      cursor: 'pointer',
-                      fontSize: '0.78rem',
-                      backgroundColor: !selectedCorrelation ? 'var(--accent-bg)' : 'transparent',
-                      color: !selectedCorrelation ? 'var(--accent-primary)' : 'var(--text-primary)',
-                      fontWeight: !selectedCorrelation ? 600 : 400,
-                    }}
-                  >
-                    <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                      <GitCommit size={12} />
-                      All Correlation IDs
-                    </span>
-                    {!selectedCorrelation && <Check size={13} color="var(--accent-primary)" />}
-                  </div>
-
-                  {Object.entries(correlationCounts)
-                    .filter(([corr]) => corr.toLowerCase().includes(correlationSearch.toLowerCase()))
-                    .sort((a, b) => b[1] - a[1])
-                    .map(([corr, count]) => {
-                      const isSelected = selectedCorrelation === corr;
-                      return (
-                        <div
-                          key={corr}
-                          onClick={() => {
-                            onSelectCorrelation?.(isSelected ? null : corr);
-                            setIsCorrelationDropdownOpen(false);
-                          }}
-                          style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'space-between',
-                            padding: '6px 8px',
-                            borderRadius: 4,
-                            cursor: 'pointer',
-                            fontSize: '0.78rem',
-                            backgroundColor: isSelected ? 'rgba(52, 211, 153, 0.2)' : 'transparent',
-                            color: isSelected ? '#34d399' : 'var(--text-primary)',
-                            fontWeight: isSelected ? 600 : 400,
-                          }}
-                        >
-                          <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', fontFamily: 'var(--font-mono)' }}>
-                            {corr}
-                          </span>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                            <span
-                              style={{
-                                fontSize: '0.7rem',
-                                fontFamily: 'var(--font-mono)',
-                                backgroundColor: 'var(--bg-surface)',
-                                padding: '1px 6px',
-                                borderRadius: 4,
-                                color: isSelected ? '#34d399' : 'var(--text-muted)',
-                              }}
-                            >
-                              {count}
-                            </span>
-                            {isSelected && <Check size={13} color="#34d399" />}
-                          </div>
-                        </div>
-                      );
-                    })}
-                </div>
-              </div>
-            </>
+          {/* Reset All Settings Button */}
+          {onResetSettings && (
+            <button
+              className="btn-secondary"
+              onClick={onResetSettings}
+              style={{ height: 28, padding: '0 8px', fontSize: '0.74rem', gap: 4 }}
+              title="Reset all settings and views to defaults"
+            >
+              <RotateCcw size={12} />
+              <span>Reset</span>
+            </button>
           )}
         </div>
       </div>

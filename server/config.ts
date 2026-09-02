@@ -1,9 +1,10 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
-import { LogSource, LogFolderConfig } from './types.ts';
+import { LogSource, LogFolderConfig, LogPreset } from './types.ts';
 
 const CONFIG_PATH = path.resolve(process.cwd(), 'config/log_sources.json');
+const PRESETS_PATH = path.resolve(process.cwd(), 'config/presets.json');
 
 // In-memory registry of custom opened log files during this session
 const customSources: Map<string, LogSource> = new Map();
@@ -327,3 +328,51 @@ export function findSourceById(id: string): LogSource | undefined {
 
   return undefined;
 }
+
+/**
+ * Loads all presets from config/presets.json.
+ */
+export function getPresets(): LogPreset[] {
+  if (!fs.existsSync(PRESETS_PATH)) {
+    return [];
+  }
+  try {
+    const raw = fs.readFileSync(PRESETS_PATH, 'utf-8');
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed.presets) ? parsed.presets : [];
+  } catch (err) {
+    console.error('Failed to read config/presets.json:', err);
+    return [];
+  }
+}
+
+/**
+ * Creates or updates a preset in config/presets.json.
+ */
+export function savePreset(preset: LogPreset): LogPreset {
+  const current = getPresets();
+  const existingIdx = current.findIndex((p) => p.id === preset.id);
+
+  if (existingIdx >= 0) {
+    current[existingIdx] = { ...preset };
+  } else {
+    current.push(preset);
+  }
+
+  fs.writeFileSync(PRESETS_PATH, JSON.stringify({ presets: current }, null, 2), 'utf-8');
+  return preset;
+}
+
+/**
+ * Deletes a preset by ID from config/presets.json.
+ */
+export function deletePreset(id: string): boolean {
+  const current = getPresets();
+  const filtered = current.filter((p) => p.id !== id);
+  if (filtered.length === current.length) {
+    return false;
+  }
+  fs.writeFileSync(PRESETS_PATH, JSON.stringify({ presets: filtered }, null, 2), 'utf-8');
+  return true;
+}
+

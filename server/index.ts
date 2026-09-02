@@ -2,9 +2,9 @@ import express, { Request, Response } from 'express';
 import cors from 'cors';
 import fs from 'node:fs';
 import path from 'node:path';
-import { getSources, registerCustomSource, removeCustomSource, findSourceById } from './config.ts';
+import { getSources, registerCustomSource, removeCustomSource, findSourceById, getPresets, savePreset, deletePreset } from './config.ts';
 import { queryLogs, getContextLines, clearFileCache } from './fileReader.ts';
-import { LogLevel, LogQuery } from './types.ts';
+import { LogLevel, LogQuery, LogPreset } from './types.ts';
 
 const app = express();
 const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3001;
@@ -43,6 +43,59 @@ app.delete('/api/sources/:id', (req: Request, res: Response) => {
   const id = req.params.id as string;
   const removed = removeCustomSource(id);
   res.json({ success: removed });
+});
+
+// Presets API: Get all presets
+app.get('/api/presets', (_req: Request, res: Response) => {
+  try {
+    const presets = getPresets();
+    res.json({ presets });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || 'Failed to fetch presets' });
+  }
+});
+
+// Presets API: Save or update preset
+app.post('/api/presets', (req: Request, res: Response) => {
+  try {
+    const { id, name, description, rules, isBuiltIn } = req.body;
+    if (!name || typeof name !== 'string' || !name.trim()) {
+      res.status(400).json({ error: 'Preset name is required' });
+      return;
+    }
+
+    const presetId = (id && typeof id === 'string' && id.trim())
+      ? id.trim().toLowerCase().replace(/[^a-z0-9_-]/g, '-')
+      : `preset-${Date.now()}`;
+
+    const preset: LogPreset = {
+      id: presetId,
+      name: name.trim(),
+      description: description ? String(description).trim() : undefined,
+      isBuiltIn: Boolean(isBuiltIn),
+      rules: rules && typeof rules === 'object' ? rules : {},
+    };
+
+    const saved = savePreset(preset);
+    res.json({ preset: saved, message: `Saved preset "${saved.name}"` });
+  } catch (err: any) {
+    res.status(400).json({ error: err.message || 'Failed to save preset' });
+  }
+});
+
+// Presets API: Delete preset
+app.delete('/api/presets/:id', (req: Request, res: Response) => {
+  try {
+    const id = req.params.id as string;
+    const deleted = deletePreset(id);
+    if (!deleted) {
+      res.status(404).json({ error: `Preset with id "${id}" not found` });
+      return;
+    }
+    res.json({ success: true, message: `Deleted preset "${id}"` });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || 'Failed to delete preset' });
+  }
 });
 
 // 4. Query entries with filtering, search, pagination

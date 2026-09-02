@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
-import { LogEntry, LogLevel, LogQueryResult, LogSource, SortOption } from './types.ts';
+import { LogEntry, LogLevel, LogQueryResult, LogSource, SortOption, LogPreset } from './types.ts';
 import { Sidebar } from './components/Sidebar.tsx';
 import { Topbar } from './components/Topbar.tsx';
 import { LogTable } from './components/LogTable.tsx';
@@ -10,6 +10,8 @@ import { GoToLineModal } from './components/GoToLineModal.tsx';
 import { KeyboardShortcutsModal } from './components/KeyboardShortcutsModal.tsx';
 import { JsonXmlInspectorModal, InspectorPayload } from './components/JsonXmlInspectorModal.tsx';
 import { CopyToast } from './components/CopyToast.tsx';
+import { PresetModal } from './components/PresetModal.tsx';
+import { DEFAULT_PRESETS } from './presets.ts';
 
 export const App: React.FC = () => {
   const [sources, setSources] = useState<LogSource[]>([]);
@@ -140,6 +142,11 @@ export const App: React.FC = () => {
     return (localStorage.getItem('lv_theme') as 'dark' | 'light') || 'dark';
   });
 
+  // Presets - instantly ready with built-in presets
+  const [presets, setPresets] = useState<LogPreset[]>(DEFAULT_PRESETS);
+  const [activePresetId, setActivePresetId] = useState<string | null>(() => localStorage.getItem('lv_active_preset') || null);
+  const [isPresetModalOpen, setIsPresetModalOpen] = useState(false);
+
   // Modals
   const [isOpenModalOpen, setIsOpenModalOpen] = useState(false);
   const [isPasteModalOpen, setIsPasteModalOpen] = useState(false);
@@ -150,7 +157,9 @@ export const App: React.FC = () => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(() => {
     return localStorage.getItem('lv_sidebar') !== 'false';
   });
-  const [isFullscreen, setIsFullscreen] = useState(false);
+  const [isFullscreen, setIsFullscreen] = useState(() => {
+    return localStorage.getItem('lv_fullscreen') === 'true';
+  });
 
   // Global listener for payload inspector modal (JSON and XML on another div)
   useEffect(() => {
@@ -167,7 +176,13 @@ export const App: React.FC = () => {
   // Fullscreen change listener
   useEffect(() => {
     const handleFullscreenChange = () => {
-      setIsFullscreen(Boolean(document.fullscreenElement));
+      if (document.fullscreenElement) {
+        setIsFullscreen(true);
+        localStorage.setItem('lv_fullscreen', 'true');
+      } else {
+        setIsFullscreen(false);
+        localStorage.setItem('lv_fullscreen', 'false');
+      }
     };
     document.addEventListener('fullscreenchange', handleFullscreenChange);
     return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
@@ -182,11 +197,20 @@ export const App: React.FC = () => {
   };
 
   const toggleFullscreen = () => {
-    if (!document.fullscreenElement) {
-      document.documentElement.requestFullscreen().catch(() => {});
-    } else {
-      document.exitFullscreen().catch(() => {});
-    }
+    setIsFullscreen((prev) => {
+      const next = !prev;
+      localStorage.setItem('lv_fullscreen', String(next));
+      if (next) {
+        if (!document.fullscreenElement && document.documentElement.requestFullscreen) {
+          document.documentElement.requestFullscreen().catch(() => {});
+        }
+      } else {
+        if (document.fullscreenElement && document.exitFullscreen) {
+          document.exitFullscreen().catch(() => {});
+        }
+      }
+      return next;
+    });
   };
 
   // Apply theme to document
@@ -281,9 +305,11 @@ export const App: React.FC = () => {
       'lv_show_corr',
       'lv_theme',
       'lv_sidebar',
+      'lv_active_preset',
     ];
     keys.forEach((k) => localStorage.removeItem(k));
 
+    setActivePresetId(null);
     setMarkerFilter('');
     setIsMarkerRegex(false);
     setSearch('');
@@ -308,6 +334,169 @@ export const App: React.FC = () => {
     setTheme('dark');
     setIsSidebarOpen(true);
   }, []);
+
+  // Load available presets from server
+  const fetchPresets = useCallback(async () => {
+    try {
+      const res = await fetch('/api/presets');
+      if (res.ok) {
+        const data = await res.json();
+        if (Array.isArray(data.presets)) {
+          setPresets(data.presets);
+        }
+      }
+    } catch (err) {
+      console.error('Failed to load presets:', err);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchPresets();
+  }, [fetchPresets]);
+
+  // Handle Preset Selection and apply all available filters to active UI controls
+  const handleSelectPreset = useCallback((presetId: string | null) => {
+    setActivePresetId(presetId);
+    if (!presetId) {
+      localStorage.removeItem('lv_active_preset');
+      return;
+    }
+    localStorage.setItem('lv_active_preset', presetId);
+    const target = presets.find((p) => p.id === presetId);
+    if (target) {
+      const { rules } = target;
+
+      // 1. Search & Pattern Filters
+      if (rules.search !== undefined) {
+        setSearch(rules.search);
+        localStorage.setItem('lv_search', rules.search);
+      }
+      if (rules.isRegex !== undefined) {
+        setIsRegex(rules.isRegex);
+        localStorage.setItem('lv_regex', String(rules.isRegex));
+      }
+      if (rules.caseSensitive !== undefined) {
+        setCaseSensitive(rules.caseSensitive);
+        localStorage.setItem('lv_case_sensitive', String(rules.caseSensitive));
+      }
+      if (rules.invert !== undefined) {
+        setInvert(rules.invert);
+        localStorage.setItem('lv_invert', String(rules.invert));
+      }
+
+      // 2. Scoped Marker Filter
+      if (rules.marker !== undefined) {
+        setMarkerFilter(rules.marker);
+        localStorage.setItem('lv_marker_filter', rules.marker);
+      }
+      if (rules.isMarkerRegex !== undefined) {
+        setIsMarkerRegex(rules.isMarkerRegex);
+        localStorage.setItem('lv_marker_regex', String(rules.isMarkerRegex));
+      }
+
+      // 3. Dimension Facets
+      if (rules.workflow !== undefined) {
+        setSelectedWorkflow(rules.workflow);
+        if (rules.workflow) localStorage.setItem('lv_selected_workflow', rules.workflow);
+        else localStorage.removeItem('lv_selected_workflow');
+      }
+      if (rules.operation !== undefined) {
+        setSelectedOperation(rules.operation);
+        if (rules.operation) localStorage.setItem('lv_selected_operation', rules.operation);
+        else localStorage.removeItem('lv_selected_operation');
+      }
+      if (rules.correlationId !== undefined) {
+        setSelectedCorrelation(rules.correlationId);
+        if (rules.correlationId) localStorage.setItem('lv_selected_correlation', rules.correlationId);
+        else localStorage.removeItem('lv_selected_correlation');
+      }
+
+      // 4. Datetime Range
+      if (rules.startDate !== undefined) {
+        setStartDate(rules.startDate);
+        if (rules.startDate) localStorage.setItem('lv_start_date', rules.startDate);
+        else localStorage.removeItem('lv_start_date');
+      }
+      if (rules.endDate !== undefined) {
+        setEndDate(rules.endDate);
+        if (rules.endDate) localStorage.setItem('lv_end_date', rules.endDate);
+        else localStorage.removeItem('lv_end_date');
+      }
+
+      // 5. Sorting
+      if (rules.sortOption !== undefined) {
+        setSortOption(rules.sortOption);
+        localStorage.setItem('lv_sort_option', rules.sortOption);
+      }
+
+      // 6. Severity Levels
+      if (rules.levels !== undefined) {
+        setSelectedLevels(rules.levels);
+        localStorage.setItem('lv_selected_levels', JSON.stringify(rules.levels));
+      }
+      if (rules.excludeLevels !== undefined) {
+        setExcludeLevels(rules.excludeLevels);
+        localStorage.setItem('lv_exclude_levels', JSON.stringify(rules.excludeLevels));
+      }
+
+      // 7. Visual Toggles & Metadata
+      if (rules.hideBrackets !== undefined) {
+        setHideBrackets(rules.hideBrackets);
+        localStorage.setItem('lv_hide_brackets', String(rules.hideBrackets));
+      }
+      if (rules.showCorrelation !== undefined) {
+        setShowCorrelation(rules.showCorrelation);
+        localStorage.setItem('lv_show_corr', String(rules.showCorrelation));
+      }
+      if (rules.showDatetime !== undefined) {
+        setShowDatetime(rules.showDatetime);
+        localStorage.setItem('lv_show_datetime', String(rules.showDatetime));
+      }
+      if (rules.showPid !== undefined) {
+        setShowPid(rules.showPid);
+        localStorage.setItem('lv_show_pid', String(rules.showPid));
+      }
+      if (rules.showTid !== undefined) {
+        setShowTid(rules.showTid);
+        localStorage.setItem('lv_show_tid', String(rules.showTid));
+      }
+      if (rules.viewMode !== undefined) {
+        setViewMode(rules.viewMode);
+        localStorage.setItem('lv_view_mode', rules.viewMode);
+      }
+      if (rules.wrapLines !== undefined) {
+        setWrapLines(rules.wrapLines);
+        localStorage.setItem('lv_wrap_lines', String(rules.wrapLines));
+      }
+    }
+  }, [presets]);
+
+  const handleSavePreset = async (preset: LogPreset) => {
+    const res = await fetch('/api/presets', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(preset),
+    });
+    if (!res.ok) {
+      const data = await res.json();
+      throw new Error(data.error || 'Failed to save preset');
+    }
+    await fetchPresets();
+  };
+
+  const handleDeletePreset = async (id: string) => {
+    const res = await fetch(`/api/presets/${encodeURIComponent(id)}`, {
+      method: 'DELETE',
+    });
+    if (!res.ok) {
+      const data = await res.json();
+      throw new Error(data.error || 'Failed to delete preset');
+    }
+    if (activePresetId === id) {
+      handleSelectPreset(null);
+    }
+    await fetchPresets();
+  };
 
   // Load available sources
   const fetchSources = useCallback(async () => {
@@ -563,17 +752,16 @@ export const App: React.FC = () => {
     };
   }, [isLiveTail, activeSourceId, fetchEntries, fetchSources]);
 
-  // Toggle Live Tail:
-  // When tail is ON: always show latest at the top (time-desc, scroll to top)
-  // When tail is NOT set: show in the direction of the flow of logs (time-asc, natural chronological flow)
+  // Toggle Live Tail (snaps to newest logs in stream)
   const handleToggleLiveTail = () => {
     setIsLiveTail((prev) => {
       const next = !prev;
       if (next) {
-        setSortOption('time-desc');
-        setTargetScrollIndex(0);
-      } else {
-        setSortOption('time-asc');
+        if (sortOption.endsWith('desc')) {
+          setTargetScrollIndex(0);
+        } else {
+          setTargetScrollIndex(Math.max(0, entries.length - 1));
+        }
       }
       return next;
     });
@@ -854,10 +1042,94 @@ export const App: React.FC = () => {
     handleResetSettings,
   ]);
 
+  // Active Preset & Rule Engine
+  const activePreset = useMemo(
+    () => presets.find((p) => p.id === activePresetId) || null,
+    [presets, activePresetId]
+  );
+
+  const displayEntries = useMemo(() => {
+    if (!activePreset) return entries;
+    const { excludeKeywords, includeKeywords, excludeMarkers, includeMarkers } = activePreset.rules;
+    if (
+      !excludeKeywords?.length &&
+      !includeKeywords?.length &&
+      !excludeMarkers?.length &&
+      !includeMarkers?.length
+    ) {
+      return entries;
+    }
+
+    return entries.filter((entry) => {
+      const msg = (entry.message || '').toLowerCase();
+      const raw = (entry.raw || '').toLowerCase();
+
+      // 1. excludeKeywords (e.g. "x", "y", "ping", "heartbeat")
+      if (excludeKeywords && excludeKeywords.length > 0) {
+        for (const kw of excludeKeywords) {
+          const trimmed = kw.trim();
+          if (!trimmed) continue;
+          // Match whole word or key (e.g. "x":, "y", "x=1", standalone keyword) to avoid substring collisions
+          const escaped = trimmed.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+          const regex = new RegExp(`(^|[^a-zA-Z0-9_])${escaped}([^a-zA-Z0-9_]|$)`, 'i');
+          if (regex.test(msg) || regex.test(raw)) {
+            return false;
+          }
+        }
+      }
+
+      // 2. includeKeywords
+      if (includeKeywords && includeKeywords.length > 0) {
+        const matches = includeKeywords.some((kw) => {
+          const trimmed = kw.trim();
+          if (!trimmed) return false;
+          const escaped = trimmed.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+          const regex = new RegExp(`(^|[^a-zA-Z0-9_])${escaped}([^a-zA-Z0-9_]|$)`, 'i');
+          return regex.test(msg) || regex.test(raw);
+        });
+        if (!matches) return false;
+      }
+
+      // 3. excludeMarkers (e.g. "Deregister unavailable")
+      if (excludeMarkers && excludeMarkers.length > 0) {
+        for (const m of excludeMarkers) {
+          const cleanM = m.replace(/^\[|\]$/g, '').trim().toLowerCase();
+          if (cleanM) {
+            if (
+              (entry.workflow && entry.workflow.toLowerCase().includes(cleanM)) ||
+              (entry.operation && entry.operation.toLowerCase().includes(cleanM)) ||
+              (entry.namespace && entry.namespace.toLowerCase().includes(cleanM)) ||
+              raw.includes(cleanM)
+            ) {
+              return false;
+            }
+          }
+        }
+      }
+
+      // 4. includeMarkers (e.g. "Register")
+      if (includeMarkers && includeMarkers.length > 0) {
+        const matches = includeMarkers.some((m) => {
+          const cleanM = m.replace(/^\[|\]$/g, '').trim().toLowerCase();
+          if (!cleanM) return false;
+          return (
+            (entry.workflow && entry.workflow.toLowerCase().includes(cleanM)) ||
+            (entry.operation && entry.operation.toLowerCase().includes(cleanM)) ||
+            (entry.namespace && entry.namespace.toLowerCase().includes(cleanM)) ||
+            raw.includes(cleanM)
+          );
+        });
+        if (!matches) return false;
+      }
+
+      return true;
+    });
+  }, [entries, activePreset]);
+
   // Export Filtered Logs
   const handleExportFiltered = () => {
-    if (entries.length === 0) return;
-    const content = entries.map((e) => e.raw).join('\n');
+    if (displayEntries.length === 0) return;
+    const content = displayEntries.map((e) => e.raw).join('\n');
     const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
@@ -929,7 +1201,7 @@ export const App: React.FC = () => {
   const activeSource = sources.find((s) => s.id === activeSourceId);
 
   return (
-    <div className="app-container">
+    <div className={`app-container ${isFullscreen ? 'app-fullscreen' : ''}`}>
       {/* Sidebar with LogViewer.io 3 Quick Actions */}
       <Sidebar
         sources={sources}
@@ -942,7 +1214,7 @@ export const App: React.FC = () => {
         liveLogsPerSec={liveLogsPerSec}
         liveAvgLogsPerSec={liveAvgLogsPerSec}
         onRemoveCustomSource={handleRemoveCustomSource}
-        isOpen={isSidebarOpen}
+        isOpen={!isFullscreen && isSidebarOpen}
         onToggleOpen={toggleSidebar}
       />
 
@@ -952,7 +1224,7 @@ export const App: React.FC = () => {
         <Topbar
           activeSource={activeSource}
           totalEntries={totalEntries}
-          filteredCount={entries.length}
+          filteredCount={displayEntries.length}
           durationMs={durationMs}
           markerFilter={markerFilter}
           onMarkerFilterChange={setMarkerFilter}
@@ -1010,7 +1282,7 @@ export const App: React.FC = () => {
             setStartDate(s);
             setEndDate(e);
           }}
-          isSidebarOpen={isSidebarOpen}
+          isSidebarOpen={!isFullscreen && isSidebarOpen}
           onToggleSidebar={toggleSidebar}
           isFullscreen={isFullscreen}
           onToggleFullscreen={toggleFullscreen}
@@ -1024,11 +1296,15 @@ export const App: React.FC = () => {
           onToggleShowCorrelation={handleToggleShowCorrelation}
           onToggleAllMeta={handleToggleAllMeta}
           isLoading={isLoading}
+          presets={presets}
+          activePresetId={activePresetId}
+          onSelectPreset={handleSelectPreset}
+          onOpenPresetModal={() => setIsPresetModalOpen(true)}
         />
 
         {/* Log Feed Table */}
         <LogTable
-          entries={entries}
+          entries={displayEntries}
           isLoading={isLoading}
           isLiveTail={isLiveTail}
           onViewContext={(line) => setContextLineNumber(line)}
@@ -1045,6 +1321,7 @@ export const App: React.FC = () => {
           showPid={showPid}
           showTid={showTid}
           showCorrelation={showCorrelation}
+          sortOption={sortOption}
         />
       </main>
 
@@ -1084,6 +1361,42 @@ export const App: React.FC = () => {
       <JsonXmlInspectorModal
         payload={inspectorPayload}
         onClose={() => setInspectorPayload(null)}
+      />
+
+      {/* Presets Management Modal */}
+      <PresetModal
+        isOpen={isPresetModalOpen}
+        onClose={() => setIsPresetModalOpen(false)}
+        presets={presets}
+        activePresetId={activePresetId}
+        onSelectPreset={handleSelectPreset}
+        onSavePreset={handleSavePreset}
+        onDeletePreset={handleDeletePreset}
+        currentViewerRules={{
+          search,
+          isRegex,
+          caseSensitive,
+          invert,
+          marker: markerFilter,
+          isMarkerRegex,
+          workflow: selectedWorkflow,
+          operation: selectedOperation,
+          correlationId: selectedCorrelation,
+          startDate,
+          endDate,
+          sortOption,
+          levels: selectedLevels,
+          excludeLevels,
+          hideBrackets,
+          showDatetime,
+          showPid,
+          showTid,
+          showCorrelation,
+          viewMode,
+          wrapLines,
+        }}
+        availableWorkflows={Object.keys(workflowCounts)}
+        availableOperations={Object.keys(operationCounts)}
       />
 
       {/* Sleek bright copy notification */}

@@ -43,6 +43,17 @@ export interface LogEntry {
   trace?: TraceData;
 }
 
+export type SortOption =
+  | 'time-asc'
+  | 'time-desc'
+  | 'level-asc'
+  | 'level-desc'
+  | 'marker-asc'
+  | 'marker-desc'
+  | 'line-asc'
+  | 'line-desc'
+  | 'duration-desc';
+
 export interface LogFolderConfig {
   path: string;
   category?: string;
@@ -104,3 +115,55 @@ export interface LogQueryResult {
   correlationCounts?: Record<string, number>;
   durationMs: number;
 }
+
+export interface PresetRules {
+  // Search & Pattern Filters
+  search?: string;
+  isRegex?: boolean;
+  caseSensitive?: boolean;
+  invert?: boolean;
+
+  // Marker & Workflow Filter
+  marker?: string;
+  isMarkerRegex?: boolean;
+
+  // Dimension Facets
+  workflow?: string | null;
+  operation?: string | null;
+  correlationId?: string | null;
+
+  // Datetime Range
+  startDate?: string | null;
+  endDate?: string | null;
+
+  // Sorting
+  sortOption?: SortOption;
+
+  // Severity Levels
+  levels?: LogLevel[];
+  excludeLevels?: LogLevel[];
+
+  // Noise & Rule Engine Keywords
+  excludeKeywords?: string[];
+  includeKeywords?: string[];
+  excludeMarkers?: string[];
+  includeMarkers?: string[];
+
+  // Visibility & Layout Toggles
+  viewMode?: 'compact' | 'standard' | 'raw';
+  wrapLines?: boolean;
+  hideBrackets?: boolean;
+  showDatetime?: boolean;
+  showPid?: boolean;
+  showTid?: boolean;
+  showCorrelation?: boolean;
+}
+
+export interface LogPreset {
+  id: string;
+  name: string;
+  description?: string;
+  isBuiltIn?: boolean;
+  rules: PresetRules;
+}
+
