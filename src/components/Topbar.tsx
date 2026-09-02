@@ -34,6 +34,8 @@ import {
   Activity,
   RotateCcw,
   Sliders,
+  Plus,
+  Trash2,
 } from 'lucide-react';
 import { LogLevel, LogSource, SortOption, LogPreset } from '../types.ts';
 import { Spinner } from './Loaders.tsx';
@@ -142,6 +144,7 @@ interface TopbarProps {
   activePresetId?: string | null;
   onSelectPreset?: (id: string | null) => void;
   onOpenPresetModal?: () => void;
+  onCreateNewPreset?: () => void;
 }
 
 const AVAILABLE_LEVELS: { key: LogLevel; label: string }[] = [
@@ -238,6 +241,7 @@ export const Topbar: React.FC<TopbarProps> = ({
   activePresetId = null,
   onSelectPreset,
   onOpenPresetModal,
+  onCreateNewPreset,
 }) => {
   const [lineInput, setLineInput] = useState<string>(currentMatchIndex ? currentMatchIndex.toString() : '1');
   const [showDatePicker, setShowDatePicker] = useState(false);
@@ -1562,7 +1566,7 @@ export const Topbar: React.FC<TopbarProps> = ({
                 <button
                   onClick={() => {
                     setIsPresetDropdownOpen(false);
-                    onOpenPresetModal?.();
+                    onCreateNewPreset?.();
                   }}
                   style={{
                     display: 'flex',
@@ -1576,6 +1580,29 @@ export const Topbar: React.FC<TopbarProps> = ({
                     color: 'var(--accent-primary)',
                     cursor: 'pointer',
                     fontWeight: 600,
+                  }}
+                >
+                  <Plus size={12} />
+                  <span>New Preset from Current View...</span>
+                </button>
+
+                <button
+                  onClick={() => {
+                    setIsPresetDropdownOpen(false);
+                    onOpenPresetModal?.();
+                  }}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 6,
+                    padding: '6px 8px',
+                    borderRadius: 4,
+                    fontSize: '0.76rem',
+                    border: 'none',
+                    background: 'transparent',
+                    color: 'var(--text-secondary)',
+                    cursor: 'pointer',
+                    fontWeight: 500,
                   }}
                 >
                   <Sliders size={12} />

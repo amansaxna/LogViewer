@@ -15,6 +15,7 @@ import {
   History,
   ChevronDown,
   ChevronRight,
+  Trash2,
 } from 'lucide-react';
 import { LogSource } from '../types.ts';
 

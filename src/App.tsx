@@ -148,6 +148,7 @@ export const App: React.FC = () => {
   const [presets, setPresets] = useState<LogPreset[]>(DEFAULT_PRESETS);
   const [activePresetId, setActivePresetId] = useState<string | null>(() => localStorage.getItem('lv_active_preset') || null);
   const [isPresetModalOpen, setIsPresetModalOpen] = useState(false);
+  const [presetModalInitialCreate, setPresetModalInitialCreate] = useState(false);
 
   // Modals
   const [isOpenModalOpen, setIsOpenModalOpen] = useState(false);
@@ -502,6 +503,16 @@ export const App: React.FC = () => {
     await fetchPresets();
   };
 
+  const handleOpenPresetModal = useCallback(() => {
+    setPresetModalInitialCreate(false);
+    setIsPresetModalOpen(true);
+  }, []);
+
+  const handleCreateNewPreset = useCallback(() => {
+    setPresetModalInitialCreate(true);
+    setIsPresetModalOpen(true);
+  }, []);
+
   // Load available sources
   const fetchSources = useCallback(async () => {
     try {
@@ -841,11 +852,13 @@ export const App: React.FC = () => {
 
       // Escape key closes open modals or deselects line
       if (e.key === 'Escape') {
+        if (isPresetModalOpen) { setIsPresetModalOpen(false); setPresetModalInitialCreate(false); return; }
         if (isShortcutsOpen) { setIsShortcutsOpen(false); return; }
         if (contextLineNumber !== null) { setContextLineNumber(null); return; }
         if (isGoToLineModalOpen) { setIsGoToLineModalOpen(false); return; }
         if (isPasteModalOpen) { setIsPasteModalOpen(false); return; }
         if (isOpenModalOpen) { setIsOpenModalOpen(false); return; }
+        if (inspectorPayload !== null) { setInspectorPayload(null); return; }
         if (isTyping) { target.blur(); return; }
         setSelectedLineNumber(null);
         return;
@@ -854,13 +867,24 @@ export const App: React.FC = () => {
       // If user is actively typing in a form input or search box, don't trigger hotkeys
       if (isTyping) return;
 
-      // Don't navigate background feed if a modal is open
-      if (isOpenModalOpen || isPasteModalOpen || isGoToLineModalOpen || contextLineNumber !== null || isShortcutsOpen) {
+      // Don't navigate background feed if any modal is open
+      if (
+        isOpenModalOpen ||
+        isPasteModalOpen ||
+        isGoToLineModalOpen ||
+        isPresetModalOpen ||
+        contextLineNumber !== null ||
+        isShortcutsOpen ||
+        inspectorPayload !== null
+      ) {
         return;
       }
 
+      // Never intercept standard browser/OS modifier combinations (Ctrl+C, Ctrl+V, Ctrl+A, Ctrl+W, Ctrl+T, etc.)
+      const hasModifier = e.ctrlKey || e.metaKey || e.altKey;
+
       // 1. Down Arrow or 'j': Move to next log downwards
-      if (e.key === 'ArrowDown' || e.key === 'j') {
+      if (!hasModifier && (e.key === 'ArrowDown' || e.key === 'j')) {
         e.preventDefault();
         if (entries.length === 0) return;
         const currentIdx = selectedLineNumber !== null
@@ -879,7 +903,7 @@ export const App: React.FC = () => {
       }
 
       // 2. Up Arrow or 'k': Move to previous log upwards
-      if (e.key === 'ArrowUp' || e.key === 'k') {
+      if (!hasModifier && (e.key === 'ArrowUp' || e.key === 'k')) {
         e.preventDefault();
         if (entries.length === 0) return;
         const currentIdx = selectedLineNumber !== null
@@ -898,7 +922,7 @@ export const App: React.FC = () => {
       }
 
       // 3. PageDown / PageUp: Jump 15 logs
-      if (e.key === 'PageDown') {
+      if (!e.ctrlKey && !e.metaKey && e.key === 'PageDown') {
         e.preventDefault();
         if (entries.length === 0) return;
         const currentIdx = selectedLineNumber !== null
@@ -913,7 +937,7 @@ export const App: React.FC = () => {
         }
         return;
       }
-      if (e.key === 'PageUp') {
+      if (!e.ctrlKey && !e.metaKey && e.key === 'PageUp') {
         e.preventDefault();
         if (entries.length === 0) return;
         const currentIdx = selectedLineNumber !== null
@@ -930,7 +954,7 @@ export const App: React.FC = () => {
       }
 
       // 4. Home / End
-      if (e.key === 'Home') {
+      if (!e.ctrlKey && !e.metaKey && e.key === 'Home') {
         e.preventDefault();
         if (entries.length > 0) {
           setSelectedLineNumber(entries[0].lineNumber);
@@ -939,7 +963,7 @@ export const App: React.FC = () => {
         }
         return;
       }
-      if (e.key === 'End') {
+      if (!e.ctrlKey && !e.metaKey && e.key === 'End') {
         e.preventDefault();
         if (entries.length > 0) {
           const lastIdx = entries.length - 1;
@@ -951,7 +975,7 @@ export const App: React.FC = () => {
       }
 
       // 5. Enter or Space: Open Context Modal for selected line
-      if (e.key === 'Enter' || e.key === ' ') {
+      if (!hasModifier && (e.key === 'Enter' || e.key === ' ')) {
         e.preventDefault();
         if (selectedLineNumber !== null) {
           setContextLineNumber(selectedLineNumber);
@@ -960,14 +984,14 @@ export const App: React.FC = () => {
       }
 
       // 6. 'g': Open "Go to line" modal
-      if (e.key === 'g') {
+      if (!hasModifier && (e.key === 'g' || e.key === 'G')) {
         e.preventDefault();
         setIsGoToLineModalOpen(true);
         return;
       }
 
       // 7. '/': Focus global content search
-      if (e.key === '/') {
+      if (!hasModifier && e.key === '/') {
         e.preventDefault();
         const searchInput = document.querySelector('input[placeholder="Search in log lines..."]') as HTMLInputElement;
         searchInput?.focus();
@@ -975,40 +999,40 @@ export const App: React.FC = () => {
       }
 
       // 8. 'n' / 'N': Next / previous search match
-      if (e.key === 'n' && !e.shiftKey) {
+      if (!e.ctrlKey && !e.metaKey && !e.altKey && e.key === 'n' && !e.shiftKey) {
         e.preventDefault();
         handleNextMatch();
         return;
       }
-      if ((e.key === 'n' && e.shiftKey) || e.key === 'N') {
+      if (!e.ctrlKey && !e.metaKey && !e.altKey && ((e.key === 'n' && e.shiftKey) || e.key === 'N')) {
         e.preventDefault();
         handlePrevMatch();
         return;
       }
 
-      // 9. 'c': Toggle Compact View / Detailed Cards
-      if (e.key === 'c') {
+      // 9. 'c': Toggle Compact View / Detailed Cards (Strictly guarded so Ctrl+C Windows/Mac copy works naturally)
+      if (!hasModifier && (e.key === 'c' || e.key === 'C')) {
         e.preventDefault();
         setViewMode((prev) => (prev === 'compact' ? 'standard' : 'compact'));
         return;
       }
 
       // 10. 'w': Toggle word wrap
-      if (e.key === 'w') {
+      if (!hasModifier && (e.key === 'w' || e.key === 'W')) {
         e.preventDefault();
         setWrapLines((prev) => !prev);
         return;
       }
 
       // 11. 't': Toggle Live Tail
-      if (e.key === 't') {
+      if (!hasModifier && (e.key === 't' || e.key === 'T')) {
         e.preventDefault();
         handleToggleLiveTail();
         return;
       }
 
-      // 12. '[' or (Cmd/Ctrl + b): Toggle left panel
-      if (e.key === '[' || ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'b')) {
+      // 12. '[': Toggle left panel
+      if (!hasModifier && e.key === '[') {
         e.preventDefault();
         toggleSidebar();
         return;
@@ -1022,14 +1046,14 @@ export const App: React.FC = () => {
       }
 
       // 14. '?': Show keyboard shortcuts cheat sheet
-      if (e.key === '?') {
+      if (!hasModifier && e.key === '?') {
         e.preventDefault();
         setIsShortcutsOpen(true);
         return;
       }
 
       // 15. Alt + r: Reset all settings & filters to default
-      if (e.altKey && e.key.toLowerCase() === 'r') {
+      if (e.altKey && !e.ctrlKey && !e.metaKey && e.key.toLowerCase() === 'r') {
         e.preventDefault();
         handleResetSettings();
         return;
@@ -1044,10 +1068,15 @@ export const App: React.FC = () => {
     isOpenModalOpen,
     isPasteModalOpen,
     isGoToLineModalOpen,
+    isPresetModalOpen,
+    inspectorPayload,
     contextLineNumber,
     isShortcutsOpen,
     handleNextMatch,
     handlePrevMatch,
+    handleToggleLiveTail,
+    toggleSidebar,
+    toggleFullscreen,
     handleResetSettings,
   ]);
 
@@ -1308,7 +1337,8 @@ export const App: React.FC = () => {
           presets={presets}
           activePresetId={activePresetId}
           onSelectPreset={handleSelectPreset}
-          onOpenPresetModal={() => setIsPresetModalOpen(true)}
+          onOpenPresetModal={handleOpenPresetModal}
+          onCreateNewPreset={handleCreateNewPreset}
         />
 
         {/* Log Feed Table */}
@@ -1375,7 +1405,11 @@ export const App: React.FC = () => {
       {/* Presets Management Modal */}
       <PresetModal
         isOpen={isPresetModalOpen}
-        onClose={() => setIsPresetModalOpen(false)}
+        onClose={() => {
+          setIsPresetModalOpen(false);
+          setPresetModalInitialCreate(false);
+        }}
+        initialCreateNew={presetModalInitialCreate}
         presets={presets}
         activePresetId={activePresetId}
         onSelectPreset={handleSelectPreset}

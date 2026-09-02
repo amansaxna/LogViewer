@@ -34,7 +34,6 @@ const SHORTCUTS: ShortcutItem[] = [
   // View & Tail
   { keys: ['['], description: 'Toggle Left Panel collapse / expand', category: 'View' },
   { keys: ['F11'], description: 'Toggle Full Screen mode', category: 'View' },
-  { keys: ['c'], description: 'Toggle Compact / Detailed Cards view', category: 'View' },
   { keys: ['w'], description: 'Toggle word wrap', category: 'View' },
   { keys: ['t'], description: 'Toggle Live Tail streaming', category: 'View' },
   { keys: ['Alt', 'r'], description: 'Reset all settings & filters to default', category: 'General' },

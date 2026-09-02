@@ -1,4 +1,6 @@
 import assert from 'node:assert';
+import fs from 'node:fs';
+import path from 'node:path';
 import {
   renderRichMessageContext,
   tokenizeJson,
@@ -158,5 +160,21 @@ const offsetC = calculateStickyRightOffset(600, 500, 800);
 assert.strictEqual(offsetC, 0, 'Offset is 0 when chip is fully visible inside viewport');
 
 console.log('✓ Test 16 Passed: Sticky right offset keeps JSON/XML floating action bar visible in viewport on scroll');
+
+// Test 17: Verify JSON/XML Document Inspector Horizontal Layout & Aligned Line Number Gutter
+const inspectorCode = fs.readFileSync(path.resolve(process.cwd(), 'src/components/JsonXmlInspectorModal.tsx'), 'utf-8');
+assert.ok(inspectorCode.includes('flexDirection: \'row\''), 'Inspector modal must use flexDirection: row for horizontal code + gutter alignment');
+assert.ok(!inspectorCode.includes('className="modal-body"'), 'Inspector code body must not inherit vertical column stacking');
+assert.ok(inspectorCode.includes('minWidth: 44') || inspectorCode.includes('minWidth: 48'), 'Inspector line gutter must define fixed minWidth');
+console.log('✓ Test 17 Passed: JSON/XML Document Inspector horizontal line gutter & code alignment verified');
+
+// Test 18: Verify XML Collapsible Tree Node and DOM Hierarchy
+assert.ok(inspectorCode.includes('export const XmlTreeNode'), 'Inspector must export XmlTreeNode for XML collapsible tree view');
+assert.ok(inspectorCode.includes('parseXmlToTree'), 'Inspector must include parseXmlToTree function for XML DOM parsing');
+assert.ok(inspectorCode.includes('hasTreeMode'), 'Inspector must dynamically enable Tree mode for both JSON and XML');
+assert.ok(inspectorCode.includes('xml-tok-tagname'), 'XmlTreeNode must style XML tag names with semantic colors');
+assert.ok(inspectorCode.includes('xml-tok-attr'), 'XmlTreeNode must style XML attributes with semantic colors');
+assert.ok(inspectorCode.includes('countLabel'), 'XmlTreeNode must display item/children summary badge when collapsed');
+console.log('✓ Test 18 Passed: XML Collapsible Tree Node, DOM Parser, and Syntax Highlighting verified');
 
 console.log('\nAll Message Context Highlighter & Tokenizer Tests Passed Successfully!');

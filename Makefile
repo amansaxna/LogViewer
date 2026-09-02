@@ -7,8 +7,13 @@ all: install build
 install:
 	npm install
 
-# Run full development environment (Express Server on 3001 + Vite on 3000)
+# Kill stale processes on ports 3001 and 3002
+kill-ports:
+	@lsof -ti:3001,3002 | xargs kill -9 2>/dev/null || true
+
+# Run full development environment (Express Server on 3001 + Vite on 3002)
 dev:
+	@lsof -ti:3001,3002 | xargs kill -9 2>/dev/null || true
 	npm run dev:all
 
 # Run backend API server in watch mode

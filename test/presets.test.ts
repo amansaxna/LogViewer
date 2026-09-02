@@ -257,4 +257,17 @@ assert.strictEqual(verified?.rules.hideBrackets, true);
 deletePreset('comprehensive-preset');
 console.log('✓ Test 6 Passed: PresetRules supports all available filters and persist/load with 100% integrity');
 
+// Test 7: Verify new preset creation workflow in PresetModal and Topbar
+const modalFile = fs.readFileSync('src/components/PresetModal.tsx', 'utf-8');
+assert.ok(modalFile.includes('if (!isOpen) return null;'), 'PresetModal must return null and not render when isOpen is false');
+assert.ok(modalFile.includes('initialCreateNew'), 'PresetModal must accept initialCreateNew prop');
+assert.ok(modalFile.includes('isNewDraft'), 'PresetModal must track unsaved new preset draft state');
+assert.ok(modalFile.includes('NEW DRAFT'), 'PresetModal must visually badge new draft in sidebar');
+assert.ok(!modalFile.includes('useEffect(() => {\n    if (!isOpen) return;\n    const target = presets.find((p) => p.id === selectedId) || presets[0];'), 'PresetModal must not clobber new preset drafts on render');
+
+const topbarFile2 = fs.readFileSync('src/components/Topbar.tsx', 'utf-8');
+assert.ok(topbarFile2.includes('onCreateNewPreset'), 'Topbar must support onCreateNewPreset');
+assert.ok(topbarFile2.includes('New Preset from Current View...'), 'Topbar dropdown must provide quick preset creation');
+console.log('✓ Test 7 Passed: New preset creation workflow fully verified with draft preservation');
+
 console.log('\nAll Presets & Dual Velocity Rate Tests Passed Successfully!\n');

@@ -1913,21 +1913,26 @@ body {
 }
 
 .xml-tok-tagname {
-  color: #38bdf8; /* Vibrant Sky Blue */
+  color: #38bdf8; /* Vibrant Sky Blue for element tags */
   font-weight: 600;
 }
 
 .xml-tok-attr {
-  color: #fb923c; /* Amber / Orange for attribute names */
+  color: #fbbf24; /* Warm Amber Gold for attribute names */
+  font-weight: 500;
+}
+
+.xml-tok-punctuation {
+  color: #94a3b8; /* Slate for = and delimiters */
   font-weight: 500;
 }
 
 .xml-tok-string {
-  color: #4ade80; /* Emerald / Mint Green for attribute strings */
+  color: #34d399; /* Crisp Emerald Green for attribute values */
 }
 
 .xml-tok-content {
-  color: #f1f5f9;
+  color: #f8fafc;
 }
 
 .xml-tok-comment {
@@ -1958,12 +1963,17 @@ body {
   font-weight: 500;
 }
 
+[data-theme='light'] .xml-tok-punctuation {
+  color: #64748b;
+  font-weight: 500;
+}
+
 [data-theme='light'] .xml-tok-string {
   color: #15803d;
 }
 
 [data-theme='light'] .xml-tok-content {
-  color: #1c1917;
+  color: #0f172a;
 }
 
 [data-theme='light'] .xml-tok-comment {

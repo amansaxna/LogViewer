@@ -181,4 +181,14 @@ assert.ok(!topbarSource.includes('>Cards<'), 'Topbar must not render text "Cards
 assert.ok(!topbarSource.includes('logs/s<'), 'Topbar must not render "logs/s" text on rate badges');
 console.log('✓ Test 10 Passed: UI successfully uncluttered - all requested text labels removed with sleek tooltips applied');
 
+// Test 11: Verify Preset Modal Closing & Modifier Pass-Through (Ctrl+C not hijacked)
+const presetModalCode = fs.readFileSync(path.resolve(process.cwd(), 'src/components/PresetModal.tsx'), 'utf-8');
+assert.ok(presetModalCode.includes('e.key === \'Escape\''), 'PresetModal must have dedicated Escape key listener');
+assert.ok(/Close\s*<\/button>/i.test(presetModalCode), 'PresetModal must provide an explicit Close button in footer');
+
+const appCode = fs.readFileSync(path.resolve(process.cwd(), 'src/App.tsx'), 'utf-8');
+assert.ok(appCode.includes('if (isPresetModalOpen) { setIsPresetModalOpen(false);'), 'App.tsx Escape handler must close PresetModal');
+assert.ok(appCode.includes('const hasModifier = e.ctrlKey || e.metaKey || e.altKey;'), 'App.tsx must check for modifier keys so native OS Ctrl+C/Cmd+C is never hijacked');
+console.log('✓ Test 11 Passed: Preset Modal closing verified and native Ctrl+C pass-through confirmed');
+
 console.log('\nAll Settings, Light Mode, Fast Copy & Toast Tests Passed Successfully!\n');

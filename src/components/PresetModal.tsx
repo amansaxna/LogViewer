@@ -32,6 +32,7 @@ interface PresetModalProps {
   currentViewerRules?: PresetRules;
   availableWorkflows?: string[];
   availableOperations?: string[];
+  initialCreateNew?: boolean;
 }
 
 const AVAILABLE_LEVELS: { key: LogLevel; label: string; color: string }[] = [
@@ -63,8 +64,10 @@ export const PresetModal: React.FC<PresetModalProps> = ({
   currentViewerRules,
   availableWorkflows = [],
   availableOperations = [],
+  initialCreateNew = false,
 }) => {
   const [selectedId, setSelectedId] = useState<string>(() => activePresetId || presets[0]?.id || 'minimal-set');
+  const [isNewDraft, setIsNewDraft] = useState(false);
   const [activeTab, setActiveTab] = useState<'visual' | 'json'>('visual');
 
   const [draftName, setDraftName] = useState('');
@@ -80,12 +83,15 @@ export const PresetModal: React.FC<PresetModalProps> = ({
   const [inMarkerInput, setInMarkerInput] = useState('');
 
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const prevIsOpenRef = useRef(false);
 
-  useEffect(() => {
-    if (!isOpen) return;
-    const target = presets.find((p) => p.id === selectedId) || presets[0];
+  const currentPreset = presets.find((p) => p.id === selectedId);
+
+  const selectPreset = (id: string) => {
+    const target = presets.find((p) => p.id === id);
     if (target) {
       setSelectedId(target.id);
+      setIsNewDraft(false);
       setDraftName(target.name);
       setDraftDesc(target.description || '');
       const rulesCopy = JSON.parse(JSON.stringify(target.rules || {}));
@@ -93,18 +99,105 @@ export const PresetModal: React.FC<PresetModalProps> = ({
       setJsonString(JSON.stringify(target, null, 2));
       setJsonError(null);
     }
-  }, [isOpen, selectedId, presets]);
+  };
 
-  if (!isOpen) return null;
+  const handleCreateNew = () => {
+    const newId = `preset-${Date.now().toString(36)}`;
+    setSelectedId(newId);
+    setIsNewDraft(true);
+    const newName = 'New Custom Preset';
+    const newDesc = 'Custom log view filter configuration';
+    const newRules: PresetRules = currentViewerRules
+      ? {
+          search: currentViewerRules.search || undefined,
+          isRegex: currentViewerRules.isRegex || undefined,
+          caseSensitive: currentViewerRules.caseSensitive || undefined,
+          invert: currentViewerRules.invert || undefined,
+          marker: currentViewerRules.marker || undefined,
+          isMarkerRegex: currentViewerRules.isMarkerRegex || undefined,
+          workflow: currentViewerRules.workflow || undefined,
+          operation: currentViewerRules.operation || undefined,
+          correlationId: currentViewerRules.correlationId || undefined,
+          startDate: currentViewerRules.startDate || undefined,
+          endDate: currentViewerRules.endDate || undefined,
+          sortOption: currentViewerRules.sortOption || undefined,
+          levels: currentViewerRules.levels?.length ? [...currentViewerRules.levels] : undefined,
+          excludeLevels: currentViewerRules.excludeLevels?.length ? [...currentViewerRules.excludeLevels] : undefined,
+          hideBrackets: currentViewerRules.hideBrackets,
+          showDatetime: currentViewerRules.showDatetime,
+          showPid: currentViewerRules.showPid,
+          showTid: currentViewerRules.showTid,
+          showCorrelation: currentViewerRules.showCorrelation,
+          viewMode: currentViewerRules.viewMode || 'compact',
+          wrapLines: currentViewerRules.wrapLines,
+        }
+      : { viewMode: 'compact' };
 
-  const currentPreset = presets.find((p) => p.id === selectedId);
+    setDraftName(newName);
+    setDraftDesc(newDesc);
+    setDraftRules(newRules);
+    const draftObj: LogPreset = {
+      id: newId,
+      name: newName,
+      description: newDesc,
+      isBuiltIn: false,
+      rules: newRules,
+    };
+    setJsonString(JSON.stringify(draftObj, null, 2));
+    setJsonError(null);
+    setActiveTab('visual');
+    setStatusMessage('Started new custom preset draft');
+    setTimeout(() => setStatusMessage(null), 2000);
+  };
 
-  const syncToJson = (name: string, desc: string, rules: PresetRules) => {
+  useEffect(() => {
+    if (!isOpen) {
+      prevIsOpenRef.current = false;
+      return;
+    }
+    if (!prevIsOpenRef.current) {
+      prevIsOpenRef.current = true;
+      if (initialCreateNew) {
+        handleCreateNew();
+      } else {
+        const initialId = activePresetId && presets.some((p) => p.id === activePresetId)
+          ? activePresetId
+          : selectedId && presets.some((p) => p.id === selectedId)
+            ? selectedId
+            : presets[0]?.id || '';
+        if (initialId) {
+          selectPreset(initialId);
+        }
+      }
+    } else if (!isNewDraft && (!draftName || !presets.some((p) => p.id === selectedId))) {
+      const initialId = activePresetId && presets.some((p) => p.id === activePresetId)
+        ? activePresetId
+        : presets[0]?.id || '';
+      if (initialId) {
+        selectPreset(initialId);
+      }
+    }
+  }, [isOpen, initialCreateNew, presets]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        e.stopPropagation();
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown, true);
+    return () => window.removeEventListener('keydown', handleKeyDown, true);
+  }, [isOpen, onClose]);
+
+  const syncToJson = (name: string, desc: string, rules: PresetRules, overrideId?: string) => {
     const fullObj: LogPreset = {
-      id: selectedId,
+      id: overrideId || selectedId,
       name,
       description: desc || undefined,
-      isBuiltIn: currentPreset?.isBuiltIn,
+      isBuiltIn: isNewDraft ? false : currentPreset?.isBuiltIn,
       rules,
     };
     setJsonString(JSON.stringify(fullObj, null, 2));
@@ -278,11 +371,11 @@ export const PresetModal: React.FC<PresetModalProps> = ({
     setTimeout(() => setStatusMessage(null), 2000);
   };
 
-  const handleSave = async () => {
-    if (jsonError) return;
+  const handleSave = async (): Promise<boolean> => {
+    if (jsonError) return false;
     if (!draftName.trim()) {
       setStatusMessage('Please enter a valid preset name');
-      return;
+      return false;
     }
     setIsSaving(true);
     try {
@@ -290,41 +383,30 @@ export const PresetModal: React.FC<PresetModalProps> = ({
         id: selectedId,
         name: draftName.trim(),
         description: draftDesc.trim() || undefined,
-        isBuiltIn: currentPreset?.isBuiltIn,
+        isBuiltIn: isNewDraft ? false : currentPreset?.isBuiltIn,
         rules: draftRules,
       };
       await onSavePreset(toSave);
-      setStatusMessage('Preset saved successfully');
+      setIsNewDraft(false);
+      setStatusMessage(`Saved preset "${toSave.name}"`);
       setTimeout(() => setStatusMessage(null), 2500);
+      return true;
     } catch (err: any) {
       setStatusMessage(err.message || 'Failed to save');
+      return false;
     } finally {
       setIsSaving(false);
     }
-  };
-
-  const handleCreateNew = () => {
-    const newId = `preset-${Date.now().toString(36)}`;
-    const newPreset: LogPreset = {
-      id: newId,
-      name: 'New Custom Preset',
-      rules: { viewMode: 'compact' },
-    };
-    setSelectedId(newId);
-    setDraftName(newPreset.name);
-    setDraftDesc('');
-    setDraftRules(newPreset.rules);
-    syncToJson(newPreset.name, '', newPreset.rules);
-    setActiveTab('visual');
   };
 
   const handleDuplicate = () => {
     const newId = `preset-${Date.now().toString(36)}`;
     const dupName = `${draftName} (Copy)`;
     setSelectedId(newId);
+    setIsNewDraft(true);
     setDraftName(dupName);
-    syncToJson(dupName, draftDesc, draftRules);
-    setStatusMessage(`Duplicated as "${dupName}"`);
+    syncToJson(dupName, draftDesc, draftRules, newId);
+    setStatusMessage(`Duplicated as "${dupName}" (Unsaved draft)`);
     setTimeout(() => setStatusMessage(null), 2000);
   };
 
@@ -348,17 +430,22 @@ export const PresetModal: React.FC<PresetModalProps> = ({
         const text = evt.target?.result as string;
         const parsed = JSON.parse(text);
         if (!parsed.name || typeof parsed.name !== 'string') throw new Error('Missing valid name');
-        setSelectedId(parsed.id || `preset-${Date.now().toString(36)}`);
+        const importedId = `preset-${Date.now().toString(36)}`;
+        setSelectedId(importedId);
+        setIsNewDraft(true);
         setDraftName(parsed.name);
         setDraftDesc(parsed.description || '');
-        setDraftRules(parsed.rules || {});
-        setJsonString(JSON.stringify(parsed, null, 2));
-        setJsonError(null);
+        const importedRules = parsed.rules || {};
+        setDraftRules(importedRules);
+        syncToJson(parsed.name, parsed.description || '', importedRules, importedId);
+        setStatusMessage(`Imported "${parsed.name}" as new draft`);
+        setTimeout(() => setStatusMessage(null), 2500);
       } catch (err: any) {
         setJsonError(`Import failed: ${err.message}`);
       }
     };
     reader.readAsText(file);
+    e.target.value = '';
   };
 
   const countConfiguredFilters = () => {
@@ -380,6 +467,8 @@ export const PresetModal: React.FC<PresetModalProps> = ({
   };
 
   const configuredCount = countConfiguredFilters();
+
+  if (!isOpen) return null;
 
   return (
     <div
@@ -517,13 +606,61 @@ export const PresetModal: React.FC<PresetModalProps> = ({
             </div>
 
             <div style={{ flex: 1, overflowY: 'auto', padding: '8px' }}>
+              {/* Unsaved New Preset Draft */}
+              {isNewDraft && (
+                <div
+                  style={{
+                    padding: '8px 10px',
+                    borderRadius: 6,
+                    marginBottom: 6,
+                    cursor: 'pointer',
+                    backgroundColor: 'var(--accent-bg)',
+                    border: '1.5px dashed var(--accent-primary)',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: 3,
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <span
+                      style={{
+                        fontSize: '0.82rem',
+                        fontWeight: 700,
+                        color: 'var(--accent-primary)',
+                        whiteSpace: 'nowrap',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                      }}
+                    >
+                      {draftName.trim() || 'New Preset'}
+                    </span>
+                    <span
+                      style={{
+                        fontSize: '0.62rem',
+                        fontWeight: 700,
+                        padding: '1px 5px',
+                        borderRadius: 4,
+                        background: 'var(--accent-primary)',
+                        color: '#ffffff',
+                        letterSpacing: '0.5px',
+                      }}
+                    >
+                      NEW DRAFT
+                    </span>
+                  </div>
+                  <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>
+                    Unsaved • click Save Preset
+                  </span>
+                </div>
+              )}
+
               {presets.map((p) => {
-                const isCurrent = p.id === selectedId;
+                const isCurrent = !isNewDraft && p.id === selectedId;
                 const isActive = p.id === activePresetId;
                 return (
                   <div
                     key={p.id}
-                    onClick={() => setSelectedId(p.id)}
+                    onClick={() => selectPreset(p.id)}
                     style={{
                       padding: '8px 10px',
                       borderRadius: 6,
@@ -943,10 +1080,57 @@ export const PresetModal: React.FC<PresetModalProps> = ({
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                 <button className="btn-secondary" onClick={handleDuplicate} style={{ fontSize: '0.76rem', padding: '5px 10px', gap: 4 }}><Copy size={13} /> Duplicate</button>
                 <button className="btn-secondary" onClick={handleExportJson} style={{ fontSize: '0.76rem', padding: '5px 10px', gap: 4 }}><Download size={13} /> Export</button>
-                {presets.length > 1 && <button className="btn-secondary" onClick={async () => { if (confirm(`Delete "${draftName}"?`)) await onDeletePreset(selectedId); }} style={{ fontSize: '0.76rem', padding: '5px 8px', color: '#ef4444' }}><Trash2 size={13} /></button>}
+                {presets.length > 1 && !isNewDraft && (
+                  <button
+                    className="btn-secondary"
+                    onClick={async () => {
+                      if (confirm(`Delete preset "${draftName}"?`)) {
+                        await onDeletePreset(selectedId);
+                        const nextPreset = presets.find((p) => p.id !== selectedId);
+                        if (nextPreset) selectPreset(nextPreset.id);
+                      }
+                    }}
+                    title="Delete Preset"
+                    style={{ fontSize: '0.76rem', padding: '5px 8px', color: '#ef4444' }}
+                  >
+                    <Trash2 size={13} />
+                  </button>
+                )}
+                {isNewDraft && (
+                  <button
+                    className="btn-secondary"
+                    onClick={() => {
+                      setIsNewDraft(false);
+                      if (presets[0]) selectPreset(presets[0].id);
+                    }}
+                    style={{ fontSize: '0.76rem', padding: '5px 10px', color: '#ef4444' }}
+                    title="Discard unsaved draft"
+                  >
+                    Discard
+                  </button>
+                )}
                 <button className="btn-primary" onClick={handleSave} disabled={isSaving || Boolean(jsonError)} style={{ fontSize: '0.78rem', padding: '6px 14px', gap: 6 }}><Check size={14} /> <span>{isSaving ? 'Saving...' : 'Save Preset'}</span></button>
-                <button className="btn-primary" onClick={async () => { await handleSave(); onSelectPreset(selectedId); onClose(); }} style={{ fontSize: '0.78rem', padding: '6px 14px', gap: 6, background: 'linear-gradient(135deg, #10b981, #059669)', borderColor: '#10b981' }}>
+                <button
+                  type="button"
+                  className="btn-primary"
+                  onClick={async () => {
+                    const ok = await handleSave();
+                    if (ok) {
+                      onSelectPreset(selectedId);
+                      onClose();
+                    }
+                  }}
+                  style={{ fontSize: '0.78rem', padding: '6px 14px', gap: 6, background: 'linear-gradient(135deg, #10b981, #059669)', borderColor: '#10b981' }}
+                >
                   <Zap size={14} /> <span>Apply Now</span>
+                </button>
+                <button
+                  type="button"
+                  className="btn-secondary"
+                  onClick={onClose}
+                  style={{ fontSize: '0.78rem', padding: '6px 14px' }}
+                >
+                  Close
                 </button>
               </div>
             </div>
