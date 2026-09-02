@@ -22,6 +22,7 @@ localStorageMock.setItem('lv_hide_brackets', 'true');
 localStorageMock.setItem('lv_view_mode', 'compact');
 localStorageMock.setItem('lv_sort_option', 'duration-desc');
 localStorageMock.setItem('lv_show_datetime', 'false');
+localStorageMock.setItem('lv_live_tail', 'true');
 
 // 2. Verify settings are preserved
 assert.strictEqual(localStorageMock.getItem('lv_search'), 'payment failed');
@@ -32,6 +33,7 @@ assert.strictEqual(localStorageMock.getItem('lv_hide_brackets'), 'true');
 assert.strictEqual(localStorageMock.getItem('lv_view_mode'), 'compact');
 assert.strictEqual(localStorageMock.getItem('lv_sort_option'), 'duration-desc');
 assert.strictEqual(localStorageMock.getItem('lv_show_datetime'), 'false');
+assert.strictEqual(localStorageMock.getItem('lv_live_tail'), 'true');
 console.log('✓ Test 1 Passed: All settings correctly preserved in localStorage across reloads');
 
 // 3. Simulate Reset Settings action
@@ -60,6 +62,7 @@ const allKeys = [
   'lv_show_corr',
   'lv_theme',
   'lv_sidebar',
+  'lv_live_tail',
 ];
 allKeys.forEach((k) => localStorageMock.removeItem(k));
 
@@ -69,6 +72,7 @@ assert.strictEqual(localStorageMock.getItem('lv_regex'), null);
 assert.strictEqual(localStorageMock.getItem('lv_selected_levels'), null);
 assert.strictEqual(localStorageMock.getItem('lv_exclude_levels'), null);
 assert.strictEqual(localStorageMock.getItem('lv_hide_brackets'), null);
+assert.strictEqual(localStorageMock.getItem('lv_live_tail'), null);
 console.log('✓ Test 2 Passed: Reset All Settings cleanly purges stored preferences');
 
 // 5. Test Light Mode CSS Variables Consistency

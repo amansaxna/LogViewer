@@ -126,8 +126,10 @@ export const App: React.FC = () => {
   const [operationCounts, setOperationCounts] = useState<Record<string, number>>({});
   const [correlationCounts, setCorrelationCounts] = useState<Record<string, number>>({});
 
-  // Live tail
-  const [isLiveTail, setIsLiveTail] = useState(false);
+  // Live tail (persisted across page reloads in localStorage)
+  const [isLiveTail, setIsLiveTail] = useState<boolean>(() => {
+    return localStorage.getItem('lv_live_tail') === 'true';
+  });
   const [liveLogsPerSec, setLiveLogsPerSec] = useState<number>(0);
   const [liveAvgLogsPerSec, setLiveAvgLogsPerSec] = useState<number>(0);
   const [liveTotalAdded, setLiveTotalAdded] = useState<number>(0);
@@ -306,10 +308,12 @@ export const App: React.FC = () => {
       'lv_theme',
       'lv_sidebar',
       'lv_active_preset',
+      'lv_live_tail',
     ];
     keys.forEach((k) => localStorage.removeItem(k));
 
     setActivePresetId(null);
+    setIsLiveTail(false);
     setMarkerFilter('');
     setIsMarkerRegex(false);
     setSearch('');
@@ -751,6 +755,11 @@ export const App: React.FC = () => {
       }
     };
   }, [isLiveTail, activeSourceId, fetchEntries, fetchSources]);
+
+  // Persist live tail state across page reloads
+  useEffect(() => {
+    localStorage.setItem('lv_live_tail', String(isLiveTail));
+  }, [isLiveTail]);
 
   // Toggle Live Tail (snaps to newest logs in stream)
   const handleToggleLiveTail = () => {

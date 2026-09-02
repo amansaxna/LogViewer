@@ -769,53 +769,47 @@ export const Topbar: React.FC<TopbarProps> = ({
 
         {/* Right: Live Telemetry Cluster + Window Controls */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginLeft: 'auto', flexShrink: 0, whiteSpace: 'nowrap' }}>
-          {/* Unified Live Telemetry Cluster */}
-          <div className={`live-telemetry-cluster ${isLiveTail ? 'active' : ''}`}>
-            {/* Interactive Live Stream Toggle Button */}
+          {/* Live Telemetry Cluster (Expanded when Live, Compact Circular Button when Paused) */}
+          {isLiveTail ? (
+            <div className={`live-telemetry-cluster active ${Number(liveLogsPerSec) > 0 ? 'has-burst' : ''}`}>
+              {/* Leftmost live icon with circular right border, shadow, and fade design */}
+              <button
+                className="live-telemetry-toggle stream-live-pill active"
+                onClick={onToggleLiveTail}
+                data-tooltip={`Live stream active (+${liveLogsPerSec || 0}/s) • Click to pause`}
+              >
+                <Radio size={13} />
+              </button>
+
+              {/* Metric 1: New Added / sec (Instantaneous velocity) */}
+              <span
+                className={`rate-badge instant ${Number(liveLogsPerSec) > 0 ? 'active-burst' : ''}`}
+                data-tooltip={`Instant velocity: ${liveLogsPerSec || 0} new logs added in the last second`}
+              >
+                <Zap size={11} />
+                <span>+{liveLogsPerSec || 0}</span>
+              </span>
+
+              <div className="live-telemetry-divider" />
+
+              {/* Metric 2: Average Addition / sec (Rolling session average) */}
+              <span
+                className="rate-badge average"
+                data-tooltip={`Rolling average: ${liveAvgLogsPerSec || 0} logs/sec (Session total: ${liveTotalAdded || 0} logs)`}
+              >
+                <Activity size={11} />
+                <span>avg {liveAvgLogsPerSec || 0}</span>
+              </span>
+            </div>
+          ) : (
             <button
-              className={`live-telemetry-toggle stream-live-pill ${isLiveTail ? 'active' : 'paused'}`}
+              className="stream-live-pill paused"
               onClick={onToggleLiveTail}
-              data-tooltip={isLiveTail ? `Live stream active (+${liveLogsPerSec || 0}/s) • Click to pause` : 'Live stream paused • Click to resume'}
+              data-tooltip="Live stream paused • Click to resume"
             >
-              <Radio size={13} />
+              <Radio size={14} />
             </button>
-
-            {/* Dual Rate Calculation Badges */}
-            {isLiveTail ? (
-              <>
-                <div className="live-telemetry-divider" />
-                {/* Metric 1: New Added / sec (Instantaneous velocity) */}
-                <span
-                  className={`rate-badge instant ${Number(liveLogsPerSec) > 0 ? 'active-burst' : ''}`}
-                  data-tooltip={`Instant velocity: ${liveLogsPerSec || 0} new logs added in the last second`}
-                >
-                  <Zap size={11} />
-                  <span>+{liveLogsPerSec || 0}</span>
-                </span>
-
-                <div className="live-telemetry-divider" />
-                {/* Metric 2: Average Addition / sec (Rolling session average) */}
-                <span
-                  className="rate-badge average"
-                  data-tooltip={`Rolling average: ${liveAvgLogsPerSec || 0} logs/sec (Session total: ${liveTotalAdded || 0} logs)`}
-                >
-                  <Activity size={11} />
-                  <span>avg {liveAvgLogsPerSec || 0}</span>
-                </span>
-              </>
-            ) : (fileAvgLogsPerSec || 0) > 0 ? (
-              <>
-                <div className="live-telemetry-divider" />
-                <span
-                  className="rate-badge average"
-                  data-tooltip={`Historical average log generation rate: ${fileAvgLogsPerSec} logs/sec`}
-                >
-                  <Activity size={11} />
-                  <span>avg {fileAvgLogsPerSec}</span>
-                </span>
-              </>
-            ) : null}
-          </div>
+          )}
 
           <div className="topbar-divider-v" />
 
