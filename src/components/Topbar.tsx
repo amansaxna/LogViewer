@@ -3,6 +3,7 @@ import {
   Filter,
   Search,
   X,
+  Regex,
   Code2,
   Calendar,
   ChevronLeft,
@@ -396,9 +397,8 @@ export const Topbar: React.FC<TopbarProps> = ({
               className={`search-modifier-btn ${isRegex ? 'active' : ''}`}
               onClick={onToggleRegex}
               data-tooltip="Toggle Regex (.*)"
-              style={{ padding: '2px 5px' }}
             >
-              <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.72rem', fontWeight: 700 }}>.*</span>
+              <Regex size={13} />
             </button>
             <button
               className={`search-modifier-btn ${caseSensitive ? 'active' : ''}`}
@@ -457,9 +457,8 @@ export const Topbar: React.FC<TopbarProps> = ({
               className={`search-modifier-btn ${isMarkerRegex ? 'active' : ''}`}
               onClick={onToggleMarkerRegex}
               data-tooltip="Toggle Marker Regex (.*)"
-              style={{ padding: '2px 5px' }}
             >
-              <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.72rem', fontWeight: 700 }}>.*</span>
+              <Regex size={13} />
             </button>
 
             {markerFilter && (
