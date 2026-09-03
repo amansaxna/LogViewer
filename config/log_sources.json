@@ -47,6 +47,14 @@
       "path": "./logs/service_audit.xml",
       "format": "xml",
       "description": "Native W3C XML log file with CDATA, structured exceptions, and SOAP payloads"
+    },
+    {
+      "id": "json-events-stream",
+      "name": "Cloud Events Stream (JSON)",
+      "category": "JSON Logs",
+      "path": "./logs/events_stream.json",
+      "format": "flat_file",
+      "description": "Structured JSON / NDJSON microservices event logs"
     }
   ]
 }

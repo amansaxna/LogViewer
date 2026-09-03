@@ -92,7 +92,9 @@ export function scanFolderRecursively(
         const isLog =
           entry.name.endsWith('.log') ||
           entry.name.endsWith('.txt') ||
+          entry.name.endsWith('.json') ||
           entry.name.endsWith('.jsonl') ||
+          entry.name.endsWith('.xml') ||
           entry.name.endsWith('.out') ||
           rot.isRotated;
 

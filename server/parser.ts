@@ -255,8 +255,45 @@ export function parseSingleLine(rawLine: string, lineNumber: number): LogEntry {
 
   const remainderMessage = workingLine.slice(cursor).trim();
 
-  // If no brackets found, treat whole line as message
+  // If no brackets found, check for JSON log record or treat whole line as message
   if (bracketTokens.length === 0) {
+    if (workingLine.startsWith('{') && workingLine.endsWith('}')) {
+      try {
+        const obj = JSON.parse(workingLine);
+        if (typeof obj === 'object' && obj !== null) {
+          const rawLvl = String(obj.level || obj.severity || obj.lvl || obj.log_level || '').toLowerCase();
+          const level = STATUS_LEVEL_MAP[rawLvl] || inferLevelFromText(workingLine);
+          const dt = obj.time || obj.timestamp || obj.datetime || obj.date || obj['@timestamp'];
+          const msg = obj.message || obj.msg || obj.log || workingLine;
+          const corr = obj.correlationId || obj.correlation_id || obj.traceId || obj.trace_id || obj.reqId;
+          const ns = obj.service || obj.logger || obj.name || obj.namespace;
+          const wf = obj.workflow || obj.action;
+          const op = obj.operation || obj.op || obj.method;
+          const st = obj.status || obj.status_code || obj.statusCode ? String(obj.status || obj.status_code || obj.statusCode) : undefined;
+          const dur = obj.duration || obj.durationMs || obj.elapsed ? `${obj.duration || obj.durationMs || obj.elapsed}ms` : undefined;
+
+          return {
+            id: `entry-${lineNumber}`,
+            lineNumber,
+            raw: rawLine,
+            datetime: typeof dt === 'string' ? dt : undefined,
+            timestamp: typeof dt === 'number' ? dt : undefined,
+            message: typeof msg === 'string' ? msg : JSON.stringify(msg),
+            level,
+            correlationId: typeof corr === 'string' ? corr : undefined,
+            namespace: typeof ns === 'string' ? ns : undefined,
+            workflow: typeof wf === 'string' ? wf : undefined,
+            operation: typeof op === 'string' ? op : undefined,
+            status: st,
+            duration: dur,
+            fileLocation,
+          };
+        }
+      } catch {
+        // Fallback to normal text line
+      }
+    }
+
     const inferredLevel = inferLevelFromText(workingLine);
     return {
       id: `entry-${lineNumber}`,

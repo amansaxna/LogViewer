@@ -94,4 +94,18 @@ assert.strictEqual(parsedXml[1].level, 'error');
 assert.strictEqual(parsedXml[1].workflow, 'com.econ.db.TransactionCoordinator');
 console.log('✓ Test 6 Passed: Native XML log file detected, identified, and parsed into structured LogEntries');
 
+// Test 7: Native JSON log line parsing
+const sampleJsonLine = '{"timestamp":"2026-09-02T04:15:00.100Z","level":"error","service":"order-service","workflow":"Checkout","operation":"CreateOrder","correlationId":"corr_9821a","message":"Order creation failed: timeout","status":"504","durationMs":1500}';
+const parsedJson = parseSingleLine(sampleJsonLine, 1);
+assert.strictEqual(parsedJson.level, 'error');
+assert.strictEqual(parsedJson.namespace, 'order-service');
+assert.strictEqual(parsedJson.workflow, 'Checkout');
+assert.strictEqual(parsedJson.operation, 'CreateOrder');
+assert.strictEqual(parsedJson.correlationId, 'corr_9821a');
+assert.strictEqual(parsedJson.message, 'Order creation failed: timeout');
+assert.strictEqual(parsedJson.status, '504');
+assert.strictEqual(parsedJson.duration, '1500ms');
+assert.strictEqual(parsedJson.datetime, '2026-09-02T04:15:00.100Z');
+console.log('✓ Test 7 Passed: Native JSON log line parsed into structured LogEntry');
+
 console.log('All Parser Tests Passed Successfully!');
