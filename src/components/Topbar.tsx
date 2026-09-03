@@ -36,6 +36,9 @@ import {
   Sliders,
   Plus,
   Trash2,
+  Columns2,
+  Cpu,
+  Hash,
 } from 'lucide-react';
 import { LogLevel, LogSource, SortOption, LogPreset } from '../types.ts';
 import { Spinner } from './Loaders.tsx';
@@ -45,6 +48,11 @@ interface TopbarProps {
   totalEntries: number;
   filteredCount: number;
   durationMs: number;
+
+  // Split View & Waterfall
+  isSplitView?: boolean;
+  onToggleSplitView?: () => void;
+  onOpenWaterfall?: () => void;
 
   // Filters
   markerFilter: string;
@@ -107,6 +115,16 @@ interface TopbarProps {
   selectedCorrelation?: string | null;
   onSelectCorrelation?: (corr: string | null) => void;
   correlationCounts?: Record<string, number>;
+
+  // Process (PID) filter
+  selectedPid?: string | null;
+  onSelectPid?: (pid: string | null) => void;
+  pidCounts?: Record<string, number>;
+
+  // Thread (TID) filter
+  selectedTid?: string | null;
+  onSelectTid?: (tid: string | null) => void;
+  tidCounts?: Record<string, number>;
 
   // Stream & theme
   isLiveTail: boolean;
@@ -209,6 +227,12 @@ export const Topbar: React.FC<TopbarProps> = ({
   selectedCorrelation,
   onSelectCorrelation,
   correlationCounts = {},
+  selectedPid,
+  onSelectPid,
+  pidCounts = {},
+  selectedTid,
+  onSelectTid,
+  tidCounts = {},
   isLiveTail,
   liveLogsPerSec = 0,
   liveAvgLogsPerSec = 0,
@@ -242,6 +266,9 @@ export const Topbar: React.FC<TopbarProps> = ({
   onSelectPreset,
   onOpenPresetModal,
   onCreateNewPreset,
+  isSplitView = false,
+  onToggleSplitView,
+  onOpenWaterfall,
 }) => {
   const [lineInput, setLineInput] = useState<string>(currentMatchIndex ? currentMatchIndex.toString() : '1');
   const [showDatePicker, setShowDatePicker] = useState(false);
@@ -250,10 +277,14 @@ export const Topbar: React.FC<TopbarProps> = ({
   const [isWorkflowDropdownOpen, setIsWorkflowDropdownOpen] = useState(false);
   const [isOperationDropdownOpen, setIsOperationDropdownOpen] = useState(false);
   const [isCorrelationDropdownOpen, setIsCorrelationDropdownOpen] = useState(false);
+  const [isPidDropdownOpen, setIsPidDropdownOpen] = useState(false);
+  const [isTidDropdownOpen, setIsTidDropdownOpen] = useState(false);
   const [isPresetDropdownOpen, setIsPresetDropdownOpen] = useState(false);
   const [workflowSearch, setWorkflowSearch] = useState('');
   const [operationSearch, setOperationSearch] = useState('');
   const [correlationSearch, setCorrelationSearch] = useState('');
+  const [pidSearch, setPidSearch] = useState('');
+  const [tidSearch, setTidSearch] = useState('');
   const [isPathCopied, setIsPathCopied] = useState(false);
 
   // Refs for click outside & mouse leave
@@ -816,8 +847,41 @@ export const Topbar: React.FC<TopbarProps> = ({
 
           <div className="topbar-divider-v" />
 
-          {/* Window Actions Group (Theme & Fullscreen) */}
+          {/* Window Actions Group (Waterfall, Split View, Theme & Fullscreen) */}
           <div className="window-actions-group">
+            {onOpenWaterfall && (
+              <button
+                type="button"
+                className="btn-icon"
+                onClick={onOpenWaterfall}
+                data-tooltip="Transaction Waterfall & Gantt Trace View"
+                style={{
+                  width: 32,
+                  height: 32,
+                  color: selectedWorkflow || selectedCorrelation ? '#c084fc' : undefined,
+                }}
+              >
+                <GitBranch size={14} />
+              </button>
+            )}
+
+            {onToggleSplitView && (
+              <button
+                type="button"
+                className={`btn-icon ${isSplitView ? 'active' : ''}`}
+                onClick={onToggleSplitView}
+                data-tooltip={isSplitView ? 'Exit Split Screen View' : 'Split Screen: Dual Log Viewer'}
+                style={{
+                  width: 32,
+                  height: 32,
+                  color: isSplitView ? '#38bdf8' : undefined,
+                  background: isSplitView ? 'rgba(56, 189, 248, 0.15)' : undefined,
+                }}
+              >
+                <Columns2 size={14} />
+              </button>
+            )}
+
             <button
               className="btn-icon"
               onClick={onToggleTheme}
@@ -1409,6 +1473,348 @@ export const Topbar: React.FC<TopbarProps> = ({
             </div>
           )}
 
+          {/* PROCESS ID (PID) DROPDOWN */}
+          {pidCounts && Object.keys(pidCounts).length > 0 && (
+            <div style={{ position: 'relative' }}>
+              <button
+                className={`level-pill ${selectedPid ? 'active' : ''}`}
+                onClick={() => {
+                  setIsPidDropdownOpen(!isPidDropdownOpen);
+                  setIsTidDropdownOpen(false);
+                  setIsWorkflowDropdownOpen(false);
+                  setIsOperationDropdownOpen(false);
+                  setIsCorrelationDropdownOpen(false);
+                }}
+                style={{
+                  backgroundColor: selectedPid ? 'rgba(56, 189, 248, 0.2)' : undefined,
+                  borderColor: selectedPid ? '#38bdf8' : undefined,
+                  color: selectedPid ? '#38bdf8' : undefined,
+                  fontWeight: selectedPid ? 700 : undefined,
+                }}
+              >
+                <Cpu size={12} />
+                <span>{selectedPid ? `PID: ${selectedPid}` : 'Process (PID)'}</span>
+                <span className="level-pill-count">
+                  {selectedPid ? (pidCounts[selectedPid] || 0) : Object.keys(pidCounts).length}
+                </span>
+                <ChevronDown size={11} />
+              </button>
+
+              {selectedPid && (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onSelectPid?.(null);
+                  }}
+                  style={{
+                    position: 'absolute',
+                    top: -4,
+                    right: -4,
+                    background: '#ef4444',
+                    color: '#ffffff',
+                    border: 'none',
+                    borderRadius: '50%',
+                    width: 15,
+                    height: 15,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    cursor: 'pointer',
+                    fontSize: '0.65rem',
+                    fontWeight: 'bold',
+                    zIndex: 2,
+                  }}
+                  title="Clear PID filter"
+                >
+                  ×
+                </button>
+              )}
+
+              {isPidDropdownOpen && (
+                <>
+                  <div
+                    style={{ position: 'fixed', inset: 0, zIndex: 999 }}
+                    onClick={() => setIsPidDropdownOpen(false)}
+                  />
+                  <div
+                    style={{
+                      position: 'absolute',
+                      top: 'calc(100% + 6px)',
+                      right: 0,
+                      background: 'var(--bg-card)',
+                      border: '1px solid var(--border-subtle)',
+                      borderRadius: 8,
+                      boxShadow: '0 20px 40px rgba(0, 0, 0, 0.25), 0 0 15px rgba(56, 189, 248, 0.15)',
+                      zIndex: 1000,
+                      minWidth: 240,
+                      maxWidth: 320,
+                      overflow: 'hidden',
+                      display: 'flex',
+                      flexDirection: 'column',
+                    }}
+                  >
+                    <div style={{ padding: '8px 10px', borderBottom: '1px solid var(--border-subtle)', background: 'var(--bg-sidebar)' }}>
+                      <input
+                        type="text"
+                        placeholder="Filter process IDs..."
+                        value={pidSearch}
+                        onChange={(e) => setPidSearch(e.target.value)}
+                        className="sidebar-search-input"
+                        style={{ fontSize: '0.78rem', padding: '5px 10px', background: 'var(--bg-surface)', border: '1px solid var(--border-subtle)', color: 'var(--text-primary)' }}
+                        autoFocus
+                      />
+                    </div>
+
+                    <div style={{ maxHeight: 260, overflowY: 'auto', padding: '4px 6px' }}>
+                      <div
+                        onClick={() => {
+                          onSelectPid?.(null);
+                          setIsPidDropdownOpen(false);
+                        }}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          padding: '6px 8px',
+                          borderRadius: 4,
+                          cursor: 'pointer',
+                          fontSize: '0.78rem',
+                          backgroundColor: !selectedPid ? 'var(--accent-bg)' : 'transparent',
+                          color: !selectedPid ? 'var(--accent-primary)' : 'var(--text-primary)',
+                          fontWeight: !selectedPid ? 600 : 400,
+                        }}
+                      >
+                        <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                          <Cpu size={12} />
+                          All Processes
+                        </span>
+                        {!selectedPid && <Check size={13} color="var(--accent-primary)" />}
+                      </div>
+
+                      {Object.entries(pidCounts)
+                        .filter(([pid]) => pid.toLowerCase().includes(pidSearch.toLowerCase()))
+                        .sort((a, b) => a[0].localeCompare(b[0], undefined, { numeric: true, sensitivity: 'base' }))
+                        .map(([pid, count]) => {
+                          const isSelected = selectedPid === pid;
+                          return (
+                            <div
+                              key={pid}
+                              onClick={() => {
+                                onSelectPid?.(isSelected ? null : pid);
+                                setIsPidDropdownOpen(false);
+                              }}
+                              style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'space-between',
+                                padding: '6px 8px',
+                                borderRadius: 4,
+                                cursor: 'pointer',
+                                fontSize: '0.78rem',
+                                backgroundColor: isSelected ? 'rgba(56, 189, 248, 0.2)' : 'transparent',
+                                color: isSelected ? '#38bdf8' : 'var(--text-primary)',
+                                fontWeight: isSelected ? 600 : 400,
+                              }}
+                            >
+                              <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 600 }}>
+                                {pid}
+                              </span>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                <span
+                                  style={{
+                                    fontSize: '0.7rem',
+                                    fontFamily: 'var(--font-mono)',
+                                    backgroundColor: 'var(--bg-surface)',
+                                    padding: '1px 6px',
+                                    borderRadius: 4,
+                                    color: isSelected ? '#38bdf8' : 'var(--text-muted)',
+                                  }}
+                                >
+                                  {count}
+                                </span>
+                                {isSelected && <Check size={13} color="#38bdf8" />}
+                              </div>
+                            </div>
+                          );
+                        })}
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
+          )}
+
+          {/* THREAD ID (TID) DROPDOWN */}
+          {tidCounts && Object.keys(tidCounts).length > 0 && (
+            <div style={{ position: 'relative' }}>
+              <button
+                className={`level-pill ${selectedTid ? 'active' : ''}`}
+                onClick={() => {
+                  setIsTidDropdownOpen(!isTidDropdownOpen);
+                  setIsPidDropdownOpen(false);
+                  setIsWorkflowDropdownOpen(false);
+                  setIsOperationDropdownOpen(false);
+                  setIsCorrelationDropdownOpen(false);
+                }}
+                style={{
+                  backgroundColor: selectedTid ? 'rgba(251, 146, 60, 0.2)' : undefined,
+                  borderColor: selectedTid ? '#fb923c' : undefined,
+                  color: selectedTid ? '#fb923c' : undefined,
+                  fontWeight: selectedTid ? 700 : undefined,
+                }}
+              >
+                <Hash size={12} />
+                <span>{selectedTid ? `TID: ${selectedTid}` : 'Thread (TID)'}</span>
+                <span className="level-pill-count">
+                  {selectedTid ? (tidCounts[selectedTid] || 0) : Object.keys(tidCounts).length}
+                </span>
+                <ChevronDown size={11} />
+              </button>
+
+              {selectedTid && (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onSelectTid?.(null);
+                  }}
+                  style={{
+                    position: 'absolute',
+                    top: -4,
+                    right: -4,
+                    background: '#ef4444',
+                    color: '#ffffff',
+                    border: 'none',
+                    borderRadius: '50%',
+                    width: 15,
+                    height: 15,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    cursor: 'pointer',
+                    fontSize: '0.65rem',
+                    fontWeight: 'bold',
+                    zIndex: 2,
+                  }}
+                  title="Clear TID filter"
+                >
+                  ×
+                </button>
+              )}
+
+              {isTidDropdownOpen && (
+                <>
+                  <div
+                    style={{ position: 'fixed', inset: 0, zIndex: 999 }}
+                    onClick={() => setIsTidDropdownOpen(false)}
+                  />
+                  <div
+                    style={{
+                      position: 'absolute',
+                      top: 'calc(100% + 6px)',
+                      right: 0,
+                      background: 'var(--bg-card)',
+                      border: '1px solid var(--border-subtle)',
+                      borderRadius: 8,
+                      boxShadow: '0 20px 40px rgba(0, 0, 0, 0.25), 0 0 15px rgba(251, 146, 60, 0.15)',
+                      zIndex: 1000,
+                      minWidth: 240,
+                      maxWidth: 320,
+                      overflow: 'hidden',
+                      display: 'flex',
+                      flexDirection: 'column',
+                    }}
+                  >
+                    <div style={{ padding: '8px 10px', borderBottom: '1px solid var(--border-subtle)', background: 'var(--bg-sidebar)' }}>
+                      <input
+                        type="text"
+                        placeholder="Filter thread IDs..."
+                        value={tidSearch}
+                        onChange={(e) => setTidSearch(e.target.value)}
+                        className="sidebar-search-input"
+                        style={{ fontSize: '0.78rem', padding: '5px 10px', background: 'var(--bg-surface)', border: '1px solid var(--border-subtle)', color: 'var(--text-primary)' }}
+                        autoFocus
+                      />
+                    </div>
+
+                    <div style={{ maxHeight: 260, overflowY: 'auto', padding: '4px 6px' }}>
+                      <div
+                        onClick={() => {
+                          onSelectTid?.(null);
+                          setIsTidDropdownOpen(false);
+                        }}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          padding: '6px 8px',
+                          borderRadius: 4,
+                          cursor: 'pointer',
+                          fontSize: '0.78rem',
+                          backgroundColor: !selectedTid ? 'var(--accent-bg)' : 'transparent',
+                          color: !selectedTid ? 'var(--accent-primary)' : 'var(--text-primary)',
+                          fontWeight: !selectedTid ? 600 : 400,
+                        }}
+                      >
+                        <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                          <Hash size={12} />
+                          All Threads
+                        </span>
+                        {!selectedTid && <Check size={13} color="var(--accent-primary)" />}
+                      </div>
+
+                      {Object.entries(tidCounts)
+                        .filter(([tid]) => tid.toLowerCase().includes(tidSearch.toLowerCase()))
+                        .sort((a, b) => a[0].localeCompare(b[0], undefined, { numeric: true, sensitivity: 'base' }))
+                        .map(([tid, count]) => {
+                          const isSelected = selectedTid === tid;
+                          return (
+                            <div
+                              key={tid}
+                              onClick={() => {
+                                onSelectTid?.(isSelected ? null : tid);
+                                setIsTidDropdownOpen(false);
+                              }}
+                              style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'space-between',
+                                padding: '6px 8px',
+                                borderRadius: 4,
+                                cursor: 'pointer',
+                                fontSize: '0.78rem',
+                                backgroundColor: isSelected ? 'rgba(251, 146, 60, 0.2)' : 'transparent',
+                                color: isSelected ? '#fb923c' : 'var(--text-primary)',
+                                fontWeight: isSelected ? 600 : 400,
+                              }}
+                            >
+                              <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 600 }}>
+                                {tid}
+                              </span>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                <span
+                                  style={{
+                                    fontSize: '0.7rem',
+                                    fontFamily: 'var(--font-mono)',
+                                    backgroundColor: 'var(--bg-surface)',
+                                    padding: '1px 6px',
+                                    borderRadius: 4,
+                                    color: isSelected ? '#fb923c' : 'var(--text-muted)',
+                                  }}
+                                >
+                                  {count}
+                                </span>
+                                {isSelected && <Check size={13} color="#fb923c" />}
+                              </div>
+                            </div>
+                          );
+                        })}
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
+          )}
+
           {/* Rotated Archive Indicator */}
           {activeSource?.isRotated && (
             <span
@@ -1662,6 +2068,53 @@ export const Topbar: React.FC<TopbarProps> = ({
             >
               Corr
             </button>
+          </div>
+
+          <div className="topbar-divider-v" style={{ height: 16, margin: '0 2px' }} />
+
+          {/* Observability Tools (Waterfall & Split View) */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
+            {onOpenWaterfall && (
+              <button
+                type="button"
+                className="toolbar-toggle-btn"
+                onClick={onOpenWaterfall}
+                data-tooltip="Transaction Waterfall & Gantt Trace"
+                style={{
+                  height: 26,
+                  padding: '0 8px',
+                  gap: 5,
+                  fontSize: '0.74rem',
+                  color: selectedWorkflow || selectedCorrelation ? '#c084fc' : undefined,
+                  borderColor: selectedWorkflow || selectedCorrelation ? 'rgba(192, 132, 252, 0.4)' : undefined,
+                  background: selectedWorkflow || selectedCorrelation ? 'rgba(192, 132, 252, 0.12)' : undefined,
+                }}
+              >
+                <GitBranch size={12} color="#c084fc" />
+                <span>Waterfall</span>
+              </button>
+            )}
+
+            {onToggleSplitView && (
+              <button
+                type="button"
+                className={`toolbar-toggle-btn ${isSplitView ? 'active' : ''}`}
+                onClick={onToggleSplitView}
+                data-tooltip={isSplitView ? 'Exit Split Screen View' : 'Split Screen: Dual Log Viewer'}
+                style={{
+                  height: 26,
+                  padding: '0 8px',
+                  gap: 5,
+                  fontSize: '0.74rem',
+                  color: isSplitView ? '#38bdf8' : undefined,
+                  borderColor: isSplitView ? '#38bdf8' : undefined,
+                  background: isSplitView ? 'rgba(56, 189, 248, 0.15)' : undefined,
+                }}
+              >
+                <Columns2 size={12} color="#38bdf8" />
+                <span>Split</span>
+              </button>
+            )}
           </div>
         </div>
 

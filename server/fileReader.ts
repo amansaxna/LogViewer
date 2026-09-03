@@ -3,6 +3,7 @@ import path from 'node:path';
 import { LogEntry, LogLevel, LogQuery, LogQueryResult } from './types.ts';
 import { parseLogLines } from './parser.ts';
 import { findSourceById } from './config.ts';
+import { parseQuery, evaluateAst } from './queryEngine.ts';
 
 // Simple in-memory cache for parsed entries per source with mtime invalidation
 interface CacheEntry {
@@ -80,6 +81,8 @@ export function queryLogs(query: LogQuery): LogQueryResult {
   const workflowCounts: Record<string, number> = {};
   const operationCounts: Record<string, number> = {};
   const correlationCounts: Record<string, number> = {};
+  const pidCounts: Record<string, number> = {};
+  const tidCounts: Record<string, number> = {};
 
   for (const entry of allEntries) {
     if (levelCounts[entry.level] !== undefined) {
@@ -95,17 +98,29 @@ export function queryLogs(query: LogQuery): LogQueryResult {
     if (entry.correlationId) {
       correlationCounts[entry.correlationId] = (correlationCounts[entry.correlationId] || 0) + 1;
     }
+    if (entry.pid) {
+      pidCounts[entry.pid] = (pidCounts[entry.pid] || 0) + 1;
+    }
+    if (entry.tid) {
+      tidCounts[entry.tid] = (tidCounts[entry.tid] || 0) + 1;
+    }
   }
 
-  // 2. Prepare search regular expression if any
+  // 2. Prepare search AST & regular expression if any
+  let searchAst: any = null;
   let searchRegex: RegExp | null = null;
   if (query.search && query.search.trim().length > 0) {
     const rawPattern = query.search.trim();
+    // Try parsing as boolean AST query first
+    if (/\b(AND|OR|NOT|&&|\|\|)\b|[:><=]/.test(rawPattern) && !query.isRegex) {
+      searchAst = parseQuery(rawPattern);
+    }
+
     const flags = query.caseSensitive ? '' : 'i';
     try {
       if (query.isRegex) {
         searchRegex = new RegExp(rawPattern, flags);
-      } else {
+      } else if (!searchAst) {
         // Escape special regex chars
         const escaped = rawPattern.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
         searchRegex = new RegExp(escaped, flags);
@@ -184,8 +199,29 @@ export function queryLogs(query: LogQuery): LogQueryResult {
       }
     }
 
-    // Search query match
-    if (searchRegex) {
+    // Process ID (PID) filter
+    if (query.pid && query.pid.trim().length > 0) {
+      const pQuery = query.pid.trim().toLowerCase();
+      if (!entry.pid || !entry.pid.toLowerCase().includes(pQuery)) {
+        return false;
+      }
+    }
+
+    // Thread ID (TID) filter
+    if (query.tid && query.tid.trim().length > 0) {
+      const tQuery = query.tid.trim().toLowerCase();
+      if (!entry.tid || !entry.tid.toLowerCase().includes(tQuery)) {
+        return false;
+      }
+    }
+
+    // Search query match (AST or Regex)
+    if (searchAst) {
+      const match = evaluateAst(entry, searchAst, query.caseSensitive);
+      if (query.invert ? match : !match) {
+        return false;
+      }
+    } else if (searchRegex) {
       const match = searchRegex.test(entry.raw) ||
         Boolean(entry.message && searchRegex.test(entry.message)) ||
         Boolean(entry.namespace && searchRegex.test(entry.namespace)) ||
@@ -257,6 +293,8 @@ export function queryLogs(query: LogQuery): LogQueryResult {
     workflowCounts,
     operationCounts,
     correlationCounts,
+    pidCounts,
+    tidCounts,
     durationMs,
   };
 }

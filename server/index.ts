@@ -138,6 +138,8 @@ app.get('/api/logs/entries', (req: Request, res: Response) => {
       operation: req.query.operation as string | undefined,
       marker: req.query.marker as string | undefined,
       correlationId: req.query.correlationId as string | undefined,
+      pid: req.query.pid as string | undefined,
+      tid: req.query.tid as string | undefined,
       sortBy: (req.query.sortBy as any) || 'time',
       direction: (req.query.direction as 'desc' | 'asc') || 'desc',
       page: req.query.page ? parseInt(req.query.page as string, 10) : 1,

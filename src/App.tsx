@@ -10,7 +10,12 @@ import { GoToLineModal } from './components/GoToLineModal.tsx';
 import { KeyboardShortcutsModal } from './components/KeyboardShortcutsModal.tsx';
 import { JsonXmlInspectorModal, InspectorPayload } from './components/JsonXmlInspectorModal.tsx';
 import { CopyToast } from './components/CopyToast.tsx';
+import { copyWithToast } from './utils/copyNotifier.ts';
 import { PresetModal } from './components/PresetModal.tsx';
+import { DeltaTimeBadge } from './components/DeltaTimeBadge.tsx';
+import { WaterfallModal } from './components/WaterfallModal.tsx';
+import { DualPaneViewer } from './components/DualPaneViewer.tsx';
+import { evaluateQuery } from './utils/queryEngine.ts';
 import { DEFAULT_PRESETS } from './presets.ts';
 
 export const App: React.FC = () => {
@@ -43,6 +48,10 @@ export const App: React.FC = () => {
   const [selectedWorkflow, setSelectedWorkflow] = useState<string | null>(() => localStorage.getItem('lv_selected_workflow') || null);
   const [selectedOperation, setSelectedOperation] = useState<string | null>(() => localStorage.getItem('lv_selected_operation') || null);
   const [selectedCorrelation, setSelectedCorrelation] = useState<string | null>(() => localStorage.getItem('lv_selected_correlation') || null);
+  const [selectedPid, setSelectedPid] = useState<string | null>(() => localStorage.getItem('lv_selected_pid') || null);
+  const [selectedTid, setSelectedTid] = useState<string | null>(() => localStorage.getItem('lv_selected_tid') || null);
+  const [pidCounts, setPidCounts] = useState<Record<string, number>>({});
+  const [tidCounts, setTidCounts] = useState<Record<string, number>>({});
   const [startDate, setStartDate] = useState<string | null>(() => localStorage.getItem('lv_start_date') || null);
   const [endDate, setEndDate] = useState<string | null>(() => localStorage.getItem('lv_end_date') || null);
   const [sortOption, setSortOption] = useState<SortOption>(() => (localStorage.getItem('lv_sort_option') as SortOption) || 'time-asc');
@@ -157,6 +166,18 @@ export const App: React.FC = () => {
   const [contextLineNumber, setContextLineNumber] = useState<number | null>(null);
   const [isShortcutsOpen, setIsShortcutsOpen] = useState(false);
   const [inspectorPayload, setInspectorPayload] = useState<InspectorPayload | null>(null);
+  // Delta Time & Latency Measurement
+  const [deltaBaselineEntry, setDeltaBaselineEntry] = useState<LogEntry | null>(null);
+  const [deltaTargetEntry, setDeltaTargetEntry] = useState<LogEntry | null>(null);
+
+  // Waterfall / Gantt Trace Modal
+  const [isWaterfallOpen, setIsWaterfallOpen] = useState(false);
+  const [waterfallTarget, setWaterfallTarget] = useState<{ correlationId?: string | null; workflow?: string | null } | null>(null);
+
+  // Dual-Pane Split View
+  const [isSplitView, setIsSplitView] = useState(() => localStorage.getItem('lv_split_view') === 'true');
+  const [secondarySourceId, setSecondarySourceId] = useState<string | null>(() => localStorage.getItem('lv_secondary_source') || null);
+
   const [isSidebarOpen, setIsSidebarOpen] = useState(() => {
     return localStorage.getItem('lv_sidebar') !== 'false';
   });
@@ -240,6 +261,10 @@ export const App: React.FC = () => {
     else localStorage.removeItem('lv_selected_operation');
     if (selectedCorrelation) localStorage.setItem('lv_selected_correlation', selectedCorrelation);
     else localStorage.removeItem('lv_selected_correlation');
+    if (selectedPid) localStorage.setItem('lv_selected_pid', selectedPid);
+    else localStorage.removeItem('lv_selected_pid');
+    if (selectedTid) localStorage.setItem('lv_selected_tid', selectedTid);
+    else localStorage.removeItem('lv_selected_tid');
     if (startDate) localStorage.setItem('lv_start_date', startDate);
     else localStorage.removeItem('lv_start_date');
     if (endDate) localStorage.setItem('lv_end_date', endDate);
@@ -267,6 +292,8 @@ export const App: React.FC = () => {
     selectedWorkflow,
     selectedOperation,
     selectedCorrelation,
+    selectedPid,
+    selectedTid,
     startDate,
     endDate,
     sortOption,
@@ -296,6 +323,8 @@ export const App: React.FC = () => {
       'lv_selected_workflow',
       'lv_selected_operation',
       'lv_selected_correlation',
+      'lv_selected_pid',
+      'lv_selected_tid',
       'lv_start_date',
       'lv_end_date',
       'lv_sort_option',
@@ -326,6 +355,8 @@ export const App: React.FC = () => {
     setSelectedWorkflow(null);
     setSelectedOperation(null);
     setSelectedCorrelation(null);
+    setSelectedPid(null);
+    setSelectedTid(null);
     setStartDate(null);
     setEndDate(null);
     setSortOption('time-asc');
@@ -414,6 +445,16 @@ export const App: React.FC = () => {
         setSelectedCorrelation(rules.correlationId);
         if (rules.correlationId) localStorage.setItem('lv_selected_correlation', rules.correlationId);
         else localStorage.removeItem('lv_selected_correlation');
+      }
+      if (rules.pid !== undefined) {
+        setSelectedPid(rules.pid);
+        if (rules.pid) localStorage.setItem('lv_selected_pid', rules.pid);
+        else localStorage.removeItem('lv_selected_pid');
+      }
+      if (rules.tid !== undefined) {
+        setSelectedTid(rules.tid);
+        if (rules.tid) localStorage.setItem('lv_selected_tid', rules.tid);
+        else localStorage.removeItem('lv_selected_tid');
       }
 
       // 4. Datetime Range
@@ -601,6 +642,12 @@ export const App: React.FC = () => {
     if (selectedCorrelation) {
       params.append('correlationId', selectedCorrelation);
     }
+    if (selectedPid) {
+      params.append('pid', selectedPid);
+    }
+    if (selectedTid) {
+      params.append('tid', selectedTid);
+    }
     if (startDate) {
       params.append('startDate', startDate);
     }
@@ -636,6 +683,8 @@ export const App: React.FC = () => {
       setWorkflowCounts(data.workflowCounts || {});
       setOperationCounts(data.operationCounts || {});
       setCorrelationCounts(data.correlationCounts || {});
+      setPidCounts(data.pidCounts || {});
+      setTidCounts(data.tidCounts || {});
       setCurrentMatchIndex(1);
     } catch (err) {
       console.error('Failed to query entries:', err);
@@ -654,6 +703,8 @@ export const App: React.FC = () => {
     selectedWorkflow,
     selectedOperation,
     selectedCorrelation,
+    selectedPid,
+    selectedTid,
     startDate,
     endDate,
     sortOption,
@@ -841,6 +892,43 @@ export const App: React.FC = () => {
     setSelectedLineNumber(entries[closestIdx].lineNumber);
   };
 
+  // Delta Time Selection Handler
+  const handleDeltaSelect = (entry: LogEntry) => {
+    if (!deltaBaselineEntry) {
+      setDeltaBaselineEntry(entry);
+      setDeltaTargetEntry(null);
+      copyWithToast(`Baseline set at Line #${entry.lineNumber}`, 'DELTA_TIME');
+    } else if (!deltaTargetEntry) {
+      setDeltaTargetEntry(entry);
+      copyWithToast(`Target set at Line #${entry.lineNumber}`, 'DELTA_TIME');
+    } else {
+      setDeltaBaselineEntry(entry);
+      setDeltaTargetEntry(null);
+    }
+  };
+
+  const handleClearDelta = () => {
+    setDeltaBaselineEntry(null);
+    setDeltaTargetEntry(null);
+  };
+
+  // Waterfall modal handler
+  const handleOpenWaterfall = (correlationId?: string | null, workflow?: string | null) => {
+    const targetCid = correlationId || selectedCorrelation || deltaBaselineEntry?.correlationId || deltaTargetEntry?.correlationId;
+    const targetWf = workflow || selectedWorkflow || deltaBaselineEntry?.workflow || deltaTargetEntry?.workflow;
+    setWaterfallTarget({ correlationId: targetCid, workflow: targetWf });
+    setIsWaterfallOpen(true);
+  };
+
+  // Toggle Split-Screen Dual Viewer
+  const handleToggleSplitView = () => {
+    setIsSplitView((prev) => {
+      const next = !prev;
+      localStorage.setItem('lv_split_view', String(next));
+      return next;
+    });
+  };
+
   // Global Keyboard Shortcuts
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -852,6 +940,8 @@ export const App: React.FC = () => {
 
       // Escape key closes open modals or deselects line
       if (e.key === 'Escape') {
+        if (isWaterfallOpen) { setIsWaterfallOpen(false); return; }
+        if (deltaBaselineEntry || deltaTargetEntry) { handleClearDelta(); return; }
         if (isPresetModalOpen) { setIsPresetModalOpen(false); setPresetModalInitialCreate(false); return; }
         if (isShortcutsOpen) { setIsShortcutsOpen(false); return; }
         if (contextLineNumber !== null) { setContextLineNumber(null); return; }
@@ -875,7 +965,8 @@ export const App: React.FC = () => {
         isPresetModalOpen ||
         contextLineNumber !== null ||
         isShortcutsOpen ||
-        inspectorPayload !== null
+        inspectorPayload !== null ||
+        isWaterfallOpen
       ) {
         return;
       }
@@ -1303,6 +1394,12 @@ export const App: React.FC = () => {
           selectedCorrelation={selectedCorrelation}
           onSelectCorrelation={setSelectedCorrelation}
           correlationCounts={correlationCounts}
+          selectedPid={selectedPid}
+          onSelectPid={setSelectedPid}
+          pidCounts={pidCounts}
+          selectedTid={selectedTid}
+          onSelectTid={setSelectedTid}
+          tidCounts={tidCounts}
           isLiveTail={isLiveTail}
           liveLogsPerSec={liveLogsPerSec}
           liveAvgLogsPerSec={liveAvgLogsPerSec}
@@ -1339,29 +1436,65 @@ export const App: React.FC = () => {
           onSelectPreset={handleSelectPreset}
           onOpenPresetModal={handleOpenPresetModal}
           onCreateNewPreset={handleCreateNewPreset}
+          isSplitView={isSplitView}
+          onToggleSplitView={handleToggleSplitView}
+          onOpenWaterfall={() => handleOpenWaterfall()}
         />
 
-        {/* Log Feed Table */}
-        <LogTable
-          entries={displayEntries}
-          isLoading={isLoading}
-          isLiveTail={isLiveTail}
-          onViewContext={(line) => setContextLineNumber(line)}
-          wrapLines={wrapLines}
-          hideBrackets={hideBrackets}
-          viewMode={viewMode}
-          selectedLineNumber={selectedLineNumber}
-          onSelectLine={(line) => setSelectedLineNumber(line)}
-          searchQuery={search}
-          markerQuery={markerFilter}
-          correlationQuery={selectedCorrelation || undefined}
-          targetScrollIndex={targetScrollIndex}
-          showDatetime={showDatetime}
-          showPid={showPid}
-          showTid={showTid}
-          showCorrelation={showCorrelation}
-          sortOption={sortOption}
-        />
+        {/* Dual Pane Split View or Standard Feed Table */}
+        {isSplitView ? (
+          <DualPaneViewer
+            sources={sources}
+            leftSource={activeSource}
+            leftEntries={displayEntries}
+            leftTotal={totalEntries}
+            rightSourceId={secondarySourceId}
+            onSelectRightSource={(id) => {
+              setSecondarySourceId(id);
+              localStorage.setItem('lv_secondary_source', id);
+            }}
+            onCloseSplit={() => setIsSplitView(false)}
+            theme={theme}
+            wrapLines={wrapLines}
+            hideBrackets={hideBrackets}
+            viewMode={viewMode}
+            onViewContext={(line) => setContextLineNumber(line)}
+            onSelectLine={(line) => setSelectedLineNumber(line)}
+            selectedLineNumber={selectedLineNumber}
+            showDatetime={showDatetime}
+            showPid={showPid}
+            showTid={showTid}
+            showCorrelation={showCorrelation}
+            sortOption={sortOption}
+          />
+        ) : (
+          <LogTable
+            entries={displayEntries}
+            isLoading={isLoading}
+            isLiveTail={isLiveTail}
+            onViewContext={(line) => setContextLineNumber(line)}
+            wrapLines={wrapLines}
+            hideBrackets={hideBrackets}
+            viewMode={viewMode}
+            selectedLineNumber={selectedLineNumber}
+            onSelectLine={(line) => setSelectedLineNumber(line)}
+            onDeltaSelect={handleDeltaSelect}
+            onOpenWaterfall={handleOpenWaterfall}
+            onSelectPid={setSelectedPid}
+            onSelectTid={setSelectedTid}
+            deltaBaselineLineNumber={deltaBaselineEntry?.lineNumber}
+            deltaTargetLineNumber={deltaTargetEntry?.lineNumber}
+            searchQuery={search}
+            markerQuery={markerFilter}
+            correlationQuery={selectedCorrelation || undefined}
+            targetScrollIndex={targetScrollIndex}
+            showDatetime={showDatetime}
+            showPid={showPid}
+            showTid={showTid}
+            showCorrelation={showCorrelation}
+            sortOption={sortOption}
+          />
+        )}
       </main>
 
       {/* Modals */}
@@ -1425,6 +1558,8 @@ export const App: React.FC = () => {
           workflow: selectedWorkflow,
           operation: selectedOperation,
           correlationId: selectedCorrelation,
+          pid: selectedPid,
+          tid: selectedTid,
           startDate,
           endDate,
           sortOption,
@@ -1440,6 +1575,24 @@ export const App: React.FC = () => {
         }}
         availableWorkflows={Object.keys(workflowCounts)}
         availableOperations={Object.keys(operationCounts)}
+      />
+
+      {/* Interactive Transaction Waterfall & Gantt Trace Modal */}
+      <WaterfallModal
+        isOpen={isWaterfallOpen}
+        onClose={() => setIsWaterfallOpen(false)}
+        entries={entries}
+        correlationId={waterfallTarget?.correlationId}
+        workflow={waterfallTarget?.workflow}
+        onSelectLine={(line) => handleGoToLine(line)}
+      />
+
+      {/* Floating Latency / Delta Time Measurement Badge */}
+      <DeltaTimeBadge
+        baselineEntry={deltaBaselineEntry}
+        targetEntry={deltaTargetEntry}
+        onClear={handleClearDelta}
+        onOpenWaterfall={(cid, wf) => handleOpenWaterfall(cid, wf)}
       />
 
       {/* Sleek bright copy notification */}

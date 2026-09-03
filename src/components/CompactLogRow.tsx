@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Copy, Check } from 'lucide-react';
+import { Copy, Check, Timer, GitBranch } from 'lucide-react';
 import { LogEntry } from '../types.ts';
 import { renderRichMessageContext } from '../utils/messageContextHighlighter.tsx';
 import { stripBracketMarkers } from '../utils/coloredLogRenderer.tsx';
@@ -10,6 +10,13 @@ interface CompactLogRowProps {
   isSelected: boolean;
   onSelect: (lineNumber: number) => void;
   onDoubleClick: (lineNumber: number) => void;
+  onDeltaSelect?: (entry: LogEntry) => void;
+  onOpenWaterfall?: (correlationId?: string, workflow?: string) => void;
+  onSelectPid?: (pid: string | null) => void;
+  onSelectTid?: (tid: string | null) => void;
+  isDeltaBaseline?: boolean;
+  isDeltaTarget?: boolean;
+  isDeltaInRange?: boolean;
   searchQuery?: string;
   markerQuery?: string;
   correlationQuery?: string;
@@ -21,11 +28,18 @@ interface CompactLogRowProps {
   showCorrelation?: boolean;
 }
 
-export const CompactLogRow: React.FC<CompactLogRowProps> = ({
+const CompactLogRowComponent: React.FC<CompactLogRowProps> = ({
   entry,
   isSelected,
   onSelect,
   onDoubleClick,
+  onDeltaSelect,
+  onOpenWaterfall,
+  onSelectPid,
+  onSelectTid,
+  isDeltaBaseline = false,
+  isDeltaTarget = false,
+  isDeltaInRange = false,
   searchQuery,
   markerQuery,
   correlationQuery,
@@ -37,8 +51,18 @@ export const CompactLogRow: React.FC<CompactLogRowProps> = ({
   showCorrelation = true,
 }) => {
   const [copied, setCopied] = useState(false);
-  // Helper to highlight matching terms inside text
+
+  // Fast-path helper to highlight matching terms inside text
   const highlightMatches = (text: string, queries: (string | undefined)[]) => {
+    let hasQuery = false;
+    for (const q of queries) {
+      if (q && q.trim().length > 0) {
+        hasQuery = true;
+        break;
+      }
+    }
+    if (!hasQuery) return text;
+
     const validQueries = queries
       .filter((q): q is string => Boolean(q && q.trim().length > 0))
       .map((q) => q.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
@@ -84,27 +108,51 @@ export const CompactLogRow: React.FC<CompactLogRowProps> = ({
   // Operation method color (POST/GET/etc orange vs action amber)
   const isHttpOp = Boolean(entry.operation && /^(POST|GET|PUT|DELETE|PATCH|HEAD)/i.test(entry.operation));
 
-  return (
-    <div
-      onClick={() => onSelect(entry.lineNumber)}
-      onDoubleClick={() => onDoubleClick(entry.lineNumber)}
-      style={{
-        display: 'flex',
-        alignItems: 'baseline',
-        padding: '3px 12px 3px 0',
-        backgroundColor: isSelected ? 'var(--row-selected-bg)' : 'transparent',
-        borderLeft: isSelected ? '4px solid var(--row-selected-border)' : '4px solid transparent',
-        cursor: 'pointer',
-        fontFamily: 'var(--font-mono)',
-        fontSize: '0.81rem',
-        lineHeight: 1.5,
-        userSelect: 'text',
-        whiteSpace: wrapLines ? 'normal' : 'pre',
-        wordBreak: wrapLines ? 'break-word' : 'normal',
-      }}
-      className="compact-log-row"
-      title="Click to select, Double click to view full context"
-    >
+    let rowBg = 'transparent';
+    let rowBorderLeft = '4px solid transparent';
+
+    if (isSelected) {
+      rowBg = 'var(--row-selected-bg)';
+      rowBorderLeft = '4px solid var(--row-selected-border)';
+    } else if (isDeltaBaseline) {
+      rowBg = 'rgba(56, 189, 248, 0.15)';
+      rowBorderLeft = '4px solid #38bdf8';
+    } else if (isDeltaTarget) {
+      rowBg = 'rgba(192, 132, 252, 0.18)';
+      rowBorderLeft = '4px solid #c084fc';
+    } else if (isDeltaInRange) {
+      rowBg = 'rgba(192, 132, 252, 0.06)';
+      rowBorderLeft = '4px solid rgba(192, 132, 252, 0.3)';
+    }
+
+    return (
+      <div
+        onClick={(e) => {
+          if (e.altKey || e.shiftKey) {
+            e.preventDefault();
+            onDeltaSelect?.(entry);
+          } else {
+            onSelect(entry.lineNumber);
+          }
+        }}
+        onDoubleClick={() => onDoubleClick(entry.lineNumber)}
+        style={{
+          display: 'flex',
+          alignItems: 'baseline',
+          padding: '3px 12px 3px 0',
+          backgroundColor: rowBg,
+          borderLeft: rowBorderLeft,
+          cursor: 'pointer',
+          fontFamily: 'var(--font-mono)',
+          fontSize: '0.81rem',
+          lineHeight: 1.5,
+          userSelect: 'text',
+          whiteSpace: wrapLines ? 'normal' : 'pre',
+          wordBreak: wrapLines ? 'break-word' : 'normal',
+        }}
+        className="compact-log-row"
+        title="Click to select • Alt+Click/Shift+Click to measure Delta Latency • Double click for full context"
+      >
       {/* Line Number Gutter with Fast Copy Button */}
       <span
         style={{
@@ -148,6 +196,26 @@ export const CompactLogRow: React.FC<CompactLogRowProps> = ({
         >
           {copied ? <Check size={11} color="#22c55e" /> : <Copy size={11} />}
         </button>
+        <button
+          className="fast-copy-btn"
+          onClick={(e) => {
+            e.stopPropagation();
+            onDeltaSelect?.(entry);
+          }}
+          title={`Set Time ${isDeltaBaseline ? 'A (Baseline)' : 'B (Target)'} for Delta Latency`}
+          style={{
+            background: 'none',
+            border: 'none',
+            padding: 0,
+            cursor: 'pointer',
+            display: 'inline-flex',
+            alignItems: 'center',
+            color: isDeltaBaseline ? '#38bdf8' : isDeltaTarget ? '#c084fc' : 'var(--text-muted)',
+            opacity: isDeltaBaseline || isDeltaTarget ? 1 : undefined,
+          }}
+        >
+          <Timer size={11} />
+        </button>
         <span>{entry.lineNumber}</span>
       </span>
 
@@ -160,19 +228,57 @@ export const CompactLogRow: React.FC<CompactLogRowProps> = ({
               <span style={{ color: 'var(--tok-datetime)', marginRight: 8 }}>[{entry.datetime}]</span>
             )}
 
-            {/* PID & TID (Muted Slate) */}
+            {/* PID & TID (Muted Slate / Interactive) */}
             {showPid && entry.pid && (
-              <span style={{ color: 'var(--tok-pid)', marginRight: 6 }}>[{entry.pid}]</span>
+              <span
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onSelectPid?.(entry.pid || null);
+                }}
+                style={{
+                  color: 'var(--tok-pid)',
+                  marginRight: 6,
+                  cursor: onSelectPid ? 'pointer' : 'default',
+                  textDecoration: onSelectPid ? 'underline dotted' : 'none',
+                }}
+                title={`Process ID: ${entry.pid} • Click to filter`}
+              >
+                [{entry.pid}]
+              </span>
             )}
             {showTid && entry.tid && (
-              <span style={{ color: 'var(--tok-pid)', marginRight: 6 }}>[{entry.tid}]</span>
+              <span
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onSelectTid?.(entry.tid || null);
+                }}
+                style={{
+                  color: 'var(--tok-pid)',
+                  marginRight: 6,
+                  cursor: onSelectTid ? 'pointer' : 'default',
+                  textDecoration: onSelectTid ? 'underline dotted' : 'none',
+                }}
+                title={`Thread ID: ${entry.tid} • Click to filter`}
+              >
+                [{entry.tid}]
+              </span>
             )}
 
             {/* Correlation ID */}
             {showCorrelation && entry.correlationId && (
               <span
-                style={{ color: 'var(--tok-corr)', fontWeight: 600, marginRight: 6 }}
-                title={`Correlation ID: ${entry.correlationId}`}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onOpenWaterfall?.(entry.correlationId);
+                }}
+                style={{
+                  color: 'var(--tok-corr)',
+                  fontWeight: 600,
+                  marginRight: 6,
+                  cursor: onOpenWaterfall ? 'pointer' : 'default',
+                  textDecoration: onOpenWaterfall ? 'underline dotted' : 'none',
+                }}
+                title={`Correlation ID: ${entry.correlationId} • Click to open Waterfall Trace`}
               >
                 [{highlightMatches(entry.correlationId, [searchQuery, correlationQuery])}]
               </span>
@@ -187,7 +293,20 @@ export const CompactLogRow: React.FC<CompactLogRowProps> = ({
 
             {/* Workflow Marker */}
             {entry.workflow && (
-              <span style={{ color: 'var(--tok-workflow)', fontWeight: 600, marginRight: 6 }}>
+              <span
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onOpenWaterfall?.(undefined, entry.workflow);
+                }}
+                style={{
+                  color: 'var(--tok-workflow)',
+                  fontWeight: 600,
+                  marginRight: 6,
+                  cursor: onOpenWaterfall ? 'pointer' : 'default',
+                  textDecoration: onOpenWaterfall ? 'underline dotted' : 'none',
+                }}
+                title={`Workflow: ${entry.workflow} • Click to open Waterfall Trace`}
+              >
                 [{highlightMatches(entry.workflow, [searchQuery, markerQuery])}]
               </span>
             )}
@@ -246,3 +365,5 @@ export const CompactLogRow: React.FC<CompactLogRowProps> = ({
     </div>
   );
 };
+
+export const CompactLogRow = React.memo(CompactLogRowComponent);

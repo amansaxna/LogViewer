@@ -842,11 +842,17 @@ function formatXmlString(xml: string): string {
   return formatted.trim();
 }
 
+const entityCache = new Map<string, EntityMatch[]>();
+const MAX_ENTITY_CACHE = 4000;
+
 /**
- * Finds all context entities and tokens within a string.
+ * Finds all context entities and tokens within a string (with high-speed LRU cache).
  */
 export function findEntitiesInMessage(text: string): EntityMatch[] {
   if (!text || text.length === 0) return [];
+
+  const cached = entityCache.get(text);
+  if (cached) return cached;
 
   const matches: EntityMatch[] = [];
 
@@ -1025,6 +1031,13 @@ export function findEntitiesInMessage(text: string): EntityMatch[] {
 
   // Sort by appearance index
   matches.sort((a, b) => a.index - b.index);
+
+  if (entityCache.size >= MAX_ENTITY_CACHE) {
+    const firstKey = entityCache.keys().next().value;
+    if (firstKey) entityCache.delete(firstKey);
+  }
+  entityCache.set(text, matches);
+
   return matches;
 }
 

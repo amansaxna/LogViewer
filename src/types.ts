@@ -37,6 +37,7 @@ export interface LogEntry {
   operation?: string;
   status?: string;
   duration?: string;
+  durationMs?: number;
   message: string;
   fileLocation?: string;
   level: LogLevel;
@@ -92,6 +93,8 @@ export interface LogQueryResult {
   workflowCounts: Record<string, number>;
   operationCounts: Record<string, number>;
   correlationCounts?: Record<string, number>;
+  pidCounts?: Record<string, number>;
+  tidCounts?: Record<string, number>;
   durationMs: number;
 }
 
@@ -110,6 +113,8 @@ export interface PresetRules {
   workflow?: string | null;
   operation?: string | null;
   correlationId?: string | null;
+  pid?: string | null;
+  tid?: string | null;
 
   // Datetime Range
   startDate?: string | null;

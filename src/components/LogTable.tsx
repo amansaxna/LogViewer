@@ -15,6 +15,12 @@ interface LogTableProps {
   viewMode?: 'compact' | 'standard' | 'raw';
   selectedLineNumber: number | null;
   onSelectLine: (lineNumber: number) => void;
+  onDeltaSelect?: (entry: LogEntry) => void;
+  onOpenWaterfall?: (correlationId?: string, workflow?: string) => void;
+  onSelectPid?: (pid: string | null) => void;
+  onSelectTid?: (tid: string | null) => void;
+  deltaBaselineLineNumber?: number | null;
+  deltaTargetLineNumber?: number | null;
   searchQuery?: string;
   markerQuery?: string;
   correlationQuery?: string;
@@ -36,6 +42,12 @@ export const LogTable: React.FC<LogTableProps> = ({
   viewMode = 'compact',
   selectedLineNumber,
   onSelectLine,
+  onDeltaSelect,
+  onOpenWaterfall,
+  onSelectPid,
+  onSelectTid,
+  deltaBaselineLineNumber,
+  deltaTargetLineNumber,
   searchQuery,
   markerQuery,
   correlationQuery,
@@ -56,7 +68,7 @@ export const LogTable: React.FC<LogTableProps> = ({
     count: entries.length,
     getScrollElement: () => parentRef.current,
     estimateSize: () => (viewMode === 'compact' ? 26 : 42),
-    overscan: 30,
+    overscan: 12,
   });
 
   const scrollToTail = React.useCallback(() => {
@@ -270,17 +282,29 @@ export const LogTable: React.FC<LogTableProps> = ({
           const entry = entries[virtualRow.index];
           const isSelected = selectedLineNumber === entry.lineNumber;
 
+          const isDeltaBaseline = deltaBaselineLineNumber === entry.lineNumber;
+          const isDeltaTarget = deltaTargetLineNumber === entry.lineNumber;
+          const isDeltaInRange =
+            deltaBaselineLineNumber !== null &&
+            deltaBaselineLineNumber !== undefined &&
+            deltaTargetLineNumber !== null &&
+            deltaTargetLineNumber !== undefined &&
+            entry.lineNumber > Math.min(deltaBaselineLineNumber, deltaTargetLineNumber) &&
+            entry.lineNumber < Math.max(deltaBaselineLineNumber, deltaTargetLineNumber);
+
           return (
             <div
               key={virtualRow.index}
               data-index={virtualRow.index}
-              ref={virtualizer.measureElement}
+              ref={wrapLines || viewMode !== 'compact' ? virtualizer.measureElement : undefined}
               style={{
                 position: 'absolute',
                 top: 0,
                 left: 0,
                 width: '100%',
                 transform: `translateY(${virtualRow.start}px)`,
+                willChange: 'transform',
+                contain: 'content',
               }}
             >
               {viewMode === 'compact' ? (
@@ -289,6 +313,13 @@ export const LogTable: React.FC<LogTableProps> = ({
                   isSelected={isSelected}
                   onSelect={(line) => onSelectLine(line)}
                   onDoubleClick={(line) => onViewContext(line)}
+                  onDeltaSelect={onDeltaSelect}
+                  onOpenWaterfall={onOpenWaterfall}
+                  onSelectPid={onSelectPid}
+                  onSelectTid={onSelectTid}
+                  isDeltaBaseline={isDeltaBaseline}
+                  isDeltaTarget={isDeltaTarget}
+                  isDeltaInRange={isDeltaInRange}
                   searchQuery={searchQuery}
                   markerQuery={markerQuery}
                   correlationQuery={correlationQuery}
