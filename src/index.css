@@ -378,8 +378,9 @@ body {
 .source-item-right {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
   flex-shrink: 0;
+  margin-left: 4px;
 }
 
 .source-size-badge {
@@ -389,9 +390,9 @@ body {
   justify-content: center;
   background-color: var(--badge-bg);
   border: 1px solid var(--badge-border);
-  border-radius: 6px;
-  padding: 2px 6px;
-  min-width: 36px;
+  border-radius: 5px;
+  padding: 2px 5px;
+  min-width: 32px;
   line-height: 1.1;
   user-select: none;
 }
@@ -1504,9 +1505,11 @@ body {
   display: flex;
   align-items: center;
   padding: 8px 16px;
-  gap: 10px;
+  gap: 8px;
   cursor: pointer;
   min-height: 38px;
+  min-width: max-content;
+  width: 100%;
 }
 
 .log-level-bar {
@@ -1606,7 +1609,8 @@ body {
 }
 
 .log-message-preview {
-  flex: 1;
+  flex: 1 1 auto;
+  min-width: 180px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -2372,7 +2376,8 @@ body {
 }
 
 .btn-load-files:hover {
-  background-color: #1d4ed8 !important;
+  filter: brightness(1.1);
+  opacity: 0.95;
 }
 
 mark {
@@ -2622,6 +2627,253 @@ mark {
   background: rgba(239, 68, 68, 0.15);
   color: #ef4444;
 }
+
+/* ==========================================================================
+   DELTA TIME / LATENCY MEASUREMENT HUD
+   ========================================================================== */
+.delta-time-toolbar {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 8px 18px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: 12px;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.55), 0 0 24px rgba(56, 189, 248, 0.22);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  animation: deltaHudPop 0.18s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  max-width: 95vw;
+  width: max-content;
+  user-select: none;
+}
+
+.delta-time-toolbar.active-prompt {
+  border-color: rgba(56, 189, 248, 0.4);
+  background: rgba(15, 23, 42, 0.94);
+}
+
+@keyframes deltaHudPop {
+  0% {
+    opacity: 0;
+    transform: translateX(-50%) translateY(8px) scale(0.96);
+  }
+  100% {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0) scale(1);
+  }
+}
+
+.delta-hud-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: nowrap;
+  white-space: nowrap;
+}
+
+.delta-hud-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: nowrap;
+  white-space: nowrap;
+}
+
+.delta-hud-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 7px;
+  background: rgba(56, 189, 248, 0.14);
+  flex-shrink: 0;
+}
+
+.delta-hud-icon.pulse {
+  animation: deltaPulse 1.4s ease-in-out infinite;
+}
+
+@keyframes deltaPulse {
+  0%, 100% { opacity: 0.7; transform: scale(0.95); }
+  50% { opacity: 1; transform: scale(1.05); }
+}
+
+.delta-anchor-tag {
+  font-size: 0.78rem;
+  font-weight: 700;
+  font-family: var(--font-mono);
+  color: #38bdf8;
+  background: rgba(56, 189, 248, 0.12);
+  padding: 3px 10px;
+  border-radius: 5px;
+  border: 1px solid rgba(56, 189, 248, 0.3);
+  white-space: nowrap;
+}
+
+.delta-prompt-text {
+  font-size: 0.78rem;
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+
+.delta-hud-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 12px;
+  border-radius: 8px;
+  font-size: 0.78rem;
+  font-family: var(--font-mono);
+  font-weight: 600;
+  border: 1px solid transparent;
+  cursor: pointer;
+  background: transparent;
+  transition: all 0.12s ease;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.delta-hud-badge.anchor {
+  background: rgba(56, 189, 248, 0.14);
+  border-color: rgba(56, 189, 248, 0.35);
+  color: #38bdf8;
+}
+
+.delta-hud-badge.anchor:hover {
+  background: rgba(56, 189, 248, 0.24);
+}
+
+.delta-hud-badge.target {
+  background: rgba(52, 211, 153, 0.14);
+  border-color: rgba(52, 211, 153, 0.35);
+  color: #34d399;
+}
+
+.delta-hud-badge.target:hover {
+  background: rgba(52, 211, 153, 0.24);
+}
+
+.delta-time-val {
+  color: var(--text-muted);
+  font-size: 0.72rem;
+  margin-left: 2px;
+  white-space: nowrap;
+}
+
+.delta-metric-box {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 14px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.delta-label {
+  font-size: 0.68rem;
+  font-weight: 700;
+  color: var(--text-muted);
+  letter-spacing: 0.5px;
+  white-space: nowrap;
+}
+
+.delta-value {
+  font-size: 0.98rem;
+  font-weight: 800;
+  font-family: var(--font-mono);
+  white-space: nowrap;
+}
+
+.delta-value.forward {
+  color: #38bdf8;
+}
+
+.delta-value.backward {
+  color: #f59e0b;
+}
+
+.delta-raw-ms {
+  font-size: 0.74rem;
+  font-family: var(--font-mono);
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.delta-step-badge {
+  font-size: 0.74rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  background: var(--bg-surface);
+  padding: 5px 10px;
+  border-radius: 6px;
+  border: 1px solid var(--border-subtle);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.delta-hud-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 28px;
+  padding: 0 10px;
+  border-radius: 6px;
+  border: 1px solid var(--border-subtle);
+  background: var(--bg-surface);
+  color: var(--text-secondary);
+  font-size: 0.78rem;
+  font-weight: 500;
+  cursor: pointer;
+  white-space: nowrap;
+  flex-shrink: 0;
+  transition: all 0.12s ease;
+}
+
+.delta-hud-btn:hover {
+  background: var(--bg-surface-hover);
+  color: var(--text-primary);
+  border-color: var(--border-highlight);
+}
+
+.delta-hud-btn.swap:hover {
+  color: #38bdf8;
+  border-color: #38bdf8;
+}
+
+.delta-hud-btn.close:hover {
+  color: #ef4444;
+  border-color: #ef4444;
+}
+
+/* Row Visual States for Delta Measurement */
+.compact-log-row.delta-anchor,
+.log-row.delta-anchor {
+  background: rgba(56, 189, 248, 0.14) !important;
+  border-left: 3px solid #38bdf8 !important;
+}
+
+.compact-log-row.delta-target,
+.log-row.delta-target {
+  background: rgba(52, 211, 153, 0.14) !important;
+  border-left: 3px solid #34d399 !important;
+}
+
+.compact-log-row.delta-in-range,
+.log-row.delta-in-range {
+  background: rgba(56, 189, 248, 0.04);
+}
+
 
 
 

@@ -8,8 +8,8 @@ import { copyWithToast } from '../utils/copyNotifier.ts';
 interface CompactLogRowProps {
   entry: LogEntry;
   isSelected: boolean;
-  onSelect: (lineNumber: number) => void;
-  onDoubleClick: (lineNumber: number) => void;
+  onSelect: (lineNumber: number, isShift?: boolean) => void;
+  onDoubleClick: (lineNumber: number, sourceId?: string) => void;
   searchQuery?: string;
   markerQuery?: string;
   correlationQuery?: string;
@@ -19,6 +19,10 @@ interface CompactLogRowProps {
   showPid?: boolean;
   showTid?: boolean;
   showCorrelation?: boolean;
+  isUnifiedStream?: boolean;
+  isDeltaAnchor?: boolean;
+  isDeltaTarget?: boolean;
+  isDeltaInRange?: boolean;
 }
 
 export const CompactLogRow: React.FC<CompactLogRowProps> = ({
@@ -35,6 +39,10 @@ export const CompactLogRow: React.FC<CompactLogRowProps> = ({
   showPid = true,
   showTid = true,
   showCorrelation = true,
+  isUnifiedStream = false,
+  isDeltaAnchor = false,
+  isDeltaTarget = false,
+  isDeltaInRange = false,
 }) => {
   const [copied, setCopied] = useState(false);
   // Helper to highlight matching terms inside text
@@ -86,39 +94,75 @@ export const CompactLogRow: React.FC<CompactLogRowProps> = ({
 
   return (
     <div
-      onClick={() => onSelect(entry.lineNumber)}
-      onDoubleClick={() => onDoubleClick(entry.lineNumber)}
+      onClick={(e) => onSelect(entry.lineNumber, e.shiftKey)}
+      onDoubleClick={() => onDoubleClick(entry.lineNumber, entry.sourceId)}
       style={{
         display: 'flex',
         alignItems: 'baseline',
         padding: '3px 12px 3px 0',
-        backgroundColor: isSelected ? 'var(--row-selected-bg)' : 'transparent',
-        borderLeft: isSelected ? '4px solid var(--row-selected-border)' : '4px solid transparent',
+        backgroundColor: isDeltaAnchor
+          ? 'rgba(56, 189, 248, 0.14)'
+          : isDeltaTarget
+          ? 'rgba(52, 211, 153, 0.14)'
+          : isDeltaInRange
+          ? 'rgba(56, 189, 248, 0.04)'
+          : isSelected
+          ? 'var(--row-selected-bg)'
+          : 'transparent',
+        borderLeft: isDeltaAnchor
+          ? '4px solid #38bdf8'
+          : isDeltaTarget
+          ? '4px solid #34d399'
+          : isSelected
+          ? '4px solid var(--row-selected-border)'
+          : '4px solid transparent',
         cursor: 'pointer',
         fontFamily: 'var(--font-mono)',
         fontSize: '0.81rem',
         lineHeight: 1.5,
         userSelect: 'text',
-        whiteSpace: wrapLines ? 'normal' : 'pre',
+        whiteSpace: wrapLines ? 'pre-wrap' : 'nowrap',
         wordBreak: wrapLines ? 'break-word' : 'normal',
+        minWidth: wrapLines ? undefined : 'max-content',
+        width: '100%',
       }}
-      className="compact-log-row"
-      title="Click to select, Double click to view full context"
+      className={`compact-log-row ${isSelected ? 'selected' : ''} ${
+        isDeltaAnchor ? 'delta-anchor' : isDeltaTarget ? 'delta-target' : isDeltaInRange ? 'delta-in-range' : ''
+      }`}
+      title={
+        isDeltaAnchor
+          ? '⚓ Delta Anchor (T1) - Click any other line to measure latency'
+          : isDeltaTarget
+          ? '🎯 Delta Target (T2)'
+          : 'Click to select, Double click to view full context'
+      }
     >
       {/* Line Number Gutter with Fast Copy Button */}
       <span
         style={{
           width: 62,
           minWidth: 62,
-          color: isSelected ? 'var(--gutter-selected-text)' : 'var(--text-muted)',
+          color: isDeltaAnchor
+            ? '#38bdf8'
+            : isDeltaTarget
+            ? '#34d399'
+            : isSelected
+            ? 'var(--gutter-selected-text)'
+            : 'var(--text-muted)',
           textAlign: 'right',
           paddingRight: 10,
           userSelect: 'none',
           flexShrink: 0,
-          fontWeight: isSelected ? 700 : 400,
+          fontWeight: isSelected || isDeltaAnchor || isDeltaTarget ? 700 : 400,
           position: 'sticky',
           left: 0,
-          backgroundColor: isSelected ? 'var(--gutter-selected-bg)' : 'var(--bg-app)',
+          backgroundColor: isDeltaAnchor
+            ? 'rgba(56, 189, 248, 0.18)'
+            : isDeltaTarget
+            ? 'rgba(52, 211, 153, 0.18)'
+            : isSelected
+            ? 'var(--gutter-selected-bg)'
+            : 'var(--bg-app)',
           zIndex: 3,
           display: 'inline-flex',
           alignItems: 'center',
@@ -152,11 +196,11 @@ export const CompactLogRow: React.FC<CompactLogRowProps> = ({
       </span>
 
       {/* Structured Colored Log Line */}
-      <div style={{ display: 'inline', flex: 1 }}>
+      <div style={{ flex: 1, minWidth: 0, overflowWrap: wrapLines ? 'break-word' : 'normal' }}>
         {!hideBrackets && (
           <>
-            {/* Multi-Source Origin Badge */}
-            {entry.sourceName && (
+            {/* Multi-Source Origin Badge - ONLY shown in unified multi-source mode */}
+            {isUnifiedStream && entry.sourceName && (
               <span
                 style={{
                   display: 'inline-flex',

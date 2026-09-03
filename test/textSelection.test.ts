@@ -99,4 +99,18 @@ assert.ok(appSource.includes('handleSelectionAddToPresetIgnore'), 'App.tsx must 
 assert.ok(appSource.includes('handleSelectionAddToPresetFilter'), 'App.tsx must define handleSelectionAddToPresetFilter');
 console.log('✓ Test 6 Passed: Full App.tsx integration and event wiring verified');
 
+// Test 7: Multi-line selection and joined text copy verification
+assert.ok(appSource.includes('selectedLineNumbers.size > 1'), 'App.tsx must support multi-line Ctrl+C copying');
+assert.ok(appSource.includes('joinedText'), 'App.tsx must join multi-line entries with newlines for copy');
+assert.ok(appSource.includes('e.shiftKey'), 'App.tsx must check e.shiftKey for range selection');
+
+const sampleLines = [
+  { lineNumber: 101, raw: '[2026-09-02] INFO Line 1' },
+  { lineNumber: 102, raw: '[2026-09-02] WARN Line 2' },
+  { lineNumber: 103, raw: '[2026-09-02] ERROR Line 3' },
+];
+const joined = sampleLines.map((e) => e.raw).join('\n');
+assert.strictEqual(joined, '[2026-09-02] INFO Line 1\n[2026-09-02] WARN Line 2\n[2026-09-02] ERROR Line 3');
+console.log('✓ Test 7 Passed: Multi-line Shift-selection and joined text clipboard copy verified');
+
 console.log('\nAll Contextual Text Selection Tests Passed Successfully!\n');

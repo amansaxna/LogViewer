@@ -12,6 +12,8 @@ import { JsonXmlInspectorModal, InspectorPayload } from './components/JsonXmlIns
 import { CopyToast } from './components/CopyToast.tsx';
 import { PresetModal } from './components/PresetModal.tsx';
 import { TextSelectionToolbar } from './components/TextSelectionToolbar.tsx';
+import { DeltaTimeToolbar } from './components/DeltaTimeToolbar.tsx';
+import { calculateDeltaTime } from './utils/deltaTimeEngine.ts';
 import { copyWithToast } from './utils/copyNotifier.ts';
 import { DEFAULT_PRESETS } from './presets.ts';
 
@@ -169,6 +171,7 @@ export const App: React.FC = () => {
   const [isPasteModalOpen, setIsPasteModalOpen] = useState(false);
   const [isGoToLineModalOpen, setIsGoToLineModalOpen] = useState(false);
   const [contextLineNumber, setContextLineNumber] = useState<number | null>(null);
+  const [contextSourceId, setContextSourceId] = useState<string | null>(null);
   const [isShortcutsOpen, setIsShortcutsOpen] = useState(false);
   const [inspectorPayload, setInspectorPayload] = useState<InspectorPayload | null>(null);
   const [isSidebarOpen, setIsSidebarOpen] = useState(() => {
@@ -229,6 +232,148 @@ export const App: React.FC = () => {
       return next;
     });
   };
+
+  // Active Preset & Rule Engine
+  const activePreset = useMemo(
+    () => presets.find((p) => p.id === activePresetId) || null,
+    [presets, activePresetId]
+  );
+
+  const displayEntries = useMemo(() => {
+    if (!activePreset) return entries;
+    const { excludeKeywords, includeKeywords, excludeMarkers, includeMarkers } = activePreset.rules;
+    if (
+      !excludeKeywords?.length &&
+      !includeKeywords?.length &&
+      !excludeMarkers?.length &&
+      !includeMarkers?.length
+    ) {
+      return entries;
+    }
+
+    return entries.filter((entry) => {
+      const msg = (entry.message || '').toLowerCase();
+      const raw = (entry.raw || '').toLowerCase();
+
+      // 1. excludeKeywords (e.g. "x", "y", "ping", "heartbeat")
+      if (excludeKeywords && excludeKeywords.length > 0) {
+        for (const kw of excludeKeywords) {
+          const trimmed = kw.trim();
+          if (!trimmed) continue;
+          // Match whole word or key (e.g. "x":, "y", "x=1", standalone keyword) to avoid substring collisions
+          const escaped = trimmed.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+          const regex = new RegExp(`(^|[^a-zA-Z0-9_])${escaped}([^a-zA-Z0-9_]|$)`, 'i');
+          if (regex.test(msg) || regex.test(raw)) {
+            return false;
+          }
+        }
+      }
+
+      // 2. includeKeywords
+      if (includeKeywords && includeKeywords.length > 0) {
+        const matches = includeKeywords.some((kw) => {
+          const trimmed = kw.trim();
+          if (!trimmed) return false;
+          const escaped = trimmed.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+          const regex = new RegExp(`(^|[^a-zA-Z0-9_])${escaped}([^a-zA-Z0-9_]|$)`, 'i');
+          return regex.test(msg) || regex.test(raw);
+        });
+        if (!matches) return false;
+      }
+
+      // 3. excludeMarkers (e.g. "Deregister unavailable")
+      if (excludeMarkers && excludeMarkers.length > 0) {
+        for (const m of excludeMarkers) {
+          const cleanM = m.replace(/^\[|\]$/g, '').trim().toLowerCase();
+          if (cleanM) {
+            if (
+              (entry.workflow && entry.workflow.toLowerCase().includes(cleanM)) ||
+              (entry.operation && entry.operation.toLowerCase().includes(cleanM)) ||
+              (entry.namespace && entry.namespace.toLowerCase().includes(cleanM)) ||
+              raw.includes(cleanM)
+            ) {
+              return false;
+            }
+          }
+        }
+      }
+
+      // 4. includeMarkers (e.g. "Register")
+      if (includeMarkers && includeMarkers.length > 0) {
+        const matches = includeMarkers.some((m) => {
+          const cleanM = m.replace(/^\[|\]$/g, '').trim().toLowerCase();
+          if (!cleanM) return false;
+          return (
+            (entry.workflow && entry.workflow.toLowerCase().includes(cleanM)) ||
+            (entry.operation && entry.operation.toLowerCase().includes(cleanM)) ||
+            (entry.namespace && entry.namespace.toLowerCase().includes(cleanM)) ||
+            raw.includes(cleanM)
+          );
+        });
+        if (!matches) return false;
+      }
+
+      return true;
+    });
+  }, [entries, activePreset]);
+
+  // Delta Time / Latency Between Lines (Elapsed Time Measurement)
+  const [deltaAnchorLine, setDeltaAnchorLine] = useState<number | null>(null);
+  const [deltaTargetLine, setDeltaTargetLine] = useState<number | null>(null);
+
+  const deltaMeasurement = useMemo(() => {
+    if (deltaAnchorLine === null || deltaTargetLine === null) return null;
+    const anchorEntry = entries.find((e) => e.lineNumber === deltaAnchorLine);
+    const targetEntry = entries.find((e) => e.lineNumber === deltaTargetLine);
+    if (!anchorEntry || !targetEntry) return null;
+    return calculateDeltaTime(anchorEntry, targetEntry, entries);
+  }, [deltaAnchorLine, deltaTargetLine, entries]);
+
+  // Multi-line range selection (Shift + Click / Shift + Down / Shift + Up)
+  const [selectedLineNumbers, setSelectedLineNumbers] = useState<Set<number>>(new Set());
+  const selectionAnchorIndexRef = useRef<number | null>(null);
+
+  const handleSelectLine = useCallback((line: number, isShift = false) => {
+    setSelectedLineNumber(line);
+
+    // If delta anchor is active and waiting for target, set it!
+    if (deltaAnchorLine !== null && deltaTargetLine === null && deltaAnchorLine !== line) {
+      setDeltaTargetLine(line);
+      return;
+    }
+
+    const clickedIdx = displayEntries.findIndex((e) => e.lineNumber === line);
+    if (clickedIdx === -1) return;
+
+    if (isShift && selectionAnchorIndexRef.current !== null) {
+      const start = Math.min(selectionAnchorIndexRef.current, clickedIdx);
+      const end = Math.max(selectionAnchorIndexRef.current, clickedIdx);
+      const newSet = new Set<number>();
+      for (let i = start; i <= end; i++) {
+        newSet.add(displayEntries[i].lineNumber);
+      }
+      setSelectedLineNumbers(newSet);
+    } else {
+      selectionAnchorIndexRef.current = clickedIdx;
+      setSelectedLineNumbers(new Set([line]));
+    }
+  }, [deltaAnchorLine, deltaTargetLine, displayEntries]);
+
+  const handleSetDeltaAnchor = useCallback((line: number) => {
+    setDeltaAnchorLine(line);
+    setDeltaTargetLine(null);
+    copyWithToast(`Line #${line}`, 'Delta Anchor (T1) set');
+  }, []);
+
+  const handleSwapDelta = useCallback(() => {
+    setDeltaAnchorLine(deltaTargetLine);
+    setDeltaTargetLine(deltaAnchorLine);
+  }, [deltaAnchorLine, deltaTargetLine]);
+
+  const handleClearDelta = useCallback(() => {
+    setDeltaAnchorLine(null);
+    setDeltaTargetLine(null);
+  }, []);
 
   // Apply theme to document
   useEffect(() => {
@@ -815,7 +960,6 @@ export const App: React.FC = () => {
             setLiveTotalAdded(liveTotalAddedRef.current);
             recentArrivalsRef.current.push({ timestamp: Date.now(), count: addedCount });
             fetchEntries();
-            fetchSources();
           }
         } catch {}
       };
@@ -923,6 +1067,8 @@ export const App: React.FC = () => {
         if (inspectorPayload !== null) { setInspectorPayload(null); return; }
         if (isTyping) { target.blur(); return; }
         setSelectedLineNumber(null);
+        setSelectedLineNumbers(new Set());
+        selectionAnchorIndexRef.current = null;
         return;
       }
 
@@ -942,43 +1088,100 @@ export const App: React.FC = () => {
         return;
       }
 
+      // Copy shortcut (Ctrl+C / Cmd+C) for selected log line(s) when no text is highlighted
+      if ((e.ctrlKey || e.metaKey) && !e.altKey && (e.key === 'c' || e.key === 'C')) {
+        const textSelection = window.getSelection()?.toString() || '';
+        if (textSelection.trim().length === 0) {
+          if (selectedLineNumbers.size > 1) {
+            e.preventDefault();
+            const selectedEntries = displayEntries.filter((entry) => selectedLineNumbers.has(entry.lineNumber));
+            if (selectedEntries.length > 0) {
+              const joinedText = selectedEntries.map((entry) => entry.raw || entry.message).join('\n');
+              const firstLine = selectedEntries[0].lineNumber;
+              const lastLine = selectedEntries[selectedEntries.length - 1].lineNumber;
+              copyWithToast(joinedText, `${selectedEntries.length} lines (#${firstLine}–#${lastLine})`);
+              return;
+            }
+          } else if (selectedLineNumber !== null) {
+            const selectedEntry = displayEntries.find((entry) => entry.lineNumber === selectedLineNumber) || entries.find((entry) => entry.lineNumber === selectedLineNumber);
+            if (selectedEntry) {
+              e.preventDefault();
+              copyWithToast(selectedEntry.raw || selectedEntry.message, `Line #${selectedEntry.lineNumber}`);
+              return;
+            }
+          }
+        }
+      }
+
       // Never intercept standard browser/OS modifier combinations (Ctrl+C, Ctrl+V, Ctrl+A, Ctrl+W, Ctrl+T, etc.)
       const hasModifier = e.ctrlKey || e.metaKey || e.altKey;
 
-      // 1. Down Arrow or 'j': Move to next log downwards
-      if (!hasModifier && (e.key === 'ArrowDown' || e.key === 'j')) {
+      // 1. Down Arrow or 'j': Move to next log downwards (supports Shift for range selection)
+      if ((!hasModifier || (e.shiftKey && !e.ctrlKey && !e.metaKey && !e.altKey)) && (e.key === 'ArrowDown' || e.key === 'j')) {
         e.preventDefault();
-        if (entries.length === 0) return;
+        if (displayEntries.length === 0) return;
         const currentIdx = selectedLineNumber !== null
-          ? entries.findIndex((entry) => entry.lineNumber === selectedLineNumber)
+          ? displayEntries.findIndex((entry) => entry.lineNumber === selectedLineNumber)
           : -1;
         const nextIdx = currentIdx === -1
           ? 0
-          : Math.min(entries.length - 1, currentIdx + 1);
-        const targetEntry = entries[nextIdx];
+          : Math.min(displayEntries.length - 1, currentIdx + 1);
+        const targetEntry = displayEntries[nextIdx];
         if (targetEntry) {
           setSelectedLineNumber(targetEntry.lineNumber);
           setTargetScrollIndex(nextIdx);
           setCurrentMatchIndex(nextIdx + 1);
+
+          if (e.shiftKey) {
+            if (selectionAnchorIndexRef.current === null) {
+              selectionAnchorIndexRef.current = currentIdx >= 0 ? currentIdx : 0;
+            }
+            const start = Math.min(selectionAnchorIndexRef.current, nextIdx);
+            const end = Math.max(selectionAnchorIndexRef.current, nextIdx);
+            const newSet = new Set<number>();
+            for (let i = start; i <= end; i++) {
+              newSet.add(displayEntries[i].lineNumber);
+            }
+            setSelectedLineNumbers(newSet);
+          } else {
+            selectionAnchorIndexRef.current = nextIdx;
+            setSelectedLineNumbers(new Set([targetEntry.lineNumber]));
+          }
         }
         return;
       }
 
-      // 2. Up Arrow or 'k': Move to previous log upwards
-      if (!hasModifier && (e.key === 'ArrowUp' || e.key === 'k')) {
+      // 2. Up Arrow or 'k': Move to previous log upwards (supports Shift for range selection)
+      if ((!hasModifier || (e.shiftKey && !e.ctrlKey && !e.metaKey && !e.altKey)) && (e.key === 'ArrowUp' || e.key === 'k')) {
         e.preventDefault();
-        if (entries.length === 0) return;
+        if (displayEntries.length === 0) return;
         const currentIdx = selectedLineNumber !== null
-          ? entries.findIndex((entry) => entry.lineNumber === selectedLineNumber)
+          ? displayEntries.findIndex((entry) => entry.lineNumber === selectedLineNumber)
           : -1;
         const prevIdx = currentIdx === -1
           ? 0
           : Math.max(0, currentIdx - 1);
-        const targetEntry = entries[prevIdx];
+        const targetEntry = displayEntries[prevIdx];
         if (targetEntry) {
           setSelectedLineNumber(targetEntry.lineNumber);
           setTargetScrollIndex(prevIdx);
           setCurrentMatchIndex(prevIdx + 1);
+
+          if (e.shiftKey) {
+            if (selectionAnchorIndexRef.current === null) {
+              selectionAnchorIndexRef.current = currentIdx >= 0 ? currentIdx : 0;
+            }
+            const start = Math.min(selectionAnchorIndexRef.current, prevIdx);
+            const end = Math.max(selectionAnchorIndexRef.current, prevIdx);
+            const newSet = new Set<number>();
+            for (let i = start; i <= end; i++) {
+              newSet.add(displayEntries[i].lineNumber);
+            }
+            setSelectedLineNumbers(newSet);
+          } else {
+            selectionAnchorIndexRef.current = prevIdx;
+            setSelectedLineNumbers(new Set([targetEntry.lineNumber]));
+          }
         }
         return;
       }
@@ -986,12 +1189,12 @@ export const App: React.FC = () => {
       // 3. PageDown / PageUp: Jump 15 logs
       if (!e.ctrlKey && !e.metaKey && e.key === 'PageDown') {
         e.preventDefault();
-        if (entries.length === 0) return;
+        if (displayEntries.length === 0) return;
         const currentIdx = selectedLineNumber !== null
-          ? entries.findIndex((entry) => entry.lineNumber === selectedLineNumber)
+          ? displayEntries.findIndex((entry) => entry.lineNumber === selectedLineNumber)
           : 0;
-        const nextIdx = Math.min(entries.length - 1, currentIdx + 15);
-        const targetEntry = entries[nextIdx];
+        const nextIdx = Math.min(displayEntries.length - 1, currentIdx + 15);
+        const targetEntry = displayEntries[nextIdx];
         if (targetEntry) {
           setSelectedLineNumber(targetEntry.lineNumber);
           setTargetScrollIndex(nextIdx);
@@ -1001,12 +1204,12 @@ export const App: React.FC = () => {
       }
       if (!e.ctrlKey && !e.metaKey && e.key === 'PageUp') {
         e.preventDefault();
-        if (entries.length === 0) return;
+        if (displayEntries.length === 0) return;
         const currentIdx = selectedLineNumber !== null
-          ? entries.findIndex((entry) => entry.lineNumber === selectedLineNumber)
+          ? displayEntries.findIndex((entry) => entry.lineNumber === selectedLineNumber)
           : 0;
         const prevIdx = Math.max(0, currentIdx - 15);
-        const targetEntry = entries[prevIdx];
+        const targetEntry = displayEntries[prevIdx];
         if (targetEntry) {
           setSelectedLineNumber(targetEntry.lineNumber);
           setTargetScrollIndex(prevIdx);
@@ -1018,8 +1221,8 @@ export const App: React.FC = () => {
       // 4. Home / End
       if (!e.ctrlKey && !e.metaKey && e.key === 'Home') {
         e.preventDefault();
-        if (entries.length > 0) {
-          setSelectedLineNumber(entries[0].lineNumber);
+        if (displayEntries.length > 0) {
+          setSelectedLineNumber(displayEntries[0].lineNumber);
           setTargetScrollIndex(0);
           setCurrentMatchIndex(1);
         }
@@ -1027,11 +1230,11 @@ export const App: React.FC = () => {
       }
       if (!e.ctrlKey && !e.metaKey && e.key === 'End') {
         e.preventDefault();
-        if (entries.length > 0) {
-          const lastIdx = entries.length - 1;
-          setSelectedLineNumber(entries[lastIdx].lineNumber);
+        if (displayEntries.length > 0) {
+          const lastIdx = displayEntries.length - 1;
+          setSelectedLineNumber(displayEntries[lastIdx].lineNumber);
           setTargetScrollIndex(lastIdx);
-          setCurrentMatchIndex(entries.length);
+          setCurrentMatchIndex(displayEntries.length);
         }
         return;
       }
@@ -1072,49 +1275,58 @@ export const App: React.FC = () => {
         return;
       }
 
-      // 9. 'c': Toggle Compact View / Detailed Cards (Strictly guarded so Ctrl+C Windows/Mac copy works naturally)
+      // 9. 'd' / 'D': Set Delta Time Anchor (T1) for latency measurement
+      if (!hasModifier && (e.key === 'd' || e.key === 'D')) {
+        if (selectedLineNumber !== null) {
+          e.preventDefault();
+          handleSetDeltaAnchor(selectedLineNumber);
+          return;
+        }
+      }
+
+      // 10. 'c': Toggle Compact View / Detailed Cards (Strictly guarded so Ctrl+C Windows/Mac copy works naturally)
       if (!hasModifier && (e.key === 'c' || e.key === 'C')) {
         e.preventDefault();
         setViewMode((prev) => (prev === 'compact' ? 'standard' : 'compact'));
         return;
       }
 
-      // 10. 'w': Toggle word wrap
+      // 11. 'w': Toggle word wrap
       if (!hasModifier && (e.key === 'w' || e.key === 'W')) {
         e.preventDefault();
         setWrapLines((prev) => !prev);
         return;
       }
 
-      // 11. 't': Toggle Live Tail
+      // 12. 't': Toggle Live Tail
       if (!hasModifier && (e.key === 't' || e.key === 'T')) {
         e.preventDefault();
         handleToggleLiveTail();
         return;
       }
 
-      // 12. '[': Toggle left panel
+      // 13. '[': Toggle left panel
       if (!hasModifier && e.key === '[') {
         e.preventDefault();
         toggleSidebar();
         return;
       }
 
-      // 13. 'F11': Toggle fullscreen
+      // 14. 'F11': Toggle fullscreen
       if (e.key === 'F11') {
         e.preventDefault();
         toggleFullscreen();
         return;
       }
 
-      // 14. '?': Show keyboard shortcuts cheat sheet
+      // 15. '?': Show keyboard shortcuts cheat sheet
       if (!hasModifier && e.key === '?') {
         e.preventDefault();
         setIsShortcutsOpen(true);
         return;
       }
 
-      // 15. Alt + r: Reset all settings & filters to default
+      // 16. Alt + r: Reset all settings & filters to default
       if (e.altKey && !e.ctrlKey && !e.metaKey && e.key.toLowerCase() === 'r') {
         e.preventDefault();
         handleResetSettings();
@@ -1125,8 +1337,10 @@ export const App: React.FC = () => {
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [
+    displayEntries,
     entries,
     selectedLineNumber,
+    selectedLineNumbers,
     isOpenModalOpen,
     isPasteModalOpen,
     isGoToLineModalOpen,
@@ -1141,90 +1355,6 @@ export const App: React.FC = () => {
     toggleFullscreen,
     handleResetSettings,
   ]);
-
-  // Active Preset & Rule Engine
-  const activePreset = useMemo(
-    () => presets.find((p) => p.id === activePresetId) || null,
-    [presets, activePresetId]
-  );
-
-  const displayEntries = useMemo(() => {
-    if (!activePreset) return entries;
-    const { excludeKeywords, includeKeywords, excludeMarkers, includeMarkers } = activePreset.rules;
-    if (
-      !excludeKeywords?.length &&
-      !includeKeywords?.length &&
-      !excludeMarkers?.length &&
-      !includeMarkers?.length
-    ) {
-      return entries;
-    }
-
-    return entries.filter((entry) => {
-      const msg = (entry.message || '').toLowerCase();
-      const raw = (entry.raw || '').toLowerCase();
-
-      // 1. excludeKeywords (e.g. "x", "y", "ping", "heartbeat")
-      if (excludeKeywords && excludeKeywords.length > 0) {
-        for (const kw of excludeKeywords) {
-          const trimmed = kw.trim();
-          if (!trimmed) continue;
-          // Match whole word or key (e.g. "x":, "y", "x=1", standalone keyword) to avoid substring collisions
-          const escaped = trimmed.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-          const regex = new RegExp(`(^|[^a-zA-Z0-9_])${escaped}([^a-zA-Z0-9_]|$)`, 'i');
-          if (regex.test(msg) || regex.test(raw)) {
-            return false;
-          }
-        }
-      }
-
-      // 2. includeKeywords
-      if (includeKeywords && includeKeywords.length > 0) {
-        const matches = includeKeywords.some((kw) => {
-          const trimmed = kw.trim();
-          if (!trimmed) return false;
-          const escaped = trimmed.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-          const regex = new RegExp(`(^|[^a-zA-Z0-9_])${escaped}([^a-zA-Z0-9_]|$)`, 'i');
-          return regex.test(msg) || regex.test(raw);
-        });
-        if (!matches) return false;
-      }
-
-      // 3. excludeMarkers (e.g. "Deregister unavailable")
-      if (excludeMarkers && excludeMarkers.length > 0) {
-        for (const m of excludeMarkers) {
-          const cleanM = m.replace(/^\[|\]$/g, '').trim().toLowerCase();
-          if (cleanM) {
-            if (
-              (entry.workflow && entry.workflow.toLowerCase().includes(cleanM)) ||
-              (entry.operation && entry.operation.toLowerCase().includes(cleanM)) ||
-              (entry.namespace && entry.namespace.toLowerCase().includes(cleanM)) ||
-              raw.includes(cleanM)
-            ) {
-              return false;
-            }
-          }
-        }
-      }
-
-      // 4. includeMarkers (e.g. "Register")
-      if (includeMarkers && includeMarkers.length > 0) {
-        const matches = includeMarkers.some((m) => {
-          const cleanM = m.replace(/^\[|\]$/g, '').trim().toLowerCase();
-          if (!cleanM) return false;
-          return (
-            (entry.workflow && entry.workflow.toLowerCase().includes(cleanM)) ||
-            (entry.operation && entry.operation.toLowerCase().includes(cleanM)) ||
-            (entry.namespace && entry.namespace.toLowerCase().includes(cleanM)) ||
-            raw.includes(cleanM)
-          );
-        });
-        if (!matches) return false;
-      }
-
-      return true;
-    });
-  }, [entries, activePreset]);
 
   // Contextual Text Selection Floating Toolbar State & Listeners
   const [selectionState, setSelectionState] = useState<{
@@ -1569,12 +1699,21 @@ export const App: React.FC = () => {
           entries={displayEntries}
           isLoading={isLoading}
           isLiveTail={isLiveTail}
-          onViewContext={(line) => setContextLineNumber(line)}
+          onViewContext={(line, srcId) => {
+            setContextLineNumber(line);
+            if (srcId) {
+              setContextSourceId(srcId);
+            } else {
+              const entry = displayEntries.find((e) => e.lineNumber === line) || entries.find((e) => e.lineNumber === line);
+              setContextSourceId(entry?.sourceId || activeSourceId || '');
+            }
+          }}
           wrapLines={wrapLines}
           hideBrackets={hideBrackets}
           viewMode={viewMode}
           selectedLineNumber={selectedLineNumber}
-          onSelectLine={(line) => setSelectedLineNumber(line)}
+          selectedLineNumbers={selectedLineNumbers}
+          onSelectLine={handleSelectLine}
           searchQuery={search}
           markerQuery={markerFilter}
           correlationQuery={selectedCorrelation || undefined}
@@ -1584,6 +1723,10 @@ export const App: React.FC = () => {
           showTid={showTid}
           showCorrelation={showCorrelation}
           sortOption={sortOption}
+          isUnifiedStream={selectedSourceIds.length > 1}
+          deltaAnchorLine={deltaAnchorLine}
+          deltaTargetLine={deltaTargetLine}
+          onSetDeltaAnchor={handleSetDeltaAnchor}
         />
       </main>
 
@@ -1609,8 +1752,11 @@ export const App: React.FC = () => {
 
       <ContextModal
         isOpen={contextLineNumber !== null}
-        onClose={() => setContextLineNumber(null)}
-        sourceId={activeSourceId || ''}
+        onClose={() => {
+          setContextLineNumber(null);
+          setContextSourceId(null);
+        }}
+        sourceId={contextSourceId || activeSourceId || ''}
         lineNumber={contextLineNumber}
       />
 
@@ -1679,6 +1825,20 @@ export const App: React.FC = () => {
         onAddToPresetFilter={handleSelectionAddToPresetFilter}
         onClose={() => setSelectionState({ text: '', position: null })}
         activePresetName={activePreset?.name}
+      />
+
+      {/* Delta Time / Latency Measurement Floating HUD */}
+      <DeltaTimeToolbar
+        measurement={deltaMeasurement}
+        anchorLine={deltaAnchorLine}
+        targetLine={deltaTargetLine}
+        onSwap={handleSwapDelta}
+        onClear={handleClearDelta}
+        onJumpToLine={(line) => {
+          setSelectedLineNumber(line);
+          const idx = entries.findIndex((e) => e.lineNumber === line);
+          if (idx !== -1) setTargetScrollIndex(idx);
+        }}
       />
     </div>
   );

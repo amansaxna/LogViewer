@@ -10,11 +10,12 @@ interface LogTableProps {
   entries: LogEntry[];
   isLoading?: boolean;
   isLiveTail: boolean;
-  onViewContext: (lineNumber: number) => void;
+  onViewContext: (lineNumber: number, sourceId?: string) => void;
   wrapLines?: boolean;
   viewMode?: 'compact' | 'standard' | 'raw';
   selectedLineNumber: number | null;
-  onSelectLine: (lineNumber: number) => void;
+  selectedLineNumbers?: Set<number>;
+  onSelectLine: (lineNumber: number, isShift?: boolean) => void;
   searchQuery?: string;
   markerQuery?: string;
   correlationQuery?: string;
@@ -25,6 +26,10 @@ interface LogTableProps {
   showCorrelation?: boolean;
   hideBrackets?: boolean;
   sortOption?: string;
+  isUnifiedStream?: boolean;
+  deltaAnchorLine?: number | null;
+  deltaTargetLine?: number | null;
+  onSetDeltaAnchor?: (lineNumber: number) => void;
 }
 
 export const LogTable: React.FC<LogTableProps> = ({
@@ -32,9 +37,11 @@ export const LogTable: React.FC<LogTableProps> = ({
   isLoading = false,
   isLiveTail,
   onViewContext,
+  onSetDeltaAnchor,
   wrapLines = false,
   viewMode = 'compact',
   selectedLineNumber,
+  selectedLineNumbers,
   onSelectLine,
   searchQuery,
   markerQuery,
@@ -46,6 +53,9 @@ export const LogTable: React.FC<LogTableProps> = ({
   showCorrelation = true,
   hideBrackets = false,
   sortOption = 'time-asc',
+  isUnifiedStream = false,
+  deltaAnchorLine = null,
+  deltaTargetLine = null,
 }) => {
   const parentRef = useRef<HTMLDivElement>(null);
   const [isAutoScrollPaused, setIsAutoScrollPaused] = React.useState(false);
@@ -55,7 +65,7 @@ export const LogTable: React.FC<LogTableProps> = ({
   const virtualizer = useVirtualizer({
     count: entries.length,
     getScrollElement: () => parentRef.current,
-    estimateSize: () => (viewMode === 'compact' ? 26 : 42),
+    estimateSize: () => (viewMode === 'compact' ? 26 : viewMode === 'raw' ? 24 : 42),
     overscan: 30,
   });
 
@@ -145,65 +155,6 @@ export const LogTable: React.FC<LogTableProps> = ({
     );
   }
 
-  // Raw plain-text / ASCII view
-  if (viewMode === 'raw') {
-    return (
-      <div
-        ref={parentRef}
-        className="log-feed-container"
-        style={{
-          position: 'relative',
-          padding: '12px 16px',
-          background: 'var(--bg-app)',
-          fontFamily: 'var(--font-mono)',
-          fontSize: '0.81rem',
-          lineHeight: 1.6,
-          color: 'var(--text-primary)',
-          whiteSpace: wrapLines ? 'pre-wrap' : 'pre',
-          overflowX: 'auto',
-        }}
-      >
-        <TopProgressBar isVisible={isLoading} />
-        {entries.map((e) => {
-          const isSelected = selectedLineNumber === e.lineNumber;
-          return (
-            <div
-              key={e.id}
-              onClick={() => onSelectLine(e.lineNumber)}
-              onDoubleClick={() => onViewContext(e.lineNumber)}
-              style={{
-                display: 'flex',
-                alignItems: 'baseline',
-                backgroundColor: isSelected ? 'rgba(56, 189, 248, 0.16)' : 'transparent',
-                borderLeft: isSelected ? '4px solid #facc15' : '4px solid transparent',
-                padding: '2px 8px 2px 0',
-                cursor: 'pointer',
-              }}
-            >
-              <span
-                style={{
-                  width: 54,
-                  minWidth: 54,
-                  color: isSelected ? '#facc15' : '#64748b',
-                  userSelect: 'none',
-                  flexShrink: 0,
-                  textAlign: 'right',
-                  paddingRight: 14,
-                  fontWeight: isSelected ? 700 : 400,
-                }}
-              >
-                {e.lineNumber}
-              </span>
-              <div style={{ flex: 1 }}>
-                {renderSyntaxColoredLine(e.raw, hideBrackets)}
-              </div>
-            </div>
-          );
-        })}
-      </div>
-    );
-  }
-
   const items = virtualizer.getVirtualItems();
 
   return (
@@ -215,6 +166,7 @@ export const LogTable: React.FC<LogTableProps> = ({
         position: 'relative',
         background: 'var(--bg-app)',
         paddingBottom: 40,
+        overflowX: 'auto',
       }}
     >
       <TopProgressBar isVisible={isLoading} />
@@ -268,7 +220,17 @@ export const LogTable: React.FC<LogTableProps> = ({
       >
         {items.map((virtualRow) => {
           const entry = entries[virtualRow.index];
-          const isSelected = selectedLineNumber === entry.lineNumber;
+          const isSelected = selectedLineNumbers
+            ? selectedLineNumbers.has(entry.lineNumber)
+            : selectedLineNumber === entry.lineNumber;
+          const isDeltaAnchor = deltaAnchorLine === entry.lineNumber;
+          const isDeltaTarget = deltaTargetLine === entry.lineNumber;
+          const isDeltaInRange = Boolean(
+            deltaAnchorLine !== null &&
+            deltaTargetLine !== null &&
+            ((entry.lineNumber > Math.min(deltaAnchorLine, deltaTargetLine) &&
+              entry.lineNumber < Math.max(deltaAnchorLine, deltaTargetLine)))
+          );
 
           return (
             <div
@@ -287,8 +249,8 @@ export const LogTable: React.FC<LogTableProps> = ({
                 <CompactLogRow
                   entry={entry}
                   isSelected={isSelected}
-                  onSelect={(line) => onSelectLine(line)}
-                  onDoubleClick={(line) => onViewContext(line)}
+                  onSelect={(line, isShift) => onSelectLine(line, isShift)}
+                  onDoubleClick={(line, srcId) => onViewContext(line, srcId || entry.sourceId)}
                   searchQuery={searchQuery}
                   markerQuery={markerQuery}
                   correlationQuery={correlationQuery}
@@ -298,11 +260,65 @@ export const LogTable: React.FC<LogTableProps> = ({
                   showPid={showPid}
                   showTid={showTid}
                   showCorrelation={showCorrelation}
+                  isUnifiedStream={isUnifiedStream}
+                  isDeltaAnchor={isDeltaAnchor}
+                  isDeltaTarget={isDeltaTarget}
+                  isDeltaInRange={isDeltaInRange}
                 />
+              ) : viewMode === 'raw' ? (
+                <div
+                  onClick={(e) => onSelectLine(entry.lineNumber, e.shiftKey)}
+                  onDoubleClick={() => onViewContext(entry.lineNumber, entry.sourceId)}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'flex-start',
+                    backgroundColor: isSelected ? 'rgba(56, 189, 248, 0.16)' : 'transparent',
+                    borderLeft: isSelected ? '4px solid #facc15' : '4px solid transparent',
+                    padding: '2px 8px 2px 0',
+                    cursor: 'pointer',
+                    minWidth: wrapLines ? undefined : 'max-content',
+                    width: '100%',
+                    fontFamily: 'var(--font-mono)',
+                    fontSize: '0.81rem',
+                    lineHeight: 1.5,
+                  }}
+                >
+                  <span
+                    style={{
+                      width: 58,
+                      minWidth: 58,
+                      color: isSelected ? '#facc15' : '#64748b',
+                      userSelect: 'none',
+                      flexShrink: 0,
+                      textAlign: 'right',
+                      paddingRight: 14,
+                      fontWeight: isSelected ? 700 : 400,
+                      position: 'sticky',
+                      left: 0,
+                      backgroundColor: isSelected ? 'var(--gutter-selected-bg)' : 'var(--bg-app)',
+                      zIndex: 2,
+                    }}
+                  >
+                    {entry.lineNumber}
+                  </span>
+                  <div
+                    style={{
+                      flex: 1,
+                      minWidth: 0,
+                      whiteSpace: wrapLines ? 'pre-wrap' : 'nowrap',
+                      wordBreak: wrapLines ? 'break-word' : 'normal',
+                    }}
+                  >
+                    {renderSyntaxColoredLine(entry.raw, hideBrackets)}
+                  </div>
+                </div>
               ) : (
                 <LogRow
                   entry={entry}
-                  onViewContext={onViewContext}
+                  isSelected={isSelected}
+                  onSelect={(line, isShift) => onSelectLine(line, isShift)}
+                  onViewContext={(line, srcId) => onViewContext(line, srcId || entry.sourceId)}
+                  onSetDeltaAnchor={onSetDeltaAnchor}
                   wrapLines={wrapLines}
                   hideBrackets={hideBrackets}
                   showDatetime={showDatetime}
@@ -310,6 +326,10 @@ export const LogTable: React.FC<LogTableProps> = ({
                   showTid={showTid}
                   showCorrelation={showCorrelation}
                   searchQuery={searchQuery}
+                  isUnifiedStream={isUnifiedStream}
+                  isDeltaAnchor={isDeltaAnchor}
+                  isDeltaTarget={isDeltaTarget}
+                  isDeltaInRange={isDeltaInRange}
                 />
               )}
             </div>

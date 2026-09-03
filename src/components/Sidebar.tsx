@@ -226,24 +226,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
           <ClipboardList size={15} />
           Paste Logs
         </button>
-      </div>
 
-      {/* Unified Multi-Source Stream Toggle Bar */}
-      {sources.length > 1 && (
-        <div style={{ padding: '0 12px 6px', display: 'flex', gap: 6 }}>
+        {/* Unified Stream Toggle Pill Button */}
+        {sources.length > 1 && (
           <button
-            type="button"
-            className="sidebar-action-btn"
-            style={{
-              flex: 1,
-              height: 28,
-              fontSize: '0.74rem',
-              fontWeight: 600,
-              gap: 6,
-              background: selectedSourceIds && selectedSourceIds.length > 1 ? 'rgba(56, 189, 248, 0.16)' : 'var(--bg-surface)',
-              color: selectedSourceIds && selectedSourceIds.length > 1 ? '#38bdf8' : 'var(--text-secondary)',
-              borderColor: selectedSourceIds && selectedSourceIds.length > 1 ? '#38bdf8' : 'var(--border-subtle)',
-            }}
             onClick={() => {
               if (selectedSourceIds && selectedSourceIds.length === sources.length) {
                 onClearAllSources?.();
@@ -251,17 +237,33 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 onSelectAllSources?.();
               }
             }}
-            title="Merge all available log sources into a single chronological stream"
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 8,
+              width: '100%',
+              padding: '8px 14px',
+              backgroundColor: selectedSourceIds && selectedSourceIds.length > 1 ? 'rgba(56, 189, 248, 0.12)' : 'var(--bg-surface)',
+              color: selectedSourceIds && selectedSourceIds.length > 1 ? '#38bdf8' : 'var(--text-secondary)',
+              border: `1.5px solid ${selectedSourceIds && selectedSourceIds.length > 1 ? '#38bdf8' : 'var(--border-subtle)'}`,
+              borderRadius: 20,
+              fontWeight: 600,
+              fontSize: '0.82rem',
+              cursor: 'pointer',
+              transition: 'all 0.15s ease',
+            }}
+            title="Toggle Unified Multi-Source Stream"
           >
-            <GitMerge size={13} color="#38bdf8" />
+            <GitMerge size={14} color="#38bdf8" />
             <span>
               {selectedSourceIds && selectedSourceIds.length > 1
                 ? `Unified Stream (${selectedSourceIds.length}/${sources.length})`
                 : `Merge All Sources (${sources.length})`}
             </span>
           </button>
-        </div>
-      )}
+        )}
+      </div>
 
       {/* Filter Sources */}
       <div className="sidebar-search">
@@ -350,8 +352,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
                         <span className="source-item-name" title={source.name}>
                           {source.name}
                         </span>
+                      </div>
 
-                        {/* Rotation toggle badge placed neatly next to the name */}
+                      <div className="source-item-right">
+                        {/* Rotation toggle badge placed neatly in right group */}
                         {hasRotations && (
                           <button
                             style={{
@@ -379,9 +383,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                             {isExpanded ? <ChevronDown size={10} /> : <ChevronRight size={10} />}
                           </button>
                         )}
-                      </div>
 
-                      <div className="source-item-right">
                         {/* Stacked 2-line size badge (matching screenshot) */}
                         {source.exists !== false ? (
                           <div

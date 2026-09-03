@@ -24,6 +24,7 @@ export const ContextModal: React.FC<ContextModalProps> = ({
   lineNumber,
 }) => {
   const [lines, setLines] = useState<ContextLine[]>([]);
+  const [sourceName, setSourceName] = useState<string>('');
   const [loading, setLoading] = useState(false);
   const [radius, setRadius] = useState(25);
   const [isFullScreen, setIsFullScreen] = useState(true);
@@ -36,20 +37,48 @@ export const ContextModal: React.FC<ContextModalProps> = ({
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const lastClickedLineRef = useRef<number | null>(null);
 
+  // Close on Escape key
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && isOpen) {
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, onClose]);
+
   useEffect(() => {
     if (isOpen && sourceId && lineNumber) {
       setLoading(true);
       fetch(`/api/logs/context?sourceId=${encodeURIComponent(sourceId)}&lineNumber=${lineNumber}&radius=${radius}`)
         .then((res) => res.json())
         .then((data) => {
+          if (data.sourceName) {
+            setSourceName(data.sourceName);
+          }
           if (data.lines) {
             setLines(data.lines);
             // Default select the target line
-            setSelectedLineNumbers(new Set([lineNumber]));
+            const hasTarget = data.lines.some((l: any) => l.isTarget || l.number === lineNumber);
+            if (hasTarget) {
+              setSelectedLineNumbers(new Set([lineNumber]));
+            } else if (data.lines.length > 0) {
+              setSelectedLineNumbers(new Set([data.lines[0].number]));
+            } else {
+              setSelectedLineNumbers(new Set());
+            }
             lastClickedLineRef.current = lineNumber;
+          } else {
+            setLines([]);
+            setSelectedLineNumbers(new Set());
           }
         })
-        .catch((err) => console.error('Failed to fetch context:', err))
+        .catch((err) => {
+          console.error('Failed to fetch context:', err);
+          setLines([]);
+          setSelectedLineNumbers(new Set());
+        })
         .finally(() => setLoading(false));
     }
   }, [isOpen, sourceId, lineNumber, radius]);
@@ -154,6 +183,21 @@ export const ContextModal: React.FC<ContextModalProps> = ({
             <AlignLeft size={20} color="var(--accent-primary)" />
             <h2 className="modal-title" style={{ fontSize: '1.05rem', display: 'flex', alignItems: 'center', gap: 8 }}>
               <span>Log File Context</span>
+              {sourceName && (
+                <span
+                  style={{
+                    fontSize: '0.78rem',
+                    fontWeight: 600,
+                    color: 'var(--text-secondary)',
+                    background: 'var(--bg-surface)',
+                    padding: '2px 8px',
+                    borderRadius: 4,
+                    border: '1px solid var(--border-subtle)',
+                  }}
+                >
+                  {sourceName}
+                </span>
+              )}
               <span
                 style={{
                   background: '#facc15',
@@ -187,6 +231,7 @@ export const ContextModal: React.FC<ContextModalProps> = ({
             <button
               className="btn-secondary"
               onClick={scrollToTarget}
+              disabled={lines.length === 0}
               style={{
                 height: 28,
                 padding: '0 10px',
@@ -224,6 +269,7 @@ export const ContextModal: React.FC<ContextModalProps> = ({
               <button
                 className="search-modifier-btn"
                 onClick={handleSelectAll}
+                disabled={lines.length === 0}
                 style={{ padding: '2px 7px', height: 26, fontSize: '0.74rem' }}
                 title="Select all loaded lines"
               >
@@ -232,6 +278,7 @@ export const ContextModal: React.FC<ContextModalProps> = ({
               <button
                 className="search-modifier-btn"
                 onClick={handleSelectTargetOnly}
+                disabled={lines.length === 0}
                 style={{ padding: '2px 7px', height: 26, fontSize: '0.74rem' }}
                 title="Select only target line"
               >
@@ -304,7 +351,7 @@ export const ContextModal: React.FC<ContextModalProps> = ({
             <button
               className="btn-icon"
               onClick={onClose}
-              title="Close modal"
+              title="Close modal (Esc)"
               style={{ width: 30, height: 30 }}
             >
               <X size={16} />
@@ -328,6 +375,50 @@ export const ContextModal: React.FC<ContextModalProps> = ({
               message={`Loading Context Window around #${lineNumber}...`}
               subtext="Fetching adjacent log lines from source on disk"
             />
+          ) : lines.length === 0 ? (
+            <div
+              style={{
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center',
+                height: '100%',
+                minHeight: 280,
+                padding: '40px 20px',
+                textAlign: 'center',
+                color: 'var(--text-secondary)',
+              }}
+            >
+              <div
+                style={{
+                  width: 48,
+                  height: 48,
+                  borderRadius: '50%',
+                  background: 'rgba(239, 68, 68, 0.12)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  marginBottom: 16,
+                  color: '#ef4444',
+                }}
+              >
+                <AlignLeft size={24} />
+              </div>
+              <h3 style={{ fontSize: '1.05rem', fontWeight: 600, color: 'var(--text-primary)', marginBottom: 8 }}>
+                No Context Lines Found
+              </h3>
+              <p style={{ fontSize: '0.84rem', color: 'var(--text-muted)', maxWidth: 460, marginBottom: 20 }}>
+                Line #{lineNumber} could not be retrieved from source &ldquo;{sourceName || sourceId}&rdquo;.
+              </p>
+              <button
+                type="button"
+                className="btn-primary"
+                onClick={onClose}
+                style={{ height: 34, padding: '0 20px', fontSize: '0.84rem' }}
+              >
+                Close Context Modal
+              </button>
+            </div>
           ) : (
             <div
               style={{

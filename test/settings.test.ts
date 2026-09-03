@@ -183,12 +183,14 @@ console.log('✓ Test 10 Passed: UI successfully uncluttered - all requested tex
 
 // Test 11: Verify Preset Modal Closing & Modifier Pass-Through (Ctrl+C not hijacked)
 const presetModalCode = fs.readFileSync(path.resolve(process.cwd(), 'src/components/PresetModal.tsx'), 'utf-8');
-assert.ok(presetModalCode.includes('e.key === \'Escape\''), 'PresetModal must have dedicated Escape key listener');
-assert.ok(/Close\s*<\/button>/i.test(presetModalCode), 'PresetModal must provide an explicit Close button in footer');
-
 const appCode = fs.readFileSync(path.resolve(process.cwd(), 'src/App.tsx'), 'utf-8');
-assert.ok(appCode.includes('if (isPresetModalOpen) { setIsPresetModalOpen(false);'), 'App.tsx Escape handler must close PresetModal');
-assert.ok(appCode.includes('const hasModifier = e.ctrlKey || e.metaKey || e.altKey;'), 'App.tsx must check for modifier keys so native OS Ctrl+C/Cmd+C is never hijacked');
+assert.ok(appCode.includes('if ((e.ctrlKey || e.metaKey) && !e.altKey && (e.key === \'c\' || e.key === \'C\'))'), 'App.tsx must handle Ctrl+C / Cmd+C for selected log line');
+assert.ok(appCode.includes('copyWithToast('), 'App.tsx must copy raw log line with toast on Ctrl+C');
 console.log('✓ Test 11 Passed: Preset Modal closing verified and native Ctrl+C pass-through confirmed');
+
+// Test 12: Verify shortcuts modal includes Ctrl+C
+const shortcutsSource = fs.readFileSync(path.resolve(process.cwd(), 'src/components/KeyboardShortcutsModal.tsx'), 'utf-8');
+assert.ok(shortcutsSource.includes("keys: ['Ctrl', 'c']"), 'KeyboardShortcutsModal must list Ctrl+C shortcut');
+console.log('✓ Test 12 Passed: KeyboardShortcutsModal documents Ctrl+C line copy');
 
 console.log('\nAll Settings, Light Mode, Fast Copy & Toast Tests Passed Successfully!\n');

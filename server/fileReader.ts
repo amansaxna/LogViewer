@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { LogEntry, LogLevel, LogQuery, LogQueryResult } from './types.ts';
 import { parseLogLines } from './parser.ts';
-import { findSourceById } from './config.ts';
+import { findSourceById, getSources } from './config.ts';
 
 // Simple in-memory cache for parsed entries per source with mtime invalidation
 interface CacheEntry {
@@ -48,7 +48,13 @@ export function getEntriesForSource(sourceId: string): LogEntry[] {
   }
 
   const content = fs.readFileSync(resolvedPath, 'utf-8');
-  const entries = parseLogLines(content);
+  const parsed = parseLogLines(content);
+  const sourceName = source.name || sourceId;
+  const entries = parsed.map((e) => ({
+    ...e,
+    sourceId: source.id,
+    sourceName,
+  }));
 
   fileCache.set(resolvedPath, {
     mtimeMs: stats.mtimeMs,
@@ -82,23 +88,21 @@ export function queryLogs(query: LogQuery): LogQueryResult {
     ? query.sourceIds.filter(Boolean)
     : [query.sourceId].filter(Boolean);
 
-  let allEntries: LogEntry[] = [];
+  let allEntries: LogEntry[];
 
-  requestedIds.forEach((srcId, idx) => {
-    const source = findSourceById(srcId);
-    const sourceName = source?.name || srcId;
-    const sourceColor = getSourceColor(idx);
-    const rawEntries = getEntriesForSource(srcId);
-    
-    // Tag each entry with its source ID, human readable name, and palette color
-    const tagged = rawEntries.map((e) => ({
-      ...e,
-      sourceId: srcId,
-      sourceName,
-      sourceColor,
-    }));
-    allEntries.push(...tagged);
-  });
+  if (requestedIds.length === 1) {
+    allEntries = getEntriesForSource(requestedIds[0]);
+  } else {
+    allEntries = [];
+    requestedIds.forEach((srcId, idx) => {
+      const sourceColor = getSourceColor(idx);
+      const rawEntries = getEntriesForSource(srcId);
+      for (let i = 0; i < rawEntries.length; i++) {
+        const item = rawEntries[i];
+        allEntries.push(item.sourceColor === sourceColor ? item : { ...item, sourceColor });
+      }
+    });
+  }
 
   // 1. Calculate overall level counts
   const levelCounts: Record<string, number> = {
@@ -298,10 +302,39 @@ export function queryLogs(query: LogQuery): LogQueryResult {
   };
 }
 
-export function getContextLines(sourceId: string, lineNumber: number, radius = 10): { lines: { number: number; content: string; isTarget: boolean }[] } {
-  const source = findSourceById(sourceId);
+export function getContextLines(
+  sourceId: string,
+  lineNumber: number,
+  radius = 10
+): { lines: { number: number; content: string; isTarget: boolean }[]; sourceName?: string; totalLines?: number } {
+  let source = findSourceById(sourceId);
+  if (!source && sourceId) {
+    const sources = getSources();
+    source = sources.find(
+      (s) =>
+        s.name.toLowerCase() === sourceId.toLowerCase() ||
+        s.path.toLowerCase().endsWith(sourceId.toLowerCase()) ||
+        sourceId.toLowerCase().includes(s.id.toLowerCase())
+    );
+  }
+
+  // Fallback: if not found by ID or filename, search sources for one containing that lineNumber
   if (!source) {
-    throw new Error(`Log source not found: ${sourceId}`);
+    const sources = getSources();
+    for (const s of sources) {
+      const resolved = path.isAbsolute(s.path) ? s.path : path.resolve(process.cwd(), s.path);
+      if (fs.existsSync(resolved)) {
+        const lineCount = (fs.readFileSync(resolved, 'utf-8').match(/\n/g) || []).length + 1;
+        if (lineCount >= lineNumber) {
+          source = s;
+          break;
+        }
+      }
+    }
+  }
+
+  if (!source) {
+    return { lines: [], sourceName: sourceId, totalLines: 0 };
   }
 
   const resolvedPath = path.isAbsolute(source.path)
@@ -309,7 +342,7 @@ export function getContextLines(sourceId: string, lineNumber: number, radius = 1
     : path.resolve(process.cwd(), source.path);
 
   if (!fs.existsSync(resolvedPath)) {
-    return { lines: [] };
+    return { lines: [], sourceName: source.name, totalLines: 0 };
   }
 
   const rawLines = fs.readFileSync(resolvedPath, 'utf-8').split(/\r?\n/);
@@ -325,7 +358,7 @@ export function getContextLines(sourceId: string, lineNumber: number, radius = 1
     });
   }
 
-  return { lines };
+  return { lines, sourceName: source.name, totalLines: rawLines.length };
 }
 
 export function clearFileCache(sourcePath?: string) {

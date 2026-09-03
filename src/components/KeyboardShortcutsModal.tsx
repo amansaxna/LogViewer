@@ -16,6 +16,8 @@ const SHORTCUTS: ShortcutItem[] = [
   // Navigation
   { keys: ['↓', 'j'], description: 'Move to next log downwards', category: 'Navigation' },
   { keys: ['↑', 'k'], description: 'Move to previous log upwards', category: 'Navigation' },
+  { keys: ['Shift', '↓'], description: 'Select range of logs downwards (Multi-select)', category: 'Navigation' },
+  { keys: ['Shift', '↑'], description: 'Select range of logs upwards (Multi-select)', category: 'Navigation' },
   { keys: ['PgDn'], description: 'Jump 15 logs down', category: 'Navigation' },
   { keys: ['PgUp'], description: 'Jump 15 logs up', category: 'Navigation' },
   { keys: ['Home'], description: 'Jump to top of logs', category: 'Navigation' },
@@ -23,6 +25,8 @@ const SHORTCUTS: ShortcutItem[] = [
 
   // Actions & Inspection
   { keys: ['Enter', 'Space'], description: 'Open Context Viewer for highlighted line', category: 'Inspection' },
+  { keys: ['Ctrl', 'c'], description: 'Copy selected log line content', category: 'Inspection' },
+  { keys: ['d'], description: 'Set Delta Time Anchor (T1) to measure latency to another line', category: 'Inspection' },
   { keys: ['g'], description: 'Open "Go to line" modal', category: 'Inspection' },
   { keys: ['Esc'], description: 'Close modal or deselect line', category: 'Inspection' },
 

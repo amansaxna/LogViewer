@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Copy, Check, ExternalLink, ChevronDown, ChevronRight } from 'lucide-react';
+import { Copy, Check, ExternalLink, ChevronDown, ChevronRight, Timer } from 'lucide-react';
 import { LogEntry, LogLevel } from '../types.ts';
 import { TraceViewer } from './TraceViewer.tsx';
 import { renderRichMessageContext } from '../utils/messageContextHighlighter.tsx';
@@ -8,7 +8,10 @@ import { copyWithToast } from '../utils/copyNotifier.ts';
 
 interface LogRowProps {
   entry: LogEntry;
-  onViewContext: (lineNumber: number) => void;
+  isSelected?: boolean;
+  onSelect?: (lineNumber: number, isShift?: boolean) => void;
+  onViewContext: (lineNumber: number, sourceId?: string) => void;
+  onSetDeltaAnchor?: (lineNumber: number) => void;
   wrapLines?: boolean;
   hideBrackets?: boolean;
   showDatetime?: boolean;
@@ -16,6 +19,10 @@ interface LogRowProps {
   showTid?: boolean;
   showCorrelation?: boolean;
   searchQuery?: string;
+  isUnifiedStream?: boolean;
+  isDeltaAnchor?: boolean;
+  isDeltaTarget?: boolean;
+  isDeltaInRange?: boolean;
 }
 
 const LEVEL_COLORS: Record<LogLevel, string> = {
@@ -34,7 +41,10 @@ const LEVEL_COLORS: Record<LogLevel, string> = {
 
 export const LogRow: React.FC<LogRowProps> = ({
   entry,
+  isSelected = false,
+  onSelect,
   onViewContext,
+  onSetDeltaAnchor,
   wrapLines = false,
   hideBrackets = false,
   showDatetime = true,
@@ -42,6 +52,10 @@ export const LogRow: React.FC<LogRowProps> = ({
   showTid = true,
   showCorrelation = true,
   searchQuery,
+  isUnifiedStream = false,
+  isDeltaAnchor = false,
+  isDeltaTarget = false,
+  isDeltaInRange = false,
 }) => {
   const [expanded, setExpanded] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -57,13 +71,29 @@ export const LogRow: React.FC<LogRowProps> = ({
 
   const handleContextClick = (e: React.MouseEvent) => {
     e.stopPropagation();
-    onViewContext(entry.lineNumber);
+    onViewContext(entry.lineNumber, entry.sourceId);
+  };
+
+  const handleDeltaClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    onSetDeltaAnchor?.(entry.lineNumber);
   };
 
   return (
-    <div className={`log-row-item ${expanded ? 'expanded' : ''}`}>
+    <div
+      className={`log-row-item ${expanded ? 'expanded' : ''} ${isSelected ? 'selected' : ''} ${
+        isDeltaAnchor ? 'delta-anchor' : isDeltaTarget ? 'delta-target' : isDeltaInRange ? 'delta-in-range' : ''
+      }`}
+      style={isSelected ? { backgroundColor: 'var(--row-selected-bg)', borderLeft: '3px solid #facc15' } : undefined}
+    >
       {/* Summary Row */}
-      <div className="log-row-summary" onClick={() => setExpanded(!expanded)}>
+      <div
+        className="log-row-summary"
+        onClick={(e) => {
+          onSelect?.(entry.lineNumber, e.shiftKey);
+          setExpanded(!expanded);
+        }}
+      >
         {/* Severity Color Bar */}
         <div className="log-level-bar" style={{ backgroundColor: levelColor }} />
 
@@ -99,8 +129,8 @@ export const LogRow: React.FC<LogRowProps> = ({
 
         {!hideBrackets && (
           <>
-            {/* Multi-Source Origin Badge */}
-            {entry.sourceName && (
+            {/* Multi-Source Origin Badge - ONLY shown in unified multi-source mode */}
+            {isUnifiedStream && entry.sourceName && (
               <span
                 style={{
                   display: 'inline-flex',
@@ -318,6 +348,13 @@ export const LogRow: React.FC<LogRowProps> = ({
               <ExternalLink size={13} />
               View Context Lines (File Line #{entry.lineNumber})
             </button>
+
+            {onSetDeltaAnchor && (
+              <button className="btn-secondary" onClick={handleDeltaClick} title="Set as Delta Anchor (T1) to measure elapsed latency to another line">
+                <Timer size={13} color="#38bdf8" />
+                Measure Latency Delta (T<sub>1</sub>)
+              </button>
+            )}
 
             <button className="btn-secondary" onClick={handleCopyRaw}>
               {copied ? <Check size={13} color="#4ade80" /> : <Copy size={13} />}
