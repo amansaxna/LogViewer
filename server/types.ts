@@ -29,6 +29,9 @@ export interface LogEntry {
   raw: string;
   datetime?: string;
   timestamp?: number;
+  sourceId?: string;
+  sourceName?: string;
+  sourceColor?: string;
   pid?: string;
   tid?: string;
   correlationId?: string;
@@ -84,6 +87,7 @@ export interface LogSource {
 
 export interface LogQuery {
   sourceId: string;
+  sourceIds?: string[];
   search?: string;
   isRegex?: boolean;
   caseSensitive?: boolean;

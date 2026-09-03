@@ -99,6 +99,27 @@ export const LogRow: React.FC<LogRowProps> = ({
 
         {!hideBrackets && (
           <>
+            {/* Multi-Source Origin Badge */}
+            {entry.sourceName && (
+              <span
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  padding: '1px 6px',
+                  borderRadius: 4,
+                  fontSize: '0.72rem',
+                  fontFamily: 'var(--font-mono)',
+                  fontWeight: 600,
+                  backgroundColor: `${entry.sourceColor || '#38bdf8'}18`,
+                  color: entry.sourceColor || '#38bdf8',
+                  border: `1px solid ${entry.sourceColor || '#38bdf8'}40`,
+                }}
+                title={`Source: ${entry.sourceName}`}
+              >
+                {entry.sourceName}
+              </span>
+            )}
+
             {/* Datetime (if present) */}
             {showDatetime !== false && entry.datetime && <span className="log-datetime">{entry.datetime}</span>}
 

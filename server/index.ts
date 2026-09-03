@@ -101,9 +101,17 @@ app.delete('/api/presets/:id', (req: Request, res: Response) => {
 // 4. Query entries with filtering, search, pagination
 app.get('/api/logs/entries', (req: Request, res: Response) => {
   try {
-    const sourceId = req.query.sourceId as string;
-    if (!sourceId) {
-      res.status(400).json({ error: 'sourceId query parameter is required' });
+    const sourceIdsParam = req.query.sourceIds;
+    let sourceIds: string[] | undefined;
+    if (typeof sourceIdsParam === 'string') {
+      sourceIds = sourceIdsParam.split(',').filter(Boolean);
+    } else if (Array.isArray(sourceIdsParam)) {
+      sourceIds = sourceIdsParam.map(String).filter(Boolean);
+    }
+
+    const sourceId = (req.query.sourceId as string) || (sourceIds && sourceIds[0]) || '';
+    if (!sourceId && (!sourceIds || sourceIds.length === 0)) {
+      res.status(400).json({ error: 'sourceId or sourceIds query parameter is required' });
       return;
     }
 
@@ -125,6 +133,7 @@ app.get('/api/logs/entries', (req: Request, res: Response) => {
 
     const query: LogQuery = {
       sourceId,
+      sourceIds,
       search: req.query.search as string | undefined,
       isRegex: req.query.isRegex === 'true',
       caseSensitive: req.query.caseSensitive === 'true',

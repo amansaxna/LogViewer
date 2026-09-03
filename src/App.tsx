@@ -11,11 +11,25 @@ import { KeyboardShortcutsModal } from './components/KeyboardShortcutsModal.tsx'
 import { JsonXmlInspectorModal, InspectorPayload } from './components/JsonXmlInspectorModal.tsx';
 import { CopyToast } from './components/CopyToast.tsx';
 import { PresetModal } from './components/PresetModal.tsx';
+import { TextSelectionToolbar } from './components/TextSelectionToolbar.tsx';
+import { copyWithToast } from './utils/copyNotifier.ts';
 import { DEFAULT_PRESETS } from './presets.ts';
 
 export const App: React.FC = () => {
   const [sources, setSources] = useState<LogSource[]>([]);
   const [activeSourceId, setActiveSourceId] = useState<string | null>(() => localStorage.getItem('lv_active_source') || null);
+  const [selectedSourceIds, setSelectedSourceIds] = useState<string[]>(() => {
+    try {
+      const saved = localStorage.getItem('lv_selected_sources');
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
+
+  useEffect(() => {
+    localStorage.setItem('lv_selected_sources', JSON.stringify(selectedSourceIds));
+  }, [selectedSourceIds]);
 
   // Filters and state (restored from localStorage on reload)
   const [markerFilter, setMarkerFilter] = useState<string>(() => localStorage.getItem('lv_marker_filter') || '');
@@ -539,9 +553,51 @@ export const App: React.FC = () => {
     fetchSources();
   }, [fetchSources]);
 
+  // Source selection & Unified stream callbacks
+  const handleToggleSourceSelect = useCallback((id: string) => {
+    setSelectedSourceIds((prev) => {
+      let next: string[];
+      if (prev.includes(id)) {
+        next = prev.filter((s) => s !== id);
+      } else {
+        next = [...prev, id];
+      }
+      if (next.length === 1) {
+        setActiveSourceId(next[0]);
+      } else if (next.length > 1 && !next.includes(activeSourceId || '')) {
+        setActiveSourceId(next[0]);
+      }
+      return next;
+    });
+  }, [activeSourceId]);
+
+  const handleSelectAllSources = useCallback(() => {
+    const allIds = sources.map((s) => s.id);
+    setSelectedSourceIds(allIds);
+    if (allIds.length > 0 && (!activeSourceId || !allIds.includes(activeSourceId))) {
+      setActiveSourceId(allIds[0]);
+    }
+  }, [sources, activeSourceId]);
+
+  const handleClearAllSources = useCallback(() => {
+    if (activeSourceId) {
+      setSelectedSourceIds([activeSourceId]);
+    } else if (sources.length > 0) {
+      setSelectedSourceIds([sources[0].id]);
+      setActiveSourceId(sources[0].id);
+    }
+  }, [activeSourceId, sources]);
+
+  const handleSelectSource = useCallback((id: string) => {
+    setActiveSourceId(id);
+    setSelectedSourceIds([id]);
+  }, []);
+
   // Fetch entries for active source and filters
   const fetchEntries = useCallback(async () => {
-    if (!activeSourceId) return;
+    const isUnified = selectedSourceIds.length > 1;
+    const effectiveSourceId = activeSourceId || (selectedSourceIds.length > 0 ? selectedSourceIds[0] : '');
+    if (!effectiveSourceId && !isUnified) return;
 
     // Parse sort option
     let sortBy = 'time';
@@ -564,12 +620,16 @@ export const App: React.FC = () => {
     }
 
     const params = new URLSearchParams({
-      sourceId: activeSourceId,
+      sourceId: effectiveSourceId,
       sortBy,
       direction,
       page: '1',
       pageSize: '25000',
     });
+
+    if (isUnified) {
+      params.set('sourceIds', selectedSourceIds.join(','));
+    }
 
     if (markerFilter.trim()) {
       params.append('marker', markerFilter.trim());
@@ -624,7 +684,8 @@ export const App: React.FC = () => {
           .filter((item) => Date.now() - item.timestamp <= 1200)
           .reduce((acc, item) => acc + item.count, 0);
         if (diff > recentSum) {
-          recentArrivalsRef.current.push({ timestamp: Date.now(), count: diff - recentSum });
+          recentArrivalsRef.current.push({ count: diff - recentSum, timestamp: Date.now() });
+          setLiveTotalAdded((prev) => prev + (diff - recentSum));
         }
       }
       prevTotalEntriesRef.current = data.total;
@@ -632,7 +693,7 @@ export const App: React.FC = () => {
       setEntries(data.entries);
       setTotalEntries(data.total);
       setDurationMs(data.durationMs);
-      setLevelCounts(data.levelCounts);
+      setLevelCounts(data.levelCounts || {});
       setWorkflowCounts(data.workflowCounts || {});
       setOperationCounts(data.operationCounts || {});
       setCorrelationCounts(data.correlationCounts || {});
@@ -644,6 +705,7 @@ export const App: React.FC = () => {
     }
   }, [
     activeSourceId,
+    selectedSourceIds,
     markerFilter,
     search,
     isRegex,
@@ -993,7 +1055,7 @@ export const App: React.FC = () => {
       // 7. '/': Focus global content search
       if (!hasModifier && e.key === '/') {
         e.preventDefault();
-        const searchInput = document.querySelector('input[placeholder="Search in log lines..."]') as HTMLInputElement;
+        const searchInput = document.querySelector('.search-input') as HTMLInputElement;
         searchInput?.focus();
         return;
       }
@@ -1164,6 +1226,160 @@ export const App: React.FC = () => {
     });
   }, [entries, activePreset]);
 
+  // Contextual Text Selection Floating Toolbar State & Listeners
+  const [selectionState, setSelectionState] = useState<{
+    text: string;
+    position: { x: number; y: number } | null;
+  }>({ text: '', position: null });
+
+  useEffect(() => {
+    const handleMouseUp = () => {
+      setTimeout(() => {
+        const selection = window.getSelection();
+        if (!selection || selection.isCollapsed) {
+          return;
+        }
+        const text = selection.toString().trim();
+        if (!text || text.length === 0) {
+          return;
+        }
+
+        // Don't trigger toolbar if selection occurred inside input/textarea
+        const activeEl = document.activeElement;
+        if (activeEl && (activeEl.tagName === 'INPUT' || activeEl.tagName === 'TEXTAREA')) {
+          return;
+        }
+
+        try {
+          const range = selection.getRangeAt(0);
+          const rect = range.getBoundingClientRect();
+          if (rect.width === 0 && rect.height === 0) {
+            return;
+          }
+
+          setSelectionState({
+            text,
+            position: {
+              x: rect.left + rect.width / 2,
+              y: rect.top,
+            },
+          });
+        } catch {
+          // Ignore invalid selection ranges
+        }
+      }, 15);
+    };
+
+    const handleMouseDown = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      if (target.closest('.text-selection-toolbar')) {
+        return;
+      }
+      setSelectionState({ text: '', position: null });
+    };
+
+    document.addEventListener('mouseup', handleMouseUp);
+    document.addEventListener('mousedown', handleMouseDown);
+    return () => {
+      document.removeEventListener('mouseup', handleMouseUp);
+      document.removeEventListener('mousedown', handleMouseDown);
+    };
+  }, []);
+
+  const handleSelectionCopy = useCallback((text: string) => {
+    copyWithToast(text, 'Selected text');
+    setSelectionState({ text: '', position: null });
+  }, []);
+
+  const handleSelectionFilter = useCallback((text: string) => {
+    setSearch(text);
+    copyWithToast(text, 'Filter updated');
+    setSelectionState({ text: '', position: null });
+  }, []);
+
+  const handleSelectionIgnore = useCallback((text: string) => {
+    const formatted = text.includes(' ') ? `NOT "${text}"` : `NOT ${text}`;
+    setSearch((prev) => {
+      if (!prev || prev.trim().length === 0) return formatted;
+      return `${prev.trim()} ${formatted}`;
+    });
+    copyWithToast(text, 'Excluded from filter');
+    setSelectionState({ text: '', position: null });
+  }, []);
+
+  const handleSelectionAddToPresetIgnore = useCallback(async (text: string) => {
+    let targetPreset = activePreset;
+    if (!targetPreset) {
+      // Auto-create a custom preset
+      const newPreset: LogPreset = {
+        id: `preset-${Date.now()}`,
+        name: 'Custom Noise Filter',
+        description: 'Auto-created from text selection ignore',
+        rules: {
+          excludeKeywords: [text],
+          includeKeywords: [],
+          excludeMarkers: [],
+          includeMarkers: [],
+        },
+      };
+      await handleSavePreset(newPreset);
+      handleSelectPreset(newPreset.id);
+      copyWithToast(text, 'Created preset with ignore');
+    } else {
+      const currentList = targetPreset.rules.excludeKeywords || [];
+      if (!currentList.includes(text)) {
+        const updatedPreset: LogPreset = {
+          ...targetPreset,
+          rules: {
+            ...targetPreset.rules,
+            excludeKeywords: [...currentList, text],
+          },
+        };
+        await handleSavePreset(updatedPreset);
+        copyWithToast(text, `Added to "${targetPreset.name}" ignore`);
+      } else {
+        copyWithToast(text, `Already in "${targetPreset.name}" ignore`);
+      }
+    }
+    setSelectionState({ text: '', position: null });
+  }, [activePreset, handleSavePreset, handleSelectPreset]);
+
+  const handleSelectionAddToPresetFilter = useCallback(async (text: string) => {
+    let targetPreset = activePreset;
+    if (!targetPreset) {
+      const newPreset: LogPreset = {
+        id: `preset-${Date.now()}`,
+        name: 'Custom Whitelist Filter',
+        description: 'Auto-created from text selection whitelist',
+        rules: {
+          excludeKeywords: [],
+          includeKeywords: [text],
+          excludeMarkers: [],
+          includeMarkers: [],
+        },
+      };
+      await handleSavePreset(newPreset);
+      handleSelectPreset(newPreset.id);
+      copyWithToast(text, 'Created preset with whitelist');
+    } else {
+      const currentList = targetPreset.rules.includeKeywords || [];
+      if (!currentList.includes(text)) {
+        const updatedPreset: LogPreset = {
+          ...targetPreset,
+          rules: {
+            ...targetPreset.rules,
+            includeKeywords: [...currentList, text],
+          },
+        };
+        await handleSavePreset(updatedPreset);
+        copyWithToast(text, `Added to "${targetPreset.name}" whitelist`);
+      } else {
+        copyWithToast(text, `Already in "${targetPreset.name}" whitelist`);
+      }
+    }
+    setSelectionState({ text: '', position: null });
+  }, [activePreset, handleSavePreset, handleSelectPreset]);
+
   // Export Filtered Logs
   const handleExportFiltered = () => {
     if (displayEntries.length === 0) return;
@@ -1244,7 +1460,11 @@ export const App: React.FC = () => {
       <Sidebar
         sources={sources}
         activeSourceId={activeSourceId}
-        onSelectSource={(id) => setActiveSourceId(id)}
+        selectedSourceIds={selectedSourceIds}
+        onSelectSource={handleSelectSource}
+        onToggleSourceSelect={handleToggleSourceSelect}
+        onSelectAllSources={handleSelectAllSources}
+        onClearAllSources={handleClearAllSources}
         onOpenModal={() => setIsOpenModalOpen(true)}
         onOpenPasteModal={() => setIsPasteModalOpen(true)}
         onToggleLiveTail={handleToggleLiveTail}
@@ -1261,6 +1481,9 @@ export const App: React.FC = () => {
         {/* Topbar Matching Image 4 (Screenshot 12.37.56) */}
         <Topbar
           activeSource={activeSource}
+          isUnifiedStream={selectedSourceIds.length > 1}
+          unifiedSourceCount={selectedSourceIds.length}
+          unifiedSources={sources.filter((s) => selectedSourceIds.includes(s.id))}
           totalEntries={totalEntries}
           filteredCount={displayEntries.length}
           durationMs={durationMs}
@@ -1444,6 +1667,19 @@ export const App: React.FC = () => {
 
       {/* Sleek bright copy notification */}
       <CopyToast />
+
+      {/* Contextual Text Selection Floating Action Menu */}
+      <TextSelectionToolbar
+        selectedText={selectionState.text}
+        position={selectionState.position}
+        onCopy={handleSelectionCopy}
+        onFilter={handleSelectionFilter}
+        onIgnore={handleSelectionIgnore}
+        onAddToPresetIgnore={handleSelectionAddToPresetIgnore}
+        onAddToPresetFilter={handleSelectionAddToPresetFilter}
+        onClose={() => setSelectionState({ text: '', position: null })}
+        activePresetName={activePreset?.name}
+      />
     </div>
   );
 };

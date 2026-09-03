@@ -59,9 +59,46 @@ export function getEntriesForSource(sourceId: string): LogEntry[] {
   return entries;
 }
 
+export const SOURCE_PALETTE = [
+  '#38bdf8', // Sky Blue
+  '#c084fc', // Purple
+  '#34d399', // Emerald
+  '#f59e0b', // Amber
+  '#f43f5e', // Rose
+  '#06b6d4', // Cyan
+  '#a855f7', // Violet
+  '#ec4899', // Pink
+];
+
+export function getSourceColor(sourceIndex: number): string {
+  return SOURCE_PALETTE[sourceIndex % SOURCE_PALETTE.length];
+}
+
 export function queryLogs(query: LogQuery): LogQueryResult {
   const startTime = performance.now();
-  const allEntries = getEntriesForSource(query.sourceId);
+  
+  // Support multi-source querying
+  const requestedIds = query.sourceIds && query.sourceIds.length > 0
+    ? query.sourceIds.filter(Boolean)
+    : [query.sourceId].filter(Boolean);
+
+  let allEntries: LogEntry[] = [];
+
+  requestedIds.forEach((srcId, idx) => {
+    const source = findSourceById(srcId);
+    const sourceName = source?.name || srcId;
+    const sourceColor = getSourceColor(idx);
+    const rawEntries = getEntriesForSource(srcId);
+    
+    // Tag each entry with its source ID, human readable name, and palette color
+    const tagged = rawEntries.map((e) => ({
+      ...e,
+      sourceId: srcId,
+      sourceName,
+      sourceColor,
+    }));
+    allEntries.push(...tagged);
+  });
 
   // 1. Calculate overall level counts
   const levelCounts: Record<string, number> = {

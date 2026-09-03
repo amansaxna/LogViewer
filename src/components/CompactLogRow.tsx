@@ -155,6 +155,28 @@ export const CompactLogRow: React.FC<CompactLogRowProps> = ({
       <div style={{ display: 'inline', flex: 1 }}>
         {!hideBrackets && (
           <>
+            {/* Multi-Source Origin Badge */}
+            {entry.sourceName && (
+              <span
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  padding: '1px 5px',
+                  borderRadius: 4,
+                  fontSize: '0.72rem',
+                  fontFamily: 'var(--font-mono)',
+                  fontWeight: 600,
+                  marginRight: 8,
+                  backgroundColor: `${entry.sourceColor || '#38bdf8'}18`,
+                  color: entry.sourceColor || '#38bdf8',
+                  border: `1px solid ${entry.sourceColor || '#38bdf8'}40`,
+                }}
+                title={`Source: ${entry.sourceName}`}
+              >
+                {entry.sourceName}
+              </span>
+            )}
+
             {/* Datetime */}
             {showDatetime !== false && entry.datetime && (
               <span style={{ color: 'var(--tok-datetime)', marginRight: 8 }}>[{entry.datetime}]</span>

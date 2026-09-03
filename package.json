@@ -9,7 +9,7 @@
     "dev:all": "concurrently -k -n \"SERVER,VITE\" -c \"cyan,magenta\" \"npm run server\" \"npm run dev\"",
     "build": "tsc -b && vite build",
     "start": "NODE_ENV=production tsx server/index.ts",
-    "test": "tsx test/parser.test.ts && tsx test/highlighter.test.ts && tsx test/settings.test.ts && tsx test/presets.test.ts"
+    "test": "tsx test/parser.test.ts && tsx test/highlighter.test.ts && tsx test/settings.test.ts && tsx test/presets.test.ts && tsx test/textSelection.test.ts && tsx test/unifiedStream.test.ts"
   },
   "dependencies": {
     "@tanstack/react-virtual": "^3.13.2",

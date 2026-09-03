@@ -21,6 +21,7 @@ import {
   ArrowUpDown,
   GitBranch,
   GitCommit,
+  GitMerge,
   Zap,
   ChevronDown,
   Check,
@@ -42,6 +43,9 @@ import { Spinner } from './Loaders.tsx';
 
 interface TopbarProps {
   activeSource?: LogSource;
+  isUnifiedStream?: boolean;
+  unifiedSourceCount?: number;
+  unifiedSources?: LogSource[];
   totalEntries: number;
   filteredCount: number;
   durationMs: number;
@@ -167,6 +171,9 @@ const SORT_CONFIG: { key: SortOption; short: string; label: string }[] = [
 
 export const Topbar: React.FC<TopbarProps> = ({
   activeSource,
+  isUnifiedStream,
+  unifiedSourceCount,
+  unifiedSources,
   totalEntries,
   filteredCount,
   durationMs,
@@ -390,7 +397,7 @@ export const Topbar: React.FC<TopbarProps> = ({
           <input
             type="text"
             className="search-input"
-            placeholder="Search message or content..."
+            placeholder="e.g. timeout, status=504, user_id..."
             value={search}
             onChange={(e) => onSearchChange(e.target.value)}
             style={{ fontSize: '0.82rem' }}
@@ -1738,6 +1745,29 @@ export const Topbar: React.FC<TopbarProps> = ({
           </div>
 
           <div className="topbar-divider-v" />
+
+          {/* Unified Stream Indicator Badge */}
+          {isUnifiedStream && (
+            <div
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 5,
+                background: 'rgba(56, 189, 248, 0.14)',
+                border: '1px solid rgba(56, 189, 248, 0.35)',
+                borderRadius: 4,
+                padding: '2px 8px',
+                fontSize: '0.72rem',
+                color: '#38bdf8',
+                fontWeight: 600,
+                height: 28,
+              }}
+              title={`Unified stream merging ${unifiedSourceCount || unifiedSources?.length || 2} log files`}
+            >
+              <GitMerge size={12} />
+              <span>Unified Stream ({unifiedSourceCount || unifiedSources?.length || 2})</span>
+            </div>
+          )}
 
           {/* Export Button (Icon-Only + Micro-Tooltip) */}
           <button

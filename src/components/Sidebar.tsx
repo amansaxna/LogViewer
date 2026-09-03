@@ -16,13 +16,20 @@ import {
   ChevronDown,
   ChevronRight,
   Trash2,
+  GitMerge,
+  CheckSquare,
+  Square,
 } from 'lucide-react';
 import { LogSource } from '../types.ts';
 
 interface SidebarProps {
   sources: LogSource[];
   activeSourceId: string | null;
+  selectedSourceIds?: string[];
   onSelectSource: (id: string) => void;
+  onToggleSourceSelect?: (id: string) => void;
+  onSelectAllSources?: () => void;
+  onClearAllSources?: () => void;
   onOpenModal: () => void;
   onOpenPasteModal: () => void;
   onToggleLiveTail: () => void;
@@ -54,7 +61,11 @@ export function formatBytesSplit(bytes?: number): { value: string; unit: string 
 export const Sidebar: React.FC<SidebarProps> = ({
   sources,
   activeSourceId,
+  selectedSourceIds,
   onSelectSource,
+  onToggleSourceSelect,
+  onSelectAllSources,
+  onClearAllSources,
   onOpenModal,
   onOpenPasteModal,
   onToggleLiveTail,
@@ -217,6 +228,41 @@ export const Sidebar: React.FC<SidebarProps> = ({
         </button>
       </div>
 
+      {/* Unified Multi-Source Stream Toggle Bar */}
+      {sources.length > 1 && (
+        <div style={{ padding: '0 12px 6px', display: 'flex', gap: 6 }}>
+          <button
+            type="button"
+            className="sidebar-action-btn"
+            style={{
+              flex: 1,
+              height: 28,
+              fontSize: '0.74rem',
+              fontWeight: 600,
+              gap: 6,
+              background: selectedSourceIds && selectedSourceIds.length > 1 ? 'rgba(56, 189, 248, 0.16)' : 'var(--bg-surface)',
+              color: selectedSourceIds && selectedSourceIds.length > 1 ? '#38bdf8' : 'var(--text-secondary)',
+              borderColor: selectedSourceIds && selectedSourceIds.length > 1 ? '#38bdf8' : 'var(--border-subtle)',
+            }}
+            onClick={() => {
+              if (selectedSourceIds && selectedSourceIds.length === sources.length) {
+                onClearAllSources?.();
+              } else {
+                onSelectAllSources?.();
+              }
+            }}
+            title="Merge all available log sources into a single chronological stream"
+          >
+            <GitMerge size={13} color="#38bdf8" />
+            <span>
+              {selectedSourceIds && selectedSourceIds.length > 1
+                ? `Unified Stream (${selectedSourceIds.length}/${sources.length})`
+                : `Merge All Sources (${sources.length})`}
+            </span>
+          </button>
+        </div>
+      )}
+
       {/* Filter Sources */}
       <div className="sidebar-search">
         <div style={{ position: 'relative' }}>
@@ -262,7 +308,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
               </div>
 
               {categorySources.map((source) => {
-                const isActive = source.id === activeSourceId;
+                const isMultiSelected = selectedSourceIds ? selectedSourceIds.includes(source.id) : false;
+                const isSingleActive = !selectedSourceIds || selectedSourceIds.length <= 1;
+                const isActive = isSingleActive ? source.id === activeSourceId : isMultiSelected;
                 const sizeInfo = formatBytesSplit(source.size);
                 const hasRotations = source.rotations && source.rotations.length > 0;
                 const isExpanded = !!expandedRotations[source.id];
@@ -274,6 +322,30 @@ export const Sidebar: React.FC<SidebarProps> = ({
                       onClick={() => onSelectSource(source.id)}
                     >
                       <div className="source-item-left">
+                        {onToggleSourceSelect && sources.length > 1 && (
+                          <button
+                            type="button"
+                            className="source-checkbox-btn"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onToggleSourceSelect(source.id);
+                            }}
+                            style={{
+                              background: 'none',
+                              border: 'none',
+                              padding: 0,
+                              marginRight: 2,
+                              cursor: 'pointer',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              color: isMultiSelected ? '#38bdf8' : 'var(--text-muted)',
+                              opacity: isMultiSelected ? 1 : 0.6,
+                            }}
+                            title={isMultiSelected ? 'Remove from unified stream' : 'Add to unified stream'}
+                          >
+                            {isMultiSelected ? <CheckSquare size={13} color="#38bdf8" /> : <Square size={13} />}
+                          </button>
+                        )}
                         <FileText size={15} color={isActive ? '#38bdf8' : '#64748b'} />
                         <span className="source-item-name" title={source.name}>
                           {source.name}
