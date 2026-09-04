@@ -2910,30 +2910,59 @@ mark {
 }
 
 /* 3 Panels Layout (1 Left Main Column + 2 Stacked Right Rows) */
-.panel-grid-3 {
+.panel-grid-3,
+.panel-grid-3-grid {
   grid-template-columns: 1.15fr 1fr;
   grid-template-rows: 1fr 1fr;
 }
 
-.panel-grid-3 .panel-cell-1 {
+.panel-grid-3 .panel-cell-1,
+.panel-grid-3-grid .panel-cell-1 {
   grid-row: 1 / span 2;
   grid-column: 1;
 }
 
-.panel-grid-3 .panel-cell-2 {
+.panel-grid-3 .panel-cell-2,
+.panel-grid-3-grid .panel-cell-2 {
   grid-row: 1;
   grid-column: 2;
 }
 
-.panel-grid-3 .panel-cell-3 {
+.panel-grid-3 .panel-cell-3,
+.panel-grid-3-grid .panel-cell-3 {
   grid-row: 2;
   grid-column: 2;
 }
 
-/* 4 Panels Layout (2x2 Quad Grid - Symmetrical Square Grid) */
-.panel-grid-4 {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  grid-template-rows: repeat(2, minmax(0, 1fr));
+/* 4 Panels Layout (2x2 Quad Grid - Symmetrical 2x2 Square Grid) */
+.panel-grid-4,
+.panel-grid-4-grid {
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: 1fr 1fr;
+}
+
+.panel-grid-4 .panel-cell-1,
+.panel-grid-4-grid .panel-cell-1 {
+  grid-column: 1;
+  grid-row: 1;
+}
+
+.panel-grid-4 .panel-cell-2,
+.panel-grid-4-grid .panel-cell-2 {
+  grid-column: 2;
+  grid-row: 1;
+}
+
+.panel-grid-4 .panel-cell-3,
+.panel-grid-4-grid .panel-cell-3 {
+  grid-column: 1;
+  grid-row: 2;
+}
+
+.panel-grid-4 .panel-cell-4,
+.panel-grid-4-grid .panel-cell-4 {
+  grid-column: 2;
+  grid-row: 2;
 }
 
 .panel-grid-cell {
