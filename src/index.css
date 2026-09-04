@@ -3430,6 +3430,126 @@ mark {
   color: #ffffff;
 }
 
+/* ==========================================================================
+   DRAG AND DROP FILE OVERLAY
+   ========================================================================== */
+
+.file-drop-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 99999;
+  background: rgba(8, 12, 20, 0.82);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  animation: dropOverlayFade 0.15s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+[data-theme='light'] .file-drop-overlay {
+  background: rgba(250, 247, 242, 0.85);
+}
+
+@keyframes dropOverlayFade {
+  from { opacity: 0; transform: scale(0.98); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+.file-drop-card {
+  border: 2.5px dashed var(--accent-primary);
+  border-radius: 18px;
+  background: rgba(17, 24, 39, 0.94);
+  padding: 44px 64px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 14px;
+  box-shadow: 0 30px 60px rgba(0, 0, 0, 0.75), 0 0 40px rgba(56, 189, 248, 0.25);
+  max-width: 520px;
+}
+
+[data-theme='light'] .file-drop-card {
+  background: rgba(255, 255, 255, 0.96);
+  border-color: #d97706;
+  box-shadow: 0 25px 50px rgba(0, 0, 0, 0.15), 0 0 35px rgba(217, 119, 6, 0.2);
+}
+
+.file-drop-icon-container {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 76px;
+  height: 76px;
+  border-radius: 50%;
+  background: var(--accent-bg);
+  color: var(--accent-primary);
+  margin-bottom: 6px;
+  animation: dropIconBounce 1.5s ease-in-out infinite;
+}
+
+@keyframes dropIconBounce {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-8px); }
+}
+
+.file-drop-subicon {
+  position: absolute;
+  bottom: -4px;
+  right: -4px;
+  background: var(--bg-surface);
+  border: 2px solid var(--border-subtle);
+  border-radius: 6px;
+  padding: 3px;
+  color: var(--accent-primary);
+}
+
+.file-drop-title {
+  font-size: 1.35rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  letter-spacing: -0.01em;
+}
+
+.file-drop-subtitle {
+  font-size: 0.88rem;
+  color: var(--text-secondary);
+  line-height: 1.5;
+}
+
+.file-drop-subtitle code {
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  background: var(--bg-surface);
+  padding: 2px 5px;
+  border-radius: 4px;
+  border: 1px solid var(--border-subtle);
+  color: var(--accent-primary);
+  margin: 0 2px;
+}
+
+.file-drop-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  border-radius: 20px;
+  background: var(--accent-bg);
+  border: 1px solid rgba(56, 189, 248, 0.3);
+  color: var(--accent-primary);
+  font-size: 0.76rem;
+  font-weight: 600;
+  margin-top: 6px;
+}
+
+[data-theme='light'] .file-drop-badge {
+  border-color: rgba(217, 119, 6, 0.3);
+}
+
+
 
 
 

@@ -10,7 +10,8 @@ const app = express();
 const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3001;
 
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: '100mb' }));
+app.use(express.urlencoded({ extended: true, limit: '100mb' }));
 
 // 1. Get all log sources
 app.get('/api/sources', (_req: Request, res: Response) => {
@@ -22,7 +23,7 @@ app.get('/api/sources', (_req: Request, res: Response) => {
   }
 });
 
-// 2. Open any local file
+// 2. Open any local file by path
 app.post('/api/sources/open', (req: Request, res: Response) => {
   try {
     const { path: filePath, name, category } = req.body;
@@ -35,6 +36,38 @@ app.post('/api/sources/open', (req: Request, res: Response) => {
     res.json({ source, message: `Successfully opened ${source.name}` });
   } catch (err: any) {
     res.status(400).json({ error: err.message || 'Failed to open file' });
+  }
+});
+
+// 2b. Upload / drop file content directly
+app.post('/api/sources/upload', (req: Request, res: Response) => {
+  try {
+    const { name, content, category } = req.body;
+    if (!name || typeof name !== 'string') {
+      res.status(400).json({ error: 'File name is required' });
+      return;
+    }
+    if (typeof content !== 'string') {
+      res.status(400).json({ error: 'File content must be a string' });
+      return;
+    }
+
+    const uploadsDir = path.resolve(process.cwd(), 'logs', 'dropped');
+    if (!fs.existsSync(uploadsDir)) {
+      fs.mkdirSync(uploadsDir, { recursive: true });
+    }
+
+    // Sanitize filename
+    const safeName = name.replace(/[^a-zA-Z0-9._-]/g, '_');
+    const targetPath = path.join(uploadsDir, safeName);
+
+    fs.writeFileSync(targetPath, content, 'utf-8');
+    clearFileCache(targetPath);
+
+    const source = registerCustomSource(targetPath, name, category || 'Dropped Logs');
+    res.json({ source, message: `Successfully loaded dropped file: ${name}` });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || 'Failed to process dropped file' });
   }
 });
 

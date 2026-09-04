@@ -17,6 +17,7 @@ import { TextSelectionToolbar } from './components/TextSelectionToolbar.tsx';
 import { DeltaTimeToolbar } from './components/DeltaTimeToolbar.tsx';
 import { calculateDeltaTime } from './utils/deltaTimeEngine.ts';
 import { copyWithToast } from './utils/copyNotifier.ts';
+import { FileDropOverlay } from './components/FileDropOverlay.tsx';
 import { DEFAULT_PRESETS } from './presets.ts';
 
 export const App: React.FC = () => {
@@ -1702,6 +1703,91 @@ export const App: React.FC = () => {
     }
   };
 
+  // Drag and Drop File Upload
+  const [isDraggingFile, setIsDraggingFile] = useState(false);
+  const dragCounterRef = useRef(0);
+
+  const handleDropFile = useCallback(async (file: File) => {
+    try {
+      const content = await file.text();
+      const res = await fetch('/api/sources/upload', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: file.name,
+          content,
+          category: 'Dropped Logs',
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || 'Failed to process dropped file');
+      }
+      await fetchSources();
+      if (data.source?.id) {
+        setActiveSourceId(data.source.id);
+        // Also assign to the active panel
+        handleUpdatePanel(activePanelId, {
+          sourceId: data.source.id,
+          selectedSourceIds: [data.source.id],
+        });
+        copyWithToast(file.name, `Opened dropped log: ${file.name}`);
+      }
+    } catch (err: any) {
+      console.error('Failed to handle dropped file:', err);
+      copyWithToast(file.name, `Failed: ${err.message || 'Error opening file'}`);
+    }
+  }, [activePanelId, fetchSources, handleUpdatePanel]);
+
+  useEffect(() => {
+    const handleDragEnter = (e: DragEvent) => {
+      e.preventDefault();
+      if (e.dataTransfer && Array.from(e.dataTransfer.types).includes('Files')) {
+        dragCounterRef.current += 1;
+        setIsDraggingFile(true);
+      }
+    };
+
+    const handleDragOver = (e: DragEvent) => {
+      e.preventDefault();
+      if (e.dataTransfer) {
+        e.dataTransfer.dropEffect = 'copy';
+      }
+    };
+
+    const handleDragLeave = (e: DragEvent) => {
+      e.preventDefault();
+      dragCounterRef.current -= 1;
+      if (dragCounterRef.current <= 0) {
+        dragCounterRef.current = 0;
+        setIsDraggingFile(false);
+      }
+    };
+
+    const handleDrop = (e: DragEvent) => {
+      e.preventDefault();
+      dragCounterRef.current = 0;
+      setIsDraggingFile(false);
+
+      if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+        const file = e.dataTransfer.files[0];
+        handleDropFile(file);
+      }
+    };
+
+    window.addEventListener('dragenter', handleDragEnter);
+    window.addEventListener('dragover', handleDragOver);
+    window.addEventListener('dragleave', handleDragLeave);
+    window.addEventListener('drop', handleDrop);
+
+    return () => {
+      window.removeEventListener('dragenter', handleDragEnter);
+      window.removeEventListener('dragover', handleDragOver);
+      window.removeEventListener('dragleave', handleDragLeave);
+      window.removeEventListener('drop', handleDrop);
+    };
+  }, [handleDropFile]);
+
   const activeSource = sources.find((s) => s.id === activeSourceId);
 
   return (
@@ -1950,6 +2036,9 @@ export const App: React.FC = () => {
           if (idx !== -1) setTargetScrollIndex(idx);
         }}
       />
+
+      {/* Full-Screen Drag and Drop File Overlay */}
+      <FileDropOverlay isDragging={isDraggingFile} />
     </div>
   );
 };
