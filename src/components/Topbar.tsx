@@ -37,11 +37,21 @@ import {
   Sliders,
   Plus,
   Trash2,
+  Square,
+  Columns2,
+  Rows2,
+  Columns3,
+  Grid2x2,
 } from 'lucide-react';
 import { LogLevel, LogSource, SortOption, LogPreset } from '../types.ts';
+import { PanelLayout } from '../types/panel.ts';
 import { Spinner } from './Loaders.tsx';
 
 interface TopbarProps {
+  // Panel Windows Layout (1, 2, 3, 4 Panels)
+  layout?: PanelLayout;
+  onChangeLayout?: (layout: PanelLayout) => void;
+
   activeSource?: LogSource;
   isUnifiedStream?: boolean;
   unifiedSourceCount?: number;
@@ -170,6 +180,8 @@ const SORT_CONFIG: { key: SortOption; short: string; label: string }[] = [
 ];
 
 export const Topbar: React.FC<TopbarProps> = ({
+  layout = '1',
+  onChangeLayout,
   activeSource,
   isUnifiedStream,
   unifiedSourceCount,
@@ -1444,6 +1456,47 @@ export const Topbar: React.FC<TopbarProps> = ({
       <div className="topbar-tier-3">
         {/* Left: View Mode Segmented + Preset Dropdown + Wrap + [ ] Markers + Meta */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', minWidth: 0 }}>
+          {/* Panel Window Layout Selector (1, 2, 3, 4 Panels) */}
+          {onChangeLayout && (
+            <div className="panel-layout-segmented" style={{ flexShrink: 0, whiteSpace: 'nowrap' }}>
+              <button
+                className={`panel-layout-btn ${layout === '1' ? 'active' : ''}`}
+                onClick={() => onChangeLayout('1')}
+                data-tooltip="1 Panel (Single View)"
+              >
+                <Square size={13} />
+              </button>
+              <button
+                className={`panel-layout-btn ${layout === '2-col' ? 'active' : ''}`}
+                onClick={() => onChangeLayout('2-col')}
+                data-tooltip="2 Panels (Vertical Split)"
+              >
+                <Columns2 size={13} />
+              </button>
+              <button
+                className={`panel-layout-btn ${layout === '2-row' ? 'active' : ''}`}
+                onClick={() => onChangeLayout('2-row')}
+                data-tooltip="2 Panels (Horizontal Split)"
+              >
+                <Rows2 size={13} />
+              </button>
+              <button
+                className={`panel-layout-btn ${layout === '3-grid' ? 'active' : ''}`}
+                onClick={() => onChangeLayout('3-grid')}
+                data-tooltip="3 Panels (1 Main + 2 Stacked)"
+              >
+                <Columns3 size={13} />
+              </button>
+              <button
+                className={`panel-layout-btn ${layout === '4-grid' ? 'active' : ''}`}
+                onClick={() => onChangeLayout('4-grid')}
+                data-tooltip="4 Panels (2x2 Quad Grid)"
+              >
+                <Grid2x2 size={13} />
+              </button>
+            </div>
+          )}
+
           {/* Segmented View Mode Switcher (Icons Only) */}
           <div className="view-mode-segmented" style={{ flexShrink: 0, whiteSpace: 'nowrap' }}>
             <button

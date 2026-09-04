@@ -1,8 +1,10 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { LogEntry, LogLevel, LogQueryResult, LogSource, SortOption, LogPreset } from './types.ts';
+import { PanelLayout, PanelState, createDefaultPanel } from './types/panel.ts';
 import { Sidebar } from './components/Sidebar.tsx';
 import { Topbar } from './components/Topbar.tsx';
 import { LogTable } from './components/LogTable.tsx';
+import { PanelGrid } from './components/PanelGrid.tsx';
 import { OpenFileModal } from './components/OpenFileModal.tsx';
 import { ContextModal } from './components/ContextModal.tsx';
 import { PasteLogsModal } from './components/PasteLogsModal.tsx';
@@ -28,6 +30,43 @@ export const App: React.FC = () => {
       return [];
     }
   });
+
+  // Panel Windows Layout state (1, 2, 3, 4 panels - 2x2 Square Default)
+  const [panelLayout, setPanelLayout] = useState<PanelLayout>(() => {
+    return (localStorage.getItem('lv_panel_layout') as PanelLayout) || '4-grid';
+  });
+  const [activePanelId, setActivePanelId] = useState<string>('panel-1');
+
+  const [panels, setPanels] = useState<PanelState[]>(() => {
+    try {
+      const saved = localStorage.getItem('lv_panels_state');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length >= 4) {
+          return parsed;
+        }
+      }
+    } catch {}
+    return [
+      createDefaultPanel('panel-1', {
+        sourceId: localStorage.getItem('lv_active_source') || null,
+        search: localStorage.getItem('lv_search') || '',
+        markerFilter: localStorage.getItem('lv_marker_filter') || '',
+        viewMode: (localStorage.getItem('lv_view_mode') as 'compact' | 'standard' | 'raw') || 'compact',
+      }),
+      createDefaultPanel('panel-2', { viewMode: 'compact' }),
+      createDefaultPanel('panel-3', { viewMode: 'compact' }),
+      createDefaultPanel('panel-4', { viewMode: 'compact' }),
+    ];
+  });
+
+  useEffect(() => {
+    localStorage.setItem('lv_panel_layout', panelLayout);
+  }, [panelLayout]);
+
+  useEffect(() => {
+    localStorage.setItem('lv_panels_state', JSON.stringify(panels));
+  }, [panels]);
 
   useEffect(() => {
     localStorage.setItem('lv_selected_sources', JSON.stringify(selectedSourceIds));
@@ -687,6 +726,21 @@ export const App: React.FC = () => {
             const defaultSrc = found || data.sources.find((s: LogSource) => s.isDefault) || data.sources[0];
             return defaultSrc.id;
           });
+
+          // Ensure panels have distinct default sources assigned if not already set
+          setPanels((prevPanels) =>
+            prevPanels.map((p, idx) => {
+              if (!p.sourceId || !data.sources.some((s: LogSource) => s.id === p.sourceId)) {
+                const assigned = data.sources[idx % data.sources.length];
+                return {
+                  ...p,
+                  sourceId: assigned.id,
+                  selectedSourceIds: [assigned.id],
+                };
+              }
+              return p;
+            })
+          );
         }
       }
     } catch (err) {
@@ -697,6 +751,48 @@ export const App: React.FC = () => {
   useEffect(() => {
     fetchSources();
   }, [fetchSources]);
+
+  // Multi-panel handlers
+  const handleUpdatePanel = useCallback((id: string, updates: Partial<PanelState>) => {
+    setPanels((prev) =>
+      prev.map((p) => (p.id === id ? { ...p, ...updates } : p))
+    );
+  }, []);
+
+  const handleClosePanel = useCallback((id: string) => {
+    setPanelLayout((prev) => {
+      if (prev === '4-grid') return '3-grid';
+      if (prev === '3-grid') return '2-col';
+      if (prev === '2-col' || prev === '2-row') return '1';
+      return '1';
+    });
+  }, []);
+
+  const handleMaximizePanel = useCallback((id: string) => {
+    if (id !== 'panel-1') {
+      setPanels((prev) => {
+        const target = prev.find((p) => p.id === id);
+        const first = prev[0];
+        if (!target || !first) return prev;
+        return [
+          { ...target, id: 'panel-1' },
+          { ...first, id },
+          ...prev.slice(2),
+        ];
+      });
+    }
+    setPanelLayout('1');
+    setActivePanelId('panel-1');
+  }, []);
+
+  const handleSplitPanel = useCallback((fromId: string) => {
+    setPanelLayout((prev) => {
+      if (prev === '1') return '2-col';
+      if (prev === '2-col') return '3-grid';
+      if (prev === '3-grid') return '4-grid';
+      return prev;
+    });
+  }, []);
 
   // Source selection & Unified stream callbacks
   const handleToggleSourceSelect = useCallback((id: string) => {
@@ -1332,6 +1428,30 @@ export const App: React.FC = () => {
         handleResetSettings();
         return;
       }
+
+      // 17. Alt + 1/2/3/4: Switch panel layout
+      if (e.altKey && !e.ctrlKey && !e.metaKey) {
+        if (e.key === '1') {
+          e.preventDefault();
+          setPanelLayout('1');
+          return;
+        }
+        if (e.key === '2') {
+          e.preventDefault();
+          setPanelLayout((prev) => (prev === '2-col' ? '2-row' : '2-col'));
+          return;
+        }
+        if (e.key === '3') {
+          e.preventDefault();
+          setPanelLayout('3-grid');
+          return;
+        }
+        if (e.key === '4') {
+          e.preventDefault();
+          setPanelLayout('4-grid');
+          return;
+        }
+      }
     };
 
     window.addEventListener('keydown', handleKeyDown);
@@ -1610,6 +1730,8 @@ export const App: React.FC = () => {
       <main className="main-content">
         {/* Topbar Matching Image 4 (Screenshot 12.37.56) */}
         <Topbar
+          layout={panelLayout}
+          onChangeLayout={setPanelLayout}
           activeSource={activeSource}
           isUnifiedStream={selectedSourceIds.length > 1}
           unifiedSourceCount={selectedSourceIds.length}
@@ -1694,11 +1816,18 @@ export const App: React.FC = () => {
           onCreateNewPreset={handleCreateNewPreset}
         />
 
-        {/* Log Feed Table */}
-        <LogTable
-          entries={displayEntries}
-          isLoading={isLoading}
-          isLiveTail={isLiveTail}
+        {/* Panel Windows Grid (1, 2, 3, 4 Panels) */}
+        <PanelGrid
+          layout={panelLayout}
+          panels={panels}
+          activePanelId={activePanelId}
+          onSelectActivePanel={setActivePanelId}
+          sources={sources}
+          activePreset={activePreset}
+          onUpdatePanel={handleUpdatePanel}
+          onClosePanel={handleClosePanel}
+          onMaximizePanel={handleMaximizePanel}
+          onSplitPanel={handleSplitPanel}
           onViewContext={(line, srcId) => {
             setContextLineNumber(line);
             if (srcId) {
@@ -1708,25 +1837,6 @@ export const App: React.FC = () => {
               setContextSourceId(entry?.sourceId || activeSourceId || '');
             }
           }}
-          wrapLines={wrapLines}
-          hideBrackets={hideBrackets}
-          viewMode={viewMode}
-          selectedLineNumber={selectedLineNumber}
-          selectedLineNumbers={selectedLineNumbers}
-          onSelectLine={handleSelectLine}
-          searchQuery={search}
-          markerQuery={markerFilter}
-          correlationQuery={selectedCorrelation || undefined}
-          targetScrollIndex={targetScrollIndex}
-          showDatetime={showDatetime}
-          showPid={showPid}
-          showTid={showTid}
-          showCorrelation={showCorrelation}
-          sortOption={sortOption}
-          isUnifiedStream={selectedSourceIds.length > 1}
-          deltaAnchorLine={deltaAnchorLine}
-          deltaTargetLine={deltaTargetLine}
-          onSetDeltaAnchor={handleSetDeltaAnchor}
         />
       </main>
 

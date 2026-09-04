@@ -40,6 +40,10 @@ const SHORTCUTS: ShortcutItem[] = [
   { keys: ['F11'], description: 'Toggle Full Screen mode', category: 'View' },
   { keys: ['w'], description: 'Toggle word wrap', category: 'View' },
   { keys: ['t'], description: 'Toggle Live Tail streaming', category: 'View' },
+  { keys: ['Alt', '1'], description: 'Switch to 1 Single Panel View', category: 'Multi-Panel Windows' },
+  { keys: ['Alt', '2'], description: 'Switch to 2 Panels (Split View)', category: 'Multi-Panel Windows' },
+  { keys: ['Alt', '3'], description: 'Switch to 3 Panels Layout', category: 'Multi-Panel Windows' },
+  { keys: ['Alt', '4'], description: 'Switch to 4 Panels (2x2 Quad Grid)', category: 'Multi-Panel Windows' },
   { keys: ['Alt', 'r'], description: 'Reset all settings & filters to default', category: 'General' },
   { keys: ['?'], description: 'Show keyboard shortcuts cheat sheet', category: 'General' },
 ];
