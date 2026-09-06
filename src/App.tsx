@@ -28,6 +28,14 @@ export const App: React.FC = () => {
     if (params.get('view') === 'landing' || window.location.hash === '#landing' || params.get('tour') === 'true') {
       return 'landing';
     }
+    if (params.get('view') === 'app') {
+      return 'app';
+    }
+    // If first-time user (no 'lv_has_visited' in browser storage), show landing page
+    const hasVisited = localStorage.getItem('lv_has_visited');
+    if (!hasVisited) {
+      return 'landing';
+    }
     return 'app';
   });
 
@@ -1818,6 +1826,7 @@ export const App: React.FC = () => {
     return (
       <LandingPage
         onLaunchApp={() => {
+          localStorage.setItem('lv_has_visited', 'true');
           setViewModeState('app');
           const u = new URL(window.location.href);
           u.searchParams.delete('view');
@@ -1852,6 +1861,12 @@ export const App: React.FC = () => {
         activePanelId={activePanelId}
         panelLayout={panelLayout}
         onSelectActivePanel={(id) => setActivePanelId(id)}
+        onOpenLanding={() => {
+          setViewModeState('landing');
+          const u = new URL(window.location.href);
+          u.searchParams.set('view', 'landing');
+          window.history.pushState({}, '', u.search);
+        }}
       />
 
       {/* Main Content Area */}
@@ -2135,45 +2150,6 @@ export const App: React.FC = () => {
 
       {/* Full-Screen Drag and Drop File Overlay */}
       <FileDropOverlay isDragging={isDraggingFile} />
-
-      {/* Floating Tour Switcher Pill */}
-      <button
-        onClick={() => setViewModeState('landing')}
-        className="lp-floating-tour-pill"
-        title="View Product Tour & Landing Page"
-        style={{
-          position: 'fixed',
-          bottom: '16px',
-          right: '16px',
-          zIndex: 9999,
-          background: 'rgba(10, 13, 20, 0.9)',
-          backdropFilter: 'blur(16px)',
-          border: '1px solid rgba(0, 242, 254, 0.4)',
-          color: '#00f2fe',
-          padding: '6px 14px',
-          borderRadius: '9999px',
-          fontFamily: 'var(--font-mono, monospace)',
-          fontSize: '0.78rem',
-          fontWeight: 600,
-          cursor: 'pointer',
-          boxShadow: '0 8px 24px rgba(0, 0, 0, 0.7), 0 0 15px rgba(0, 242, 254, 0.25)',
-          display: 'flex',
-          alignItems: 'center',
-          gap: '6px',
-          transition: 'all 0.2s cubic-bezier(0.16, 1, 0.3, 1)',
-        }}
-        onMouseEnter={(e) => {
-          e.currentTarget.style.transform = 'translateY(-2px) scale(1.05)';
-          e.currentTarget.style.boxShadow = '0 12px 30px rgba(0, 0, 0, 0.8), 0 0 25px rgba(0, 242, 254, 0.5)';
-        }}
-        onMouseLeave={(e) => {
-          e.currentTarget.style.transform = 'translateY(0) scale(1)';
-          e.currentTarget.style.boxShadow = '0 8px 24px rgba(0, 0, 0, 0.7), 0 0 15px rgba(0, 242, 254, 0.25)';
-        }}
-      >
-        <span style={{ fontSize: '0.85rem' }}>🌐</span>
-        <span>Product Tour</span>
-      </button>
     </div>
   );
 };

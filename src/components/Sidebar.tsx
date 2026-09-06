@@ -52,6 +52,7 @@ interface SidebarProps {
   activePanelId?: string;
   panelLayout?: PanelLayout;
   onSelectActivePanel?: (id: string) => void;
+  onOpenLanding?: () => void;
 }
 
 function formatBytes(bytes?: number): string {
@@ -108,6 +109,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   activePanelId,
   panelLayout,
   onSelectActivePanel,
+  onOpenLanding,
 }) => {
   const [filterText, setFilterText] = useState('');
   const [copiedId, setCopiedId] = useState<string | null>(null);
@@ -122,12 +124,29 @@ export const Sidebar: React.FC<SidebarProps> = ({
     const initial: Record<string, boolean> = {};
     for (const s of sources) {
       const cat = s.category || 'General';
-      if (initial[cat] === undefined) {
-        initial[cat] = true;
-      }
+      if (initial[cat] === undefined) initial[cat] = true;
     }
-    setExpandedCategories((prev) => ({ ...initial, ...prev }));
+    setExpandedCategories(initial);
   }, [sources]);
+
+  // Handle keyboard shortcut for expand all
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'e') {
+        e.preventDefault();
+        setExpandedCategories((prev) => {
+          const allExpanded = Object.values(prev).every((v) => v);
+          const next: Record<string, boolean> = {};
+          for (const k of Object.keys(prev)) {
+            next[k] = !allExpanded;
+          }
+          return next;
+        });
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
 
   // Auto-expand rotations if active source is an archive
   useEffect(() => {
@@ -154,23 +173,32 @@ export const Sidebar: React.FC<SidebarProps> = ({
     }));
   };
 
-  // Filter sources by search keyword
+  // Filter sources
   const filteredSources = useMemo(() => {
     if (!filterText.trim()) return sources;
     const q = filterText.toLowerCase();
-    return sources.filter(
-      (s) =>
-        s.name.toLowerCase().includes(q) ||
-        s.category.toLowerCase().includes(q) ||
-        s.path.toLowerCase().includes(q) ||
-        s.description?.toLowerCase().includes(q)
-    );
+    return sources.filter((s) => {
+      const matchName = s.name.toLowerCase().includes(q);
+      const matchPath = s.path.toLowerCase().includes(q);
+      const matchCategory = (s.category || '').toLowerCase().includes(q);
+      return matchName || matchPath || matchCategory;
+    });
   }, [sources, filterText]);
 
   // Unique categories
   const categories = useMemo(() => {
-    const list = Array.from(new Set(filteredSources.map((s) => s.category || 'General')));
-    return list;
+    return Array.from(new Set(filteredSources.map((s) => s.category || 'General')));
+  }, [filteredSources]);
+
+  // Group filtered sources by category
+  const groupedSources = useMemo(() => {
+    const groups: Record<string, LogSource[]> = {};
+    for (const s of filteredSources) {
+      const cat = s.category || 'General';
+      if (!groups[cat]) groups[cat] = [];
+      groups[cat].push(s);
+    }
+    return groups;
   }, [filteredSources]);
 
   // Overall statistics
@@ -185,7 +213,19 @@ export const Sidebar: React.FC<SidebarProps> = ({
     <aside className={`sidebar modern-sidebar ${!isOpen ? 'collapsed' : ''}`}>
       {/* Sleek App Branding Header */}
       <div className="sidebar-brand-header">
-        <div className="sidebar-brand-left">
+        <div
+          className="sidebar-brand-left"
+          onClick={onOpenLanding}
+          role="button"
+          tabIndex={0}
+          onKeyDown={(e) => {
+            if ((e.key === 'Enter' || e.key === ' ') && onOpenLanding) {
+              e.preventDefault();
+              onOpenLanding();
+            }
+          }}
+          title="Click to view LogViewer Overview & Product Tour"
+        >
           <div className="sidebar-brand-mark">
             <Terminal size={17} strokeWidth={2.4} />
           </div>
@@ -201,7 +241,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
         {onToggleOpen && (
           <button
             className="sidebar-collapse-btn"
-            onClick={onToggleOpen}
+            onClick={(e) => {
+              e.stopPropagation();
+              onToggleOpen();
+            }}
             title="Collapse Sidebar ([)"
             aria-label="Collapse Sidebar"
           >
