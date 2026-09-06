@@ -123,11 +123,34 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLaunchApp }) => {
   const [activeFaqIndex, setActiveFaqIndex] = useState<number | null>(0);
   const [lastPhysicalKey, setLastPhysicalKey] = useState<string | null>(null);
 
+  const [pageScrollProgress, setPageScrollProgress] = useState(0);
+
   const scrollyRef = useRef<HTMLDivElement>(null);
 
-  // Scroll listener for sticky 3D camera timeline
+  // Ensure window/body scrolling is completely unlocked on landing page
+  useEffect(() => {
+    document.body.style.overflow = 'auto';
+    document.body.style.overflowX = 'hidden';
+    document.documentElement.style.overflow = 'auto';
+    document.documentElement.style.overflowX = 'hidden';
+    return () => {
+      document.body.style.overflow = '';
+      document.body.style.overflowX = '';
+      document.documentElement.style.overflow = '';
+      document.documentElement.style.overflowX = '';
+    };
+  }, []);
+
+  // Scroll listener for sticky 3D camera timeline & top progress bar
   useEffect(() => {
     const handleScroll = () => {
+      // 1. Overall page progress
+      const docHeight = document.documentElement.scrollHeight - window.innerHeight;
+      if (docHeight > 0) {
+        setPageScrollProgress(Math.max(0, Math.min(1, window.scrollY / docHeight)));
+      }
+
+      // 2. Scrollytelling section progress
       if (!scrollyRef.current) return;
       const rect = scrollyRef.current.getBoundingClientRect();
       const totalHeight = scrollyRef.current.clientHeight - window.innerHeight;
@@ -184,8 +207,8 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLaunchApp }) => {
 
   const jumpToStage = (stageIdx: number) => {
     if (!scrollyRef.current) return;
-    const stageHeight = scrollyRef.current.clientHeight / STAGES.length;
-    const targetScrollY = scrollyRef.current.offsetTop + stageIdx * stageHeight + 50;
+    const stageHeight = (scrollyRef.current.clientHeight - window.innerHeight) / (STAGES.length - 1);
+    const targetScrollY = scrollyRef.current.offsetTop + stageIdx * stageHeight + 10;
     window.scrollTo({ top: targetScrollY, behavior: 'smooth' });
   };
 
@@ -202,7 +225,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLaunchApp }) => {
       {/* Top Specular Scroll Progress Indicator */}
       <div
         className="lp-top-progress-bar"
-        style={{ width: `${Math.round(scrollProgress * 100)}%` }}
+        style={{ width: `${Math.round(pageScrollProgress * 100)}%` }}
       />
 
       {/* Background Lighting & Grid Overlays */}
