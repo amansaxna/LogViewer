@@ -19,9 +19,18 @@ import { DeltaTimeToolbar } from './components/DeltaTimeToolbar.tsx';
 import { calculateDeltaTime } from './utils/deltaTimeEngine.ts';
 import { copyWithToast } from './utils/copyNotifier.ts';
 import { FileDropOverlay } from './components/FileDropOverlay.tsx';
+import { LandingPage } from './components/LandingPage.tsx';
 import { DEFAULT_PRESETS } from './presets.ts';
 
 export const App: React.FC = () => {
+  const [viewModeState, setViewModeState] = useState<'app' | 'landing'>(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('view') === 'landing' || window.location.hash === '#landing' || params.get('tour') === 'true') {
+      return 'landing';
+    }
+    return 'app';
+  });
+
   const [sources, setSources] = useState<LogSource[]>([]);
   const [activeSourceId, setActiveSourceId] = useState<string | null>(() => localStorage.getItem('lv_active_source') || null);
   const [selectedSourceIds, setSelectedSourceIds] = useState<string[]>(() => {
@@ -1805,6 +1814,20 @@ export const App: React.FC = () => {
 
   const activeSource = sources.find((s) => s.id === activeSourceId);
 
+  if (viewModeState === 'landing') {
+    return (
+      <LandingPage
+        onLaunchApp={() => {
+          setViewModeState('app');
+          const u = new URL(window.location.href);
+          u.searchParams.delete('view');
+          u.searchParams.delete('tour');
+          window.history.replaceState({}, '', u.pathname);
+        }}
+      />
+    );
+  }
+
   return (
     <div className={`app-container ${isFullscreen ? 'app-fullscreen' : ''}`}>
       {/* Sidebar with LogViewer.io 3 Quick Actions */}
@@ -2112,6 +2135,45 @@ export const App: React.FC = () => {
 
       {/* Full-Screen Drag and Drop File Overlay */}
       <FileDropOverlay isDragging={isDraggingFile} />
+
+      {/* Floating Tour Switcher Pill */}
+      <button
+        onClick={() => setViewModeState('landing')}
+        className="lp-floating-tour-pill"
+        title="View Product Tour & Landing Page"
+        style={{
+          position: 'fixed',
+          bottom: '16px',
+          right: '16px',
+          zIndex: 9999,
+          background: 'rgba(10, 13, 20, 0.9)',
+          backdropFilter: 'blur(16px)',
+          border: '1px solid rgba(0, 242, 254, 0.4)',
+          color: '#00f2fe',
+          padding: '6px 14px',
+          borderRadius: '9999px',
+          fontFamily: 'var(--font-mono, monospace)',
+          fontSize: '0.78rem',
+          fontWeight: 600,
+          cursor: 'pointer',
+          boxShadow: '0 8px 24px rgba(0, 0, 0, 0.7), 0 0 15px rgba(0, 242, 254, 0.25)',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '6px',
+          transition: 'all 0.2s cubic-bezier(0.16, 1, 0.3, 1)',
+        }}
+        onMouseEnter={(e) => {
+          e.currentTarget.style.transform = 'translateY(-2px) scale(1.05)';
+          e.currentTarget.style.boxShadow = '0 12px 30px rgba(0, 0, 0, 0.8), 0 0 25px rgba(0, 242, 254, 0.5)';
+        }}
+        onMouseLeave={(e) => {
+          e.currentTarget.style.transform = 'translateY(0) scale(1)';
+          e.currentTarget.style.boxShadow = '0 8px 24px rgba(0, 0, 0, 0.7), 0 0 15px rgba(0, 242, 254, 0.25)';
+        }}
+      >
+        <span style={{ fontSize: '0.85rem' }}>🌐</span>
+        <span>Product Tour</span>
+      </button>
     </div>
   );
 };
