@@ -206,7 +206,13 @@ export function getSources(): LogSource[] {
 
   // Also check if any standard source was declared with isFolder: true or points to a folder
   for (const source of resolvedStandard) {
-    if (source.isFolder || (source.exists && fs.statSync(source.path).isDirectory())) {
+    let isDir = false;
+    try {
+      isDir = source.exists && fs.existsSync(source.path) && fs.statSync(source.path).isDirectory();
+    } catch {
+      isDir = false;
+    }
+    if (source.isFolder || isDir) {
       const discovered = scanFolderRecursively(
         source.path,
         source.category || 'Discovered Logs',
@@ -260,16 +266,27 @@ export function getSources(): LogSource[] {
     }
   }
 
-  // 5. Combine: standard sources + unattached discovered files + custom sources
-  const customList = Array.from(customSources.values()).map((cs) => {
-    const stats = fs.statSync(cs.path);
-    return {
-      ...cs,
-      size: stats.size,
-      modifiedAt: stats.mtime.toISOString(),
-      rotations: [],
-    };
-  });
+  // 5. Combine: standard sources + unattached discovered files + custom sources (safely self-healing)
+  const customList: LogSource[] = [];
+  for (const [id, cs] of customSources.entries()) {
+    try {
+      if (fs.existsSync(cs.path)) {
+        const stats = fs.statSync(cs.path);
+        customList.push({
+          ...cs,
+          exists: true,
+          size: stats.size,
+          modifiedAt: stats.mtime.toISOString(),
+          rotations: [],
+        });
+      } else {
+        // Automatically prune deleted or non-existent custom source from memory
+        customSources.delete(id);
+      }
+    } catch {
+      customSources.delete(id);
+    }
+  }
 
   return [...resolvedStandard, ...unattachedDiscovered, ...customList];
 }

@@ -573,6 +573,14 @@ export const App: React.FC = () => {
             return defaultSrc.id;
           });
 
+          // Ensure selectedSourceIds contains only valid existing source IDs
+          setSelectedSourceIds((prev) => {
+            const valid = prev.filter((id) => data.sources.some((s: LogSource) => s.id === id));
+            if (valid.length > 0) return valid;
+            const defaultSrc = data.sources.find((s: LogSource) => s.isDefault) || data.sources[0];
+            return defaultSrc ? [defaultSrc.id] : [];
+          });
+
           // Ensure panels have distinct default sources assigned if not already set (preserve reference to prevent unnecessary panel reload)
           setPanels((prevPanels) => {
             const needsUpdate = prevPanels.some(
