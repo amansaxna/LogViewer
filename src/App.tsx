@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
-import { LogEntry, LogLevel, LogQueryResult, LogSource, SortOption, LogPreset } from './types.ts';
-import { PanelLayout, PanelState, createDefaultPanel } from './types/panel.ts';
+import { LogEntry, LogLevel, LogQueryResult, LogSource, SortOption, LogPreset, ApplicationHealthReport } from './types.ts';
+import { PanelLayout, PanelState, createDefaultPanel, getLayoutCount } from './types/panel.ts';
 import { Sidebar } from './components/Sidebar.tsx';
 import { Topbar } from './components/Topbar.tsx';
 import { LogTable } from './components/LogTable.tsx';
@@ -10,6 +10,7 @@ import { ContextModal } from './components/ContextModal.tsx';
 import { PasteLogsModal } from './components/PasteLogsModal.tsx';
 import { GoToLineModal } from './components/GoToLineModal.tsx';
 import { KeyboardShortcutsModal } from './components/KeyboardShortcutsModal.tsx';
+import { SystemHealthModal } from './components/SystemHealthModal.tsx';
 import { JsonXmlInspectorModal, InspectorPayload } from './components/JsonXmlInspectorModal.tsx';
 import { CopyToast } from './components/CopyToast.tsx';
 import { PresetModal } from './components/PresetModal.tsx';
@@ -37,14 +38,25 @@ export const App: React.FC = () => {
     return (localStorage.getItem('lv_panel_layout') as PanelLayout) || '4-grid';
   });
   const [activePanelId, setActivePanelId] = useState<string>('panel-1');
-
   const [panels, setPanels] = useState<PanelState[]>(() => {
     try {
       const saved = localStorage.getItem('lv_panels_state');
       if (saved) {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed) && parsed.length >= 4) {
-          return parsed;
+          const map = new Map<string, PanelState>();
+          parsed.forEach((p) => {
+            if (p && p.id) map.set(p.id, p);
+          });
+          const orderedPanels: PanelState[] = [];
+          for (let i = 1; i <= 4; i++) {
+            const id = `panel-${i}`;
+            const existing = map.get(id);
+            orderedPanels.push(
+              existing ? { ...existing, id } : createDefaultPanel(id, { viewMode: 'compact' })
+            );
+          }
+          return orderedPanels;
         }
       }
     } catch {}
@@ -72,6 +84,15 @@ export const App: React.FC = () => {
   useEffect(() => {
     localStorage.setItem('lv_selected_sources', JSON.stringify(selectedSourceIds));
   }, [selectedSourceIds]);
+
+  // Ensure activePanelId always points to an active visible panel in the current layout
+  useEffect(() => {
+    const visibleCount = getLayoutCount(panelLayout);
+    const visiblePanels = panels.slice(0, visibleCount);
+    if (visiblePanels.length > 0 && !visiblePanels.some((p) => p.id === activePanelId)) {
+      setActivePanelId(visiblePanels[0].id);
+    }
+  }, [panelLayout, panels, activePanelId]);
 
   // Filters and state (restored from localStorage on reload)
   const [markerFilter, setMarkerFilter] = useState<string>(() => localStorage.getItem('lv_marker_filter') || '');
@@ -106,14 +127,6 @@ export const App: React.FC = () => {
   const [hideBrackets, setHideBrackets] = useState<boolean>(() => localStorage.getItem('lv_hide_brackets') === 'true');
   const [viewMode, setViewMode] = useState<'compact' | 'standard' | 'raw'>(() => (localStorage.getItem('lv_view_mode') as 'compact' | 'standard' | 'raw') || 'compact');
 
-  const handleToggleHideBrackets = () => {
-    setHideBrackets((prev) => {
-      const next = !prev;
-      localStorage.setItem('lv_hide_brackets', String(next));
-      return next;
-    });
-  };
-
   // Metadata columns toggle (Datetime, PID, TID, Correlation ID)
   const [showDatetime, setShowDatetime] = useState<boolean>(() => localStorage.getItem('lv_show_datetime') !== 'false');
   const [showPid, setShowPid] = useState<boolean>(() => localStorage.getItem('lv_show_pid') !== 'false');
@@ -122,51 +135,6 @@ export const App: React.FC = () => {
 
   // Loading state
   const [isLoading, setIsLoading] = useState(false);
-
-  const handleToggleShowDatetime = () => {
-    setShowDatetime((prev) => {
-      const next = !prev;
-      localStorage.setItem('lv_show_datetime', String(next));
-      return next;
-    });
-  };
-
-  const handleToggleShowPid = () => {
-    setShowPid((prev) => {
-      const next = !prev;
-      localStorage.setItem('lv_show_pid', String(next));
-      return next;
-    });
-  };
-
-  const handleToggleShowTid = () => {
-    setShowTid((prev) => {
-      const next = !prev;
-      localStorage.setItem('lv_show_tid', String(next));
-      return next;
-    });
-  };
-
-  const handleToggleShowCorrelation = () => {
-    setShowCorrelation((prev) => {
-      const next = !prev;
-      localStorage.setItem('lv_show_corr', String(next));
-      return next;
-    });
-  };
-
-  const handleToggleAllMeta = () => {
-    const anyActive = showDatetime || showPid || showTid || showCorrelation;
-    const next = !anyActive;
-    setShowDatetime(next);
-    setShowPid(next);
-    setShowTid(next);
-    setShowCorrelation(next);
-    localStorage.setItem('lv_show_datetime', String(next));
-    localStorage.setItem('lv_show_pid', String(next));
-    localStorage.setItem('lv_show_tid', String(next));
-    localStorage.setItem('lv_show_corr', String(next));
-  };
 
   // Match and navigation state
   const [selectedLineNumber, setSelectedLineNumber] = useState<number | null>(null);
@@ -210,6 +178,8 @@ export const App: React.FC = () => {
   const [isOpenModalOpen, setIsOpenModalOpen] = useState(false);
   const [isPasteModalOpen, setIsPasteModalOpen] = useState(false);
   const [isGoToLineModalOpen, setIsGoToLineModalOpen] = useState(false);
+  const [isHealthModalOpen, setIsHealthModalOpen] = useState(false);
+  const [healthReport, setHealthReport] = useState<ApplicationHealthReport | null>(null);
   const [contextLineNumber, setContextLineNumber] = useState<number | null>(null);
   const [contextSourceId, setContextSourceId] = useState<string | null>(null);
   const [isShortcutsOpen, setIsShortcutsOpen] = useState(false);
@@ -220,6 +190,27 @@ export const App: React.FC = () => {
   const [isFullscreen, setIsFullscreen] = useState(() => {
     return localStorage.getItem('lv_fullscreen') === 'true';
   });
+
+  // Background health & telemetry poller
+  useEffect(() => {
+    let isMounted = true;
+    const pollHealth = async () => {
+      try {
+        const res = await fetch('/api/health');
+        if (res.ok && isMounted) {
+          const data = await res.json();
+          setHealthReport(data);
+        }
+      } catch {}
+    };
+
+    pollHealth();
+    const interval = setInterval(pollHealth, 3000);
+    return () => {
+      isMounted = false;
+      clearInterval(interval);
+    };
+  }, []);
 
   // Global listener for payload inspector modal (JSON and XML on another div)
   useEffect(() => {
@@ -370,10 +361,12 @@ export const App: React.FC = () => {
   }, [deltaAnchorLine, deltaTargetLine, entries]);
 
   // Multi-line range selection (Shift + Click / Shift + Down / Shift + Up)
+  const [selectedEntryId, setSelectedEntryId] = useState<string | null>(null);
+  const [selectedEntryIds, setSelectedEntryIds] = useState<Set<string>>(new Set());
   const [selectedLineNumbers, setSelectedLineNumbers] = useState<Set<number>>(new Set());
   const selectionAnchorIndexRef = useRef<number | null>(null);
 
-  const handleSelectLine = useCallback((line: number, isShift = false) => {
+  const handleSelectLine = useCallback((line: number, isShift = false, entry?: LogEntry) => {
     setSelectedLineNumber(line);
 
     // If delta anchor is active and waiting for target, set it!
@@ -382,19 +375,30 @@ export const App: React.FC = () => {
       return;
     }
 
-    const clickedIdx = displayEntries.findIndex((e) => e.lineNumber === line);
+    const clickedIdx = entry
+      ? displayEntries.findIndex((e) => (e.id && entry.id ? e.id === entry.id : (e.sourceId === entry.sourceId && e.lineNumber === line)))
+      : displayEntries.findIndex((e) => e.lineNumber === line);
     if (clickedIdx === -1) return;
+
+    const target = displayEntries[clickedIdx];
+    const entryKey = target.id || `${target.sourceId || ''}-${target.lineNumber}`;
+    setSelectedEntryId(entryKey);
 
     if (isShift && selectionAnchorIndexRef.current !== null) {
       const start = Math.min(selectionAnchorIndexRef.current, clickedIdx);
       const end = Math.max(selectionAnchorIndexRef.current, clickedIdx);
-      const newSet = new Set<number>();
+      const newEntryIds = new Set<string>();
+      const newLines = new Set<number>();
       for (let i = start; i <= end; i++) {
-        newSet.add(displayEntries[i].lineNumber);
+        const it = displayEntries[i];
+        newEntryIds.add(it.id || `${it.sourceId || ''}-${it.lineNumber}`);
+        newLines.add(it.lineNumber);
       }
-      setSelectedLineNumbers(newSet);
+      setSelectedEntryIds(newEntryIds);
+      setSelectedLineNumbers(newLines);
     } else {
       selectionAnchorIndexRef.current = clickedIdx;
+      setSelectedEntryIds(new Set([entryKey]));
       setSelectedLineNumbers(new Set([line]));
     }
   }, [deltaAnchorLine, deltaTargetLine, displayEntries]);
@@ -480,6 +484,262 @@ export const App: React.FC = () => {
     isSidebarOpen,
   ]);
 
+  // Load available presets from server
+  const fetchPresets = useCallback(async () => {
+    try {
+      const res = await fetch('/api/presets');
+      if (res.ok) {
+        const data = await res.json();
+        if (Array.isArray(data.presets)) {
+          setPresets(data.presets);
+        }
+      }
+    } catch (err) {
+      console.error('Failed to load presets:', err);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchPresets();
+  }, [fetchPresets]);
+
+  const handleSavePreset = async (preset: LogPreset) => {
+    const res = await fetch('/api/presets', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(preset),
+    });
+    if (!res.ok) {
+      const data = await res.json();
+      throw new Error(data.error || 'Failed to save preset');
+    }
+    await fetchPresets();
+  };
+
+  const handleDeletePreset = async (id: string) => {
+    const res = await fetch(`/api/presets/${encodeURIComponent(id)}`, {
+      method: 'DELETE',
+    });
+    if (!res.ok) {
+      const data = await res.json();
+      throw new Error(data.error || 'Failed to delete preset');
+    }
+    if (activePresetId === id) {
+      handleSelectPreset(null);
+    }
+    await fetchPresets();
+  };
+
+  const handleOpenPresetModal = useCallback(() => {
+    setPresetModalInitialCreate(false);
+    setIsPresetModalOpen(true);
+  }, []);
+
+  const handleCreateNewPreset = useCallback(() => {
+    setPresetModalInitialCreate(true);
+    setIsPresetModalOpen(true);
+  }, []);
+
+  // Load available sources
+  const fetchSources = useCallback(async () => {
+    try {
+      const res = await fetch('/api/sources');
+      const data = await res.json();
+      if (data.sources) {
+        setSources(data.sources);
+        if (data.sources.length > 0) {
+          setActiveSourceId((prev) => {
+            if (prev && data.sources.some((s: LogSource) => s.id === prev)) return prev;
+            const saved = localStorage.getItem('lv_active_source');
+            const found = saved && data.sources.find((s: LogSource) => s.id === saved);
+            const defaultSrc = found || data.sources.find((s: LogSource) => s.isDefault) || data.sources[0];
+            return defaultSrc.id;
+          });
+
+          // Ensure panels have distinct default sources assigned if not already set (preserve reference to prevent unnecessary panel reload)
+          setPanels((prevPanels) => {
+            const needsUpdate = prevPanels.some(
+              (p) => !p.sourceId || !data.sources.some((s: LogSource) => s.id === p.sourceId)
+            );
+            if (!needsUpdate) return prevPanels;
+            return prevPanels.map((p, idx) => {
+              if (!p.sourceId || !data.sources.some((s: LogSource) => s.id === p.sourceId)) {
+                const assigned = data.sources[idx % data.sources.length];
+                return {
+                  ...p,
+                  sourceId: assigned.id,
+                  selectedSourceIds: [assigned.id],
+                };
+              }
+              return p;
+            });
+          });
+        }
+      }
+    } catch (err) {
+      console.error('Failed to load sources:', err);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchSources();
+    const interval = setInterval(fetchSources, 5000);
+    return () => clearInterval(interval);
+  }, [fetchSources]);
+
+  // Multi-panel handlers
+  const handleUpdatePanel = useCallback((id: string, updates: Partial<PanelState>) => {
+    setPanels((prev) =>
+      prev.map((p) => (p.id === id ? { ...p, ...updates } : p))
+    );
+    if (id === activePanelId) {
+      if (updates.sourceId !== undefined) setActiveSourceId(updates.sourceId);
+      if (updates.selectedSourceIds !== undefined) setSelectedSourceIds(updates.selectedSourceIds);
+      if (updates.search !== undefined) setSearch(updates.search);
+      if (updates.isRegex !== undefined) setIsRegex(updates.isRegex);
+      if (updates.caseSensitive !== undefined) setCaseSensitive(updates.caseSensitive);
+      if (updates.invert !== undefined) setInvert(updates.invert);
+      if (updates.markerFilter !== undefined) setMarkerFilter(updates.markerFilter);
+      if (updates.isMarkerRegex !== undefined) setIsMarkerRegex(updates.isMarkerRegex);
+      if (updates.selectedLevels !== undefined) setSelectedLevels(updates.selectedLevels);
+      if (updates.excludeLevels !== undefined) setExcludeLevels(updates.excludeLevels);
+      if (updates.selectedWorkflow !== undefined) setSelectedWorkflow(updates.selectedWorkflow);
+      if (updates.selectedOperation !== undefined) setSelectedOperation(updates.selectedOperation);
+      if (updates.selectedCorrelation !== undefined) setSelectedCorrelation(updates.selectedCorrelation);
+      if (updates.startDate !== undefined) setStartDate(updates.startDate);
+      if (updates.endDate !== undefined) setEndDate(updates.endDate);
+      if (updates.sortOption !== undefined) setSortOption(updates.sortOption);
+      if (updates.viewMode !== undefined) setViewMode(updates.viewMode);
+      if (updates.wrapLines !== undefined) setWrapLines(updates.wrapLines);
+      if (updates.hideBrackets !== undefined) setHideBrackets(updates.hideBrackets);
+      if (updates.showDatetime !== undefined) setShowDatetime(updates.showDatetime);
+      if (updates.showPid !== undefined) setShowPid(updates.showPid);
+      if (updates.showTid !== undefined) setShowTid(updates.showTid);
+      if (updates.showCorrelation !== undefined) setShowCorrelation(updates.showCorrelation);
+    }
+  }, [activePanelId]);
+
+  const handleToggleHideBrackets = useCallback(() => {
+    setHideBrackets((prev) => {
+      const next = !prev;
+      localStorage.setItem('lv_hide_brackets', String(next));
+      setPanels((pList) => pList.map((p) => ({ ...p, hideBrackets: next })));
+      return next;
+    });
+  }, []);
+
+  const handleToggleShowDatetime = useCallback(() => {
+    setShowDatetime((prev) => {
+      const next = !prev;
+      localStorage.setItem('lv_show_datetime', String(next));
+      setPanels((pList) => pList.map((p) => ({ ...p, showDatetime: next })));
+      return next;
+    });
+  }, []);
+
+  const handleToggleShowPid = useCallback(() => {
+    setShowPid((prev) => {
+      const next = !prev;
+      localStorage.setItem('lv_show_pid', String(next));
+      setPanels((pList) => pList.map((p) => ({ ...p, showPid: next })));
+      return next;
+    });
+  }, []);
+
+  const handleToggleShowTid = useCallback(() => {
+    setShowTid((prev) => {
+      const next = !prev;
+      localStorage.setItem('lv_show_tid', String(next));
+      setPanels((pList) => pList.map((p) => ({ ...p, showTid: next })));
+      return next;
+    });
+  }, []);
+
+  const handleToggleShowCorrelation = useCallback(() => {
+    setShowCorrelation((prev) => {
+      const next = !prev;
+      localStorage.setItem('lv_show_corr', String(next));
+      setPanels((pList) => pList.map((p) => ({ ...p, showCorrelation: next })));
+      return next;
+    });
+  }, []);
+
+  const handleToggleAllMeta = useCallback(() => {
+    const anyActive = showDatetime || showPid || showTid || showCorrelation;
+    const next = !anyActive;
+    setShowDatetime(next);
+    setShowPid(next);
+    setShowTid(next);
+    setShowCorrelation(next);
+    localStorage.setItem('lv_show_datetime', String(next));
+    localStorage.setItem('lv_show_pid', String(next));
+    localStorage.setItem('lv_show_tid', String(next));
+    localStorage.setItem('lv_show_corr', String(next));
+    setPanels((pList) =>
+      pList.map((p) => ({
+        ...p,
+        showDatetime: next,
+        showPid: next,
+        showTid: next,
+        showCorrelation: next,
+      }))
+    );
+  }, [showCorrelation, showDatetime, showPid, showTid]);
+
+  const handleSelectActivePanel = useCallback((id: string) => {
+    setActivePanelId(id);
+    const target = panels.find((p) => p.id === id);
+    if (target) {
+      if (target.sourceId) {
+        setActiveSourceId(target.sourceId);
+        setSelectedSourceIds(
+          target.selectedSourceIds && target.selectedSourceIds.length > 0
+            ? target.selectedSourceIds
+            : [target.sourceId]
+        );
+      }
+      setSearch(target.search || '');
+      setIsRegex(target.isRegex || false);
+      setCaseSensitive(target.caseSensitive || false);
+      setInvert(target.invert || false);
+      setMarkerFilter(target.markerFilter || '');
+      setIsMarkerRegex(target.isMarkerRegex || false);
+      setSelectedLevels(target.selectedLevels || []);
+      setExcludeLevels(target.excludeLevels || []);
+      setSelectedWorkflow(target.selectedWorkflow || null);
+      setSelectedOperation(target.selectedOperation || null);
+      setSelectedCorrelation(target.selectedCorrelation || null);
+      setStartDate(target.startDate || null);
+      setEndDate(target.endDate || null);
+      setSortOption(target.sortOption || 'time-asc');
+      setViewMode(target.viewMode || 'compact');
+      setWrapLines(target.wrapLines || false);
+      setHideBrackets(target.hideBrackets || false);
+      setShowDatetime(target.showDatetime !== undefined ? target.showDatetime : true);
+      setShowPid(target.showPid !== undefined ? target.showPid : true);
+      setShowTid(target.showTid !== undefined ? target.showTid : true);
+      setShowCorrelation(target.showCorrelation !== undefined ? target.showCorrelation : true);
+    }
+  }, [panels]);
+
+  const handleLoadedStats = useCallback((stats: {
+    total: number;
+    durationMs: number;
+    levelCounts: Record<string, number>;
+    workflowCounts: Record<string, number>;
+    operationCounts: Record<string, number>;
+    correlationCounts: Record<string, number>;
+    entries: LogEntry[];
+  }) => {
+    setTotalEntries(stats.total);
+    setDurationMs(stats.durationMs);
+    setLevelCounts(stats.levelCounts);
+    setWorkflowCounts(stats.workflowCounts);
+    setOperationCounts(stats.operationCounts);
+    setCorrelationCounts(stats.correlationCounts);
+    setEntries(stats.entries);
+  }, []);
+
   // Reset all settings and filters to default
   const handleResetSettings = useCallback(() => {
     const keys = [
@@ -537,28 +797,29 @@ export const App: React.FC = () => {
     setShowCorrelation(true);
     setTheme('dark');
     setIsSidebarOpen(true);
-  }, []);
 
-  // Load available presets from server
-  const fetchPresets = useCallback(async () => {
-    try {
-      const res = await fetch('/api/presets');
-      if (res.ok) {
-        const data = await res.json();
-        if (Array.isArray(data.presets)) {
-          setPresets(data.presets);
-        }
-      }
-    } catch (err) {
-      console.error('Failed to load presets:', err);
-    }
-  }, []);
+    handleUpdatePanel(activePanelId, {
+      search: '',
+      isRegex: false,
+      caseSensitive: false,
+      invert: false,
+      markerFilter: '',
+      isMarkerRegex: false,
+      selectedLevels: [],
+      excludeLevels: [],
+      selectedWorkflow: null,
+      selectedOperation: null,
+      selectedCorrelation: null,
+      startDate: null,
+      endDate: null,
+      sortOption: 'time-asc',
+      wrapLines: false,
+      hideBrackets: false,
+      viewMode: 'compact',
+    });
+  }, [activePanelId, handleUpdatePanel]);
 
-  useEffect(() => {
-    fetchPresets();
-  }, [fetchPresets]);
-
-  // Handle Preset Selection and apply all available filters to active UI controls
+  // Handle Preset Selection and apply all available filters to active UI controls & active panel
   const handleSelectPreset = useCallback((presetId: string | null) => {
     setActivePresetId(presetId);
     if (!presetId) {
@@ -672,93 +933,33 @@ export const App: React.FC = () => {
         setWrapLines(rules.wrapLines);
         localStorage.setItem('lv_wrap_lines', String(rules.wrapLines));
       }
+
+      // Synchronize with active panel
+      handleUpdatePanel(activePanelId, {
+        ...(rules.search !== undefined ? { search: rules.search } : {}),
+        ...(rules.isRegex !== undefined ? { isRegex: rules.isRegex } : {}),
+        ...(rules.caseSensitive !== undefined ? { caseSensitive: rules.caseSensitive } : {}),
+        ...(rules.invert !== undefined ? { invert: rules.invert } : {}),
+        ...(rules.marker !== undefined ? { markerFilter: rules.marker } : {}),
+        ...(rules.isMarkerRegex !== undefined ? { isMarkerRegex: rules.isMarkerRegex } : {}),
+        ...(rules.workflow !== undefined ? { selectedWorkflow: rules.workflow } : {}),
+        ...(rules.operation !== undefined ? { selectedOperation: rules.operation } : {}),
+        ...(rules.correlationId !== undefined ? { selectedCorrelation: rules.correlationId } : {}),
+        ...(rules.startDate !== undefined ? { startDate: rules.startDate } : {}),
+        ...(rules.endDate !== undefined ? { endDate: rules.endDate } : {}),
+        ...(rules.sortOption !== undefined ? { sortOption: rules.sortOption } : {}),
+        ...(rules.levels !== undefined ? { selectedLevels: rules.levels } : {}),
+        ...(rules.excludeLevels !== undefined ? { excludeLevels: rules.excludeLevels } : {}),
+        ...(rules.viewMode !== undefined ? { viewMode: rules.viewMode } : {}),
+        ...(rules.wrapLines !== undefined ? { wrapLines: rules.wrapLines } : {}),
+        ...(rules.hideBrackets !== undefined ? { hideBrackets: rules.hideBrackets } : {}),
+        ...(rules.showDatetime !== undefined ? { showDatetime: rules.showDatetime } : {}),
+        ...(rules.showPid !== undefined ? { showPid: rules.showPid } : {}),
+        ...(rules.showTid !== undefined ? { showTid: rules.showTid } : {}),
+        ...(rules.showCorrelation !== undefined ? { showCorrelation: rules.showCorrelation } : {}),
+      });
     }
-  }, [presets]);
-
-  const handleSavePreset = async (preset: LogPreset) => {
-    const res = await fetch('/api/presets', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(preset),
-    });
-    if (!res.ok) {
-      const data = await res.json();
-      throw new Error(data.error || 'Failed to save preset');
-    }
-    await fetchPresets();
-  };
-
-  const handleDeletePreset = async (id: string) => {
-    const res = await fetch(`/api/presets/${encodeURIComponent(id)}`, {
-      method: 'DELETE',
-    });
-    if (!res.ok) {
-      const data = await res.json();
-      throw new Error(data.error || 'Failed to delete preset');
-    }
-    if (activePresetId === id) {
-      handleSelectPreset(null);
-    }
-    await fetchPresets();
-  };
-
-  const handleOpenPresetModal = useCallback(() => {
-    setPresetModalInitialCreate(false);
-    setIsPresetModalOpen(true);
-  }, []);
-
-  const handleCreateNewPreset = useCallback(() => {
-    setPresetModalInitialCreate(true);
-    setIsPresetModalOpen(true);
-  }, []);
-
-  // Load available sources
-  const fetchSources = useCallback(async () => {
-    try {
-      const res = await fetch('/api/sources');
-      const data = await res.json();
-      if (data.sources) {
-        setSources(data.sources);
-        if (data.sources.length > 0) {
-          setActiveSourceId((prev) => {
-            if (prev && data.sources.some((s: LogSource) => s.id === prev)) return prev;
-            const saved = localStorage.getItem('lv_active_source');
-            const found = saved && data.sources.find((s: LogSource) => s.id === saved);
-            const defaultSrc = found || data.sources.find((s: LogSource) => s.isDefault) || data.sources[0];
-            return defaultSrc.id;
-          });
-
-          // Ensure panels have distinct default sources assigned if not already set
-          setPanels((prevPanels) =>
-            prevPanels.map((p, idx) => {
-              if (!p.sourceId || !data.sources.some((s: LogSource) => s.id === p.sourceId)) {
-                const assigned = data.sources[idx % data.sources.length];
-                return {
-                  ...p,
-                  sourceId: assigned.id,
-                  selectedSourceIds: [assigned.id],
-                };
-              }
-              return p;
-            })
-          );
-        }
-      }
-    } catch (err) {
-      console.error('Failed to load sources:', err);
-    }
-  }, []);
-
-  useEffect(() => {
-    fetchSources();
-  }, [fetchSources]);
-
-  // Multi-panel handlers
-  const handleUpdatePanel = useCallback((id: string, updates: Partial<PanelState>) => {
-    setPanels((prev) =>
-      prev.map((p) => (p.id === id ? { ...p, ...updates } : p))
-    );
-  }, []);
+  }, [activePanelId, handleUpdatePanel, presets]);
 
   const handleClosePanel = useCallback((id: string) => {
     setPanelLayout((prev) => {
@@ -770,20 +971,16 @@ export const App: React.FC = () => {
   }, []);
 
   const handleMaximizePanel = useCallback((id: string) => {
-    if (id !== 'panel-1') {
-      setPanels((prev) => {
-        const target = prev.find((p) => p.id === id);
-        const first = prev[0];
-        if (!target || !first) return prev;
-        return [
-          { ...target, id: 'panel-1' },
-          { ...first, id },
-          ...prev.slice(2),
-        ];
-      });
-    }
+    setPanels((prev) => {
+      const targetIndex = prev.findIndex((p) => p.id === id);
+      if (targetIndex <= 0) return prev;
+      const next = [...prev];
+      const [target] = next.splice(targetIndex, 1);
+      next.unshift(target);
+      return next;
+    });
     setPanelLayout('1');
-    setActivePanelId('panel-1');
+    setActivePanelId(id);
   }, []);
 
   const handleSplitPanel = useCallback((fromId: string) => {
@@ -809,9 +1006,13 @@ export const App: React.FC = () => {
       } else if (next.length > 1 && !next.includes(activeSourceId || '')) {
         setActiveSourceId(next[0]);
       }
+      handleUpdatePanel(activePanelId, {
+        selectedSourceIds: next,
+        sourceId: next.length === 1 ? next[0] : (next[0] || null),
+      });
       return next;
     });
-  }, [activeSourceId]);
+  }, [activePanelId, activeSourceId, handleUpdatePanel]);
 
   const handleSelectAllSources = useCallback(() => {
     const allIds = sources.map((s) => s.id);
@@ -819,154 +1020,34 @@ export const App: React.FC = () => {
     if (allIds.length > 0 && (!activeSourceId || !allIds.includes(activeSourceId))) {
       setActiveSourceId(allIds[0]);
     }
-  }, [sources, activeSourceId]);
+    handleUpdatePanel(activePanelId, {
+      selectedSourceIds: allIds,
+      sourceId: allIds[0] || null,
+    });
+  }, [activePanelId, activeSourceId, handleUpdatePanel, sources]);
 
   const handleClearAllSources = useCallback(() => {
-    if (activeSourceId) {
-      setSelectedSourceIds([activeSourceId]);
-    } else if (sources.length > 0) {
-      setSelectedSourceIds([sources[0].id]);
-      setActiveSourceId(sources[0].id);
+    const fallbackId = activeSourceId || (sources[0]?.id || null);
+    if (fallbackId) {
+      setSelectedSourceIds([fallbackId]);
+      setActiveSourceId(fallbackId);
+      handleUpdatePanel(activePanelId, {
+        selectedSourceIds: [fallbackId],
+        sourceId: fallbackId,
+      });
     }
-  }, [activeSourceId, sources]);
+  }, [activePanelId, activeSourceId, handleUpdatePanel, sources]);
 
   const handleSelectSource = useCallback((id: string) => {
     setActiveSourceId(id);
     setSelectedSourceIds([id]);
-  }, []);
-
-  // Fetch entries for active source and filters
-  const fetchEntries = useCallback(async () => {
-    const isUnified = selectedSourceIds.length > 1;
-    const effectiveSourceId = activeSourceId || (selectedSourceIds.length > 0 ? selectedSourceIds[0] : '');
-    if (!effectiveSourceId && !isUnified) return;
-
-    // Parse sort option
-    let sortBy = 'time';
-    let direction: 'desc' | 'asc' = 'desc';
-    if (sortOption.startsWith('marker-')) {
-      sortBy = 'marker';
-      direction = sortOption.endsWith('asc') ? 'asc' : 'desc';
-    } else if (sortOption.startsWith('line-')) {
-      sortBy = 'line';
-      direction = sortOption.endsWith('asc') ? 'asc' : 'desc';
-    } else if (sortOption.startsWith('duration-')) {
-      sortBy = 'duration';
-      direction = sortOption.endsWith('asc') ? 'asc' : 'desc';
-    } else if (sortOption.startsWith('namespace-')) {
-      sortBy = 'namespace';
-      direction = sortOption.endsWith('asc') ? 'asc' : 'desc';
-    } else {
-      sortBy = 'time';
-      direction = sortOption.endsWith('asc') ? 'asc' : 'desc';
-    }
-
-    const params = new URLSearchParams({
-      sourceId: effectiveSourceId,
-      sortBy,
-      direction,
-      page: '1',
-      pageSize: '25000',
+    handleUpdatePanel(activePanelId, {
+      sourceId: id,
+      selectedSourceIds: [id],
     });
+  }, [activePanelId, handleUpdatePanel]);
 
-    if (isUnified) {
-      params.set('sourceIds', selectedSourceIds.join(','));
-    }
 
-    if (markerFilter.trim()) {
-      params.append('marker', markerFilter.trim());
-    }
-    if (search.trim()) {
-      params.append('search', search.trim());
-    }
-    if (isRegex) {
-      params.append('isRegex', 'true');
-    }
-    if (caseSensitive) {
-      params.append('caseSensitive', 'true');
-    }
-    if (invert) {
-      params.append('invert', 'true');
-    }
-    if (selectedLevels.length > 0) {
-      params.append('levels', selectedLevels.join(','));
-    }
-    if (excludeLevels.length > 0) {
-      params.append('excludeLevels', excludeLevels.join(','));
-    }
-    if (selectedWorkflow) {
-      params.append('workflow', selectedWorkflow);
-    }
-    if (selectedOperation) {
-      params.append('operation', selectedOperation);
-    }
-    if (selectedCorrelation) {
-      params.append('correlationId', selectedCorrelation);
-    }
-    if (startDate) {
-      params.append('startDate', startDate);
-    }
-    if (endDate) {
-      params.append('endDate', endDate);
-    }
-
-    if (!isLiveTail) {
-      setIsLoading(true);
-    }
-
-    try {
-      const res = await fetch(`/api/logs/entries?${params.toString()}`);
-      if (!res.ok) throw new Error('Query failed');
-      const data: LogQueryResult = await res.json();
-
-      // Track newly added logs in live tail mode
-      if (prevTotalEntriesRef.current !== null && data.total > prevTotalEntriesRef.current && isLiveTail) {
-        const diff = data.total - prevTotalEntriesRef.current;
-        const recentSum = recentArrivalsRef.current
-          .filter((item) => Date.now() - item.timestamp <= 1200)
-          .reduce((acc, item) => acc + item.count, 0);
-        if (diff > recentSum) {
-          recentArrivalsRef.current.push({ count: diff - recentSum, timestamp: Date.now() });
-          setLiveTotalAdded((prev) => prev + (diff - recentSum));
-        }
-      }
-      prevTotalEntriesRef.current = data.total;
-
-      setEntries(data.entries);
-      setTotalEntries(data.total);
-      setDurationMs(data.durationMs);
-      setLevelCounts(data.levelCounts || {});
-      setWorkflowCounts(data.workflowCounts || {});
-      setOperationCounts(data.operationCounts || {});
-      setCorrelationCounts(data.correlationCounts || {});
-      setCurrentMatchIndex(1);
-    } catch (err) {
-      console.error('Failed to query entries:', err);
-    } finally {
-      setIsLoading(false);
-    }
-  }, [
-    activeSourceId,
-    selectedSourceIds,
-    markerFilter,
-    search,
-    isRegex,
-    caseSensitive,
-    invert,
-    selectedLevels,
-    excludeLevels,
-    selectedWorkflow,
-    selectedOperation,
-    selectedCorrelation,
-    startDate,
-    endDate,
-    sortOption,
-    isLiveTail,
-  ]);
-
-  useEffect(() => {
-    fetchEntries();
-  }, [fetchEntries]);
 
   // Calculate average log generation rate across loaded dataset
   const fileAvgLogsPerSec = useMemo(() => {
@@ -1039,7 +1120,7 @@ export const App: React.FC = () => {
     return () => clearInterval(interval);
   }, [isLiveTail]);
 
-  // Setup SSE Live Tail
+  // Setup SSE Live Tail Stream Listener
   useEffect(() => {
     if (eventSourceRef.current) {
       eventSourceRef.current.close();
@@ -1047,28 +1128,30 @@ export const App: React.FC = () => {
     }
 
     if (isLiveTail && activeSourceId) {
-      const es = new EventSource(`/api/logs/stream?sourceId=${encodeURIComponent(activeSourceId)}`);
-      es.onmessage = (event) => {
-        try {
-          const payload = JSON.parse(event.data);
-          if (payload.type === 'file_changed') {
-            const addedCount = payload.addedLogs || 1;
-            liveTotalAddedRef.current += addedCount;
-            setLiveTotalAdded(liveTotalAddedRef.current);
-            recentArrivalsRef.current.push({ timestamp: Date.now(), count: addedCount });
-            fetchEntries();
-          }
-        } catch {}
-      };
-      eventSourceRef.current = es;
+      try {
+        const es = new EventSource(`/api/logs/stream?sourceId=${encodeURIComponent(activeSourceId)}`);
+        es.onmessage = (event) => {
+          try {
+            const payload = JSON.parse(event.data);
+            if (payload.type === 'file_changed') {
+              const addedCount = payload.addedLogs || 1;
+              liveTotalAddedRef.current += addedCount;
+              setLiveTotalAdded(liveTotalAddedRef.current);
+              recentArrivalsRef.current.push({ timestamp: Date.now(), count: addedCount });
+            }
+          } catch {}
+        };
+        eventSourceRef.current = es;
+      } catch {}
     }
 
     return () => {
       if (eventSourceRef.current) {
         eventSourceRef.current.close();
+        eventSourceRef.current = null;
       }
     };
-  }, [isLiveTail, activeSourceId, fetchEntries, fetchSources]);
+  }, [isLiveTail, activeSourceId]);
 
   // Persist live tail state across page reloads
   useEffect(() => {
@@ -1096,7 +1179,11 @@ export const App: React.FC = () => {
     const newIdx = currentMatchIndex > 1 ? currentMatchIndex - 1 : entries.length;
     setCurrentMatchIndex(newIdx);
     setTargetScrollIndex(newIdx - 1);
-    setSelectedLineNumber(entries[newIdx - 1]?.lineNumber || null);
+    const line = entries[newIdx - 1]?.lineNumber || null;
+    setSelectedLineNumber(line);
+    if (line !== null) {
+      handleUpdatePanel(activePanelId, { selectedLineNumber: line });
+    }
   };
 
   const handleNextMatch = () => {
@@ -1104,7 +1191,11 @@ export const App: React.FC = () => {
     const newIdx = currentMatchIndex < entries.length ? currentMatchIndex + 1 : 1;
     setCurrentMatchIndex(newIdx);
     setTargetScrollIndex(newIdx - 1);
-    setSelectedLineNumber(entries[newIdx - 1]?.lineNumber || null);
+    const line = entries[newIdx - 1]?.lineNumber || null;
+    setSelectedLineNumber(line);
+    if (line !== null) {
+      handleUpdatePanel(activePanelId, { selectedLineNumber: line });
+    }
   };
 
   // "Go to Line" / Index handler
@@ -1117,6 +1208,7 @@ export const App: React.FC = () => {
       setSelectedLineNumber(targetNum);
       setTargetScrollIndex(entryByLine);
       setCurrentMatchIndex(entryByLine + 1);
+      handleUpdatePanel(activePanelId, { selectedLineNumber: targetNum });
       return;
     }
 
@@ -1126,6 +1218,7 @@ export const App: React.FC = () => {
       setSelectedLineNumber(entryByIdx.lineNumber);
       setTargetScrollIndex(targetNum - 1);
       setCurrentMatchIndex(targetNum);
+      handleUpdatePanel(activePanelId, { selectedLineNumber: entryByIdx.lineNumber });
       return;
     }
 
@@ -1141,7 +1234,9 @@ export const App: React.FC = () => {
     }
     setTargetScrollIndex(closestIdx);
     setCurrentMatchIndex(closestIdx + 1);
-    setSelectedLineNumber(entries[closestIdx].lineNumber);
+    const line = entries[closestIdx].lineNumber;
+    setSelectedLineNumber(line);
+    handleUpdatePanel(activePanelId, { selectedLineNumber: line });
   };
 
   // Global Keyboard Shortcuts
@@ -1151,7 +1246,8 @@ export const App: React.FC = () => {
       const isTyping =
         target.tagName === 'INPUT' ||
         target.tagName === 'TEXTAREA' ||
-        target.isContentEditable;
+        target.isContentEditable ||
+        Boolean(target.closest('input, textarea, select, [contenteditable="true"], .modal-overlay, .panel-search-box'));
 
       // Escape key closes open modals or deselects line
       if (e.key === 'Escape') {
@@ -1213,138 +1309,6 @@ export const App: React.FC = () => {
       // Never intercept standard browser/OS modifier combinations (Ctrl+C, Ctrl+V, Ctrl+A, Ctrl+W, Ctrl+T, etc.)
       const hasModifier = e.ctrlKey || e.metaKey || e.altKey;
 
-      // 1. Down Arrow or 'j': Move to next log downwards (supports Shift for range selection)
-      if ((!hasModifier || (e.shiftKey && !e.ctrlKey && !e.metaKey && !e.altKey)) && (e.key === 'ArrowDown' || e.key === 'j')) {
-        e.preventDefault();
-        if (displayEntries.length === 0) return;
-        const currentIdx = selectedLineNumber !== null
-          ? displayEntries.findIndex((entry) => entry.lineNumber === selectedLineNumber)
-          : -1;
-        const nextIdx = currentIdx === -1
-          ? 0
-          : Math.min(displayEntries.length - 1, currentIdx + 1);
-        const targetEntry = displayEntries[nextIdx];
-        if (targetEntry) {
-          setSelectedLineNumber(targetEntry.lineNumber);
-          setTargetScrollIndex(nextIdx);
-          setCurrentMatchIndex(nextIdx + 1);
-
-          if (e.shiftKey) {
-            if (selectionAnchorIndexRef.current === null) {
-              selectionAnchorIndexRef.current = currentIdx >= 0 ? currentIdx : 0;
-            }
-            const start = Math.min(selectionAnchorIndexRef.current, nextIdx);
-            const end = Math.max(selectionAnchorIndexRef.current, nextIdx);
-            const newSet = new Set<number>();
-            for (let i = start; i <= end; i++) {
-              newSet.add(displayEntries[i].lineNumber);
-            }
-            setSelectedLineNumbers(newSet);
-          } else {
-            selectionAnchorIndexRef.current = nextIdx;
-            setSelectedLineNumbers(new Set([targetEntry.lineNumber]));
-          }
-        }
-        return;
-      }
-
-      // 2. Up Arrow or 'k': Move to previous log upwards (supports Shift for range selection)
-      if ((!hasModifier || (e.shiftKey && !e.ctrlKey && !e.metaKey && !e.altKey)) && (e.key === 'ArrowUp' || e.key === 'k')) {
-        e.preventDefault();
-        if (displayEntries.length === 0) return;
-        const currentIdx = selectedLineNumber !== null
-          ? displayEntries.findIndex((entry) => entry.lineNumber === selectedLineNumber)
-          : -1;
-        const prevIdx = currentIdx === -1
-          ? 0
-          : Math.max(0, currentIdx - 1);
-        const targetEntry = displayEntries[prevIdx];
-        if (targetEntry) {
-          setSelectedLineNumber(targetEntry.lineNumber);
-          setTargetScrollIndex(prevIdx);
-          setCurrentMatchIndex(prevIdx + 1);
-
-          if (e.shiftKey) {
-            if (selectionAnchorIndexRef.current === null) {
-              selectionAnchorIndexRef.current = currentIdx >= 0 ? currentIdx : 0;
-            }
-            const start = Math.min(selectionAnchorIndexRef.current, prevIdx);
-            const end = Math.max(selectionAnchorIndexRef.current, prevIdx);
-            const newSet = new Set<number>();
-            for (let i = start; i <= end; i++) {
-              newSet.add(displayEntries[i].lineNumber);
-            }
-            setSelectedLineNumbers(newSet);
-          } else {
-            selectionAnchorIndexRef.current = prevIdx;
-            setSelectedLineNumbers(new Set([targetEntry.lineNumber]));
-          }
-        }
-        return;
-      }
-
-      // 3. PageDown / PageUp: Jump 15 logs
-      if (!e.ctrlKey && !e.metaKey && e.key === 'PageDown') {
-        e.preventDefault();
-        if (displayEntries.length === 0) return;
-        const currentIdx = selectedLineNumber !== null
-          ? displayEntries.findIndex((entry) => entry.lineNumber === selectedLineNumber)
-          : 0;
-        const nextIdx = Math.min(displayEntries.length - 1, currentIdx + 15);
-        const targetEntry = displayEntries[nextIdx];
-        if (targetEntry) {
-          setSelectedLineNumber(targetEntry.lineNumber);
-          setTargetScrollIndex(nextIdx);
-          setCurrentMatchIndex(nextIdx + 1);
-        }
-        return;
-      }
-      if (!e.ctrlKey && !e.metaKey && e.key === 'PageUp') {
-        e.preventDefault();
-        if (displayEntries.length === 0) return;
-        const currentIdx = selectedLineNumber !== null
-          ? displayEntries.findIndex((entry) => entry.lineNumber === selectedLineNumber)
-          : 0;
-        const prevIdx = Math.max(0, currentIdx - 15);
-        const targetEntry = displayEntries[prevIdx];
-        if (targetEntry) {
-          setSelectedLineNumber(targetEntry.lineNumber);
-          setTargetScrollIndex(prevIdx);
-          setCurrentMatchIndex(prevIdx + 1);
-        }
-        return;
-      }
-
-      // 4. Home / End
-      if (!e.ctrlKey && !e.metaKey && e.key === 'Home') {
-        e.preventDefault();
-        if (displayEntries.length > 0) {
-          setSelectedLineNumber(displayEntries[0].lineNumber);
-          setTargetScrollIndex(0);
-          setCurrentMatchIndex(1);
-        }
-        return;
-      }
-      if (!e.ctrlKey && !e.metaKey && e.key === 'End') {
-        e.preventDefault();
-        if (displayEntries.length > 0) {
-          const lastIdx = displayEntries.length - 1;
-          setSelectedLineNumber(displayEntries[lastIdx].lineNumber);
-          setTargetScrollIndex(lastIdx);
-          setCurrentMatchIndex(displayEntries.length);
-        }
-        return;
-      }
-
-      // 5. Enter or Space: Open Context Modal for selected line
-      if (!hasModifier && (e.key === 'Enter' || e.key === ' ')) {
-        e.preventDefault();
-        if (selectedLineNumber !== null) {
-          setContextLineNumber(selectedLineNumber);
-        }
-        return;
-      }
-
       // 6. 'g': Open "Go to line" modal
       if (!hasModifier && (e.key === 'g' || e.key === 'G')) {
         e.preventDefault();
@@ -1384,14 +1348,22 @@ export const App: React.FC = () => {
       // 10. 'c': Toggle Compact View / Detailed Cards (Strictly guarded so Ctrl+C Windows/Mac copy works naturally)
       if (!hasModifier && (e.key === 'c' || e.key === 'C')) {
         e.preventDefault();
-        setViewMode((prev) => (prev === 'compact' ? 'standard' : 'compact'));
+        setViewMode((prev) => {
+          const next = prev === 'compact' ? 'standard' : 'compact';
+          handleUpdatePanel(activePanelId, { viewMode: next });
+          return next;
+        });
         return;
       }
 
       // 11. 'w': Toggle word wrap
       if (!hasModifier && (e.key === 'w' || e.key === 'W')) {
         e.preventDefault();
-        setWrapLines((prev) => !prev);
+        setWrapLines((prev) => {
+          const next = !prev;
+          handleUpdatePanel(activePanelId, { wrapLines: next });
+          return next;
+        });
         return;
       }
 
@@ -1427,6 +1399,13 @@ export const App: React.FC = () => {
       if (e.altKey && !e.ctrlKey && !e.metaKey && e.key.toLowerCase() === 'r') {
         e.preventDefault();
         handleResetSettings();
+        return;
+      }
+
+      // 16b. Shift + H: Toggle System Health & Metrics Dashboard
+      if (e.shiftKey && !e.altKey && !e.ctrlKey && !e.metaKey && e.key.toLowerCase() === 'h') {
+        e.preventDefault();
+        setIsHealthModalOpen((prev) => !prev);
         return;
       }
 
@@ -1469,6 +1448,8 @@ export const App: React.FC = () => {
     inspectorPayload,
     contextLineNumber,
     isShortcutsOpen,
+    activePanelId,
+    handleUpdatePanel,
     handleNextMatch,
     handlePrevMatch,
     handleToggleLiveTail,
@@ -1544,19 +1525,21 @@ export const App: React.FC = () => {
 
   const handleSelectionFilter = useCallback((text: string) => {
     setSearch(text);
+    handleUpdatePanel(activePanelId, { search: text });
     copyWithToast(text, 'Filter updated');
     setSelectionState({ text: '', position: null });
-  }, []);
+  }, [activePanelId, handleUpdatePanel]);
 
   const handleSelectionIgnore = useCallback((text: string) => {
     const formatted = text.includes(' ') ? `NOT "${text}"` : `NOT ${text}`;
     setSearch((prev) => {
-      if (!prev || prev.trim().length === 0) return formatted;
-      return `${prev.trim()} ${formatted}`;
+      const next = (!prev || prev.trim().length === 0) ? formatted : `${prev.trim()} ${formatted}`;
+      handleUpdatePanel(activePanelId, { search: next });
+      return next;
     });
     copyWithToast(text, 'Excluded from filter');
     setSelectionState({ text: '', position: null });
-  }, []);
+  }, [activePanelId, handleUpdatePanel]);
 
   const handleSelectionAddToPresetIgnore = useCallback(async (text: string) => {
     let targetPreset = activePreset;
@@ -1649,21 +1632,34 @@ export const App: React.FC = () => {
     if (level === 'all') {
       setSelectedLevels([]);
       setExcludeLevels([]);
+      handleUpdatePanel(activePanelId, { selectedLevels: [], excludeLevels: [] });
       return;
     }
     // If it was excluded, remove exclusion and include it
-    setExcludeLevels((prev) => prev.filter((l) => l !== level));
-    setSelectedLevels((prev) =>
-      prev.includes(level) ? prev.filter((l) => l !== level) : [...prev, level]
-    );
+    const nextExclude = excludeLevels.filter((l) => l !== level);
+    const nextSelected = selectedLevels.includes(level)
+      ? selectedLevels.filter((l) => l !== level)
+      : [...selectedLevels, level];
+    setExcludeLevels(nextExclude);
+    setSelectedLevels(nextSelected);
+    handleUpdatePanel(activePanelId, {
+      selectedLevels: nextSelected,
+      excludeLevels: nextExclude,
+    });
   };
 
   const handleToggleExcludeLevel = (level: LogLevel) => {
     // If it was included, remove inclusion and exclude it
-    setSelectedLevels((prev) => prev.filter((l) => l !== level));
-    setExcludeLevels((prev) =>
-      prev.includes(level) ? prev.filter((l) => l !== level) : [...prev, level]
-    );
+    const nextSelected = selectedLevels.filter((l) => l !== level);
+    const nextExclude = excludeLevels.includes(level)
+      ? excludeLevels.filter((l) => l !== level)
+      : [...excludeLevels, level];
+    setSelectedLevels(nextSelected);
+    setExcludeLevels(nextExclude);
+    handleUpdatePanel(activePanelId, {
+      selectedLevels: nextSelected,
+      excludeLevels: nextExclude,
+    });
   };
 
   // Source Handlers
@@ -1679,6 +1675,11 @@ export const App: React.FC = () => {
     }
     await fetchSources();
     setActiveSourceId(data.source.id);
+    setSelectedSourceIds([data.source.id]);
+    handleUpdatePanel(activePanelId, {
+      sourceId: data.source.id,
+      selectedSourceIds: [data.source.id],
+    });
   };
 
   const handlePasteSubmit = async (text: string, name?: string) => {
@@ -1693,13 +1694,26 @@ export const App: React.FC = () => {
     }
     await fetchSources();
     setActiveSourceId(data.source.id);
+    setSelectedSourceIds([data.source.id]);
+    handleUpdatePanel(activePanelId, {
+      sourceId: data.source.id,
+      selectedSourceIds: [data.source.id],
+    });
   };
 
   const handleRemoveCustomSource = async (id: string) => {
     await fetch(`/api/sources/${id}`, { method: 'DELETE' });
     await fetchSources();
     if (activeSourceId === id) {
-      setActiveSourceId(sources[0]?.id || null);
+      const fallback = sources.find((s) => s.id !== id)?.id || null;
+      setActiveSourceId(fallback);
+      if (fallback) {
+        setSelectedSourceIds([fallback]);
+        handleUpdatePanel(activePanelId, {
+          sourceId: fallback,
+          selectedSourceIds: [fallback],
+        });
+      }
     }
   };
 
@@ -1726,6 +1740,7 @@ export const App: React.FC = () => {
       await fetchSources();
       if (data.source?.id) {
         setActiveSourceId(data.source.id);
+        setSelectedSourceIds([data.source.id]);
         // Also assign to the active panel
         handleUpdatePanel(activePanelId, {
           sourceId: data.source.id,
@@ -1810,6 +1825,10 @@ export const App: React.FC = () => {
         onRemoveCustomSource={handleRemoveCustomSource}
         isOpen={!isFullscreen && isSidebarOpen}
         onToggleOpen={toggleSidebar}
+        panels={panels}
+        activePanelId={activePanelId}
+        panelLayout={panelLayout}
+        onSelectActivePanel={(id) => setActivePanelId(id)}
       />
 
       {/* Main Content Area */}
@@ -1826,43 +1845,84 @@ export const App: React.FC = () => {
           filteredCount={displayEntries.length}
           durationMs={durationMs}
           markerFilter={markerFilter}
-          onMarkerFilterChange={setMarkerFilter}
+          onMarkerFilterChange={(val) => {
+            setMarkerFilter(val);
+            handleUpdatePanel(activePanelId, { markerFilter: val });
+          }}
           isMarkerRegex={isMarkerRegex}
-          onToggleMarkerRegex={() => setIsMarkerRegex(!isMarkerRegex)}
+          onToggleMarkerRegex={() => {
+            const next = !isMarkerRegex;
+            setIsMarkerRegex(next);
+            handleUpdatePanel(activePanelId, { isMarkerRegex: next });
+          }}
           search={search}
-          onSearchChange={setSearch}
+          onSearchChange={(val) => {
+            setSearch(val);
+            handleUpdatePanel(activePanelId, { search: val });
+          }}
           isRegex={isRegex}
-          onToggleRegex={() => setIsRegex(!isRegex)}
+          onToggleRegex={() => {
+            const next = !isRegex;
+            setIsRegex(next);
+            handleUpdatePanel(activePanelId, { isRegex: next });
+          }}
           caseSensitive={caseSensitive}
-          onToggleCaseSensitive={() => setCaseSensitive(!caseSensitive)}
+          onToggleCaseSensitive={() => {
+            const next = !caseSensitive;
+            setCaseSensitive(next);
+            handleUpdatePanel(activePanelId, { caseSensitive: next });
+          }}
           invert={invert}
-          onToggleInvert={() => setInvert(!invert)}
+          onToggleInvert={() => {
+            const next = !invert;
+            setInvert(next);
+            handleUpdatePanel(activePanelId, { invert: next });
+          }}
           currentMatchIndex={currentMatchIndex}
           onPrevMatch={handlePrevMatch}
           onNextMatch={handleNextMatch}
           onGoToLine={handleGoToLine}
           onOpenGoToLine={() => setIsGoToLineModalOpen(true)}
           viewMode={viewMode}
-          onChangeViewMode={setViewMode}
+          onChangeViewMode={(mode) => {
+            setViewMode(mode);
+            handleUpdatePanel(activePanelId, { viewMode: mode });
+          }}
           wrapLines={wrapLines}
-          onToggleWrapLines={() => setWrapLines(!wrapLines)}
+          onToggleWrapLines={() => {
+            const next = !wrapLines;
+            setWrapLines(next);
+            handleUpdatePanel(activePanelId, { wrapLines: next });
+          }}
           hideBrackets={hideBrackets}
           onToggleHideBrackets={handleToggleHideBrackets}
           sortOption={sortOption}
-          onChangeSortOption={setSortOption}
+          onChangeSortOption={(opt) => {
+            setSortOption(opt);
+            handleUpdatePanel(activePanelId, { sortOption: opt });
+          }}
           selectedLevels={selectedLevels}
           excludeLevels={excludeLevels}
           onToggleLevel={handleToggleLevel}
           onToggleExcludeLevel={handleToggleExcludeLevel}
           levelCounts={levelCounts}
           selectedWorkflow={selectedWorkflow}
-          onSelectWorkflow={setSelectedWorkflow}
+          onSelectWorkflow={(wf) => {
+            setSelectedWorkflow(wf);
+            handleUpdatePanel(activePanelId, { selectedWorkflow: wf });
+          }}
           workflowCounts={workflowCounts}
           selectedOperation={selectedOperation}
-          onSelectOperation={setSelectedOperation}
+          onSelectOperation={(op) => {
+            setSelectedOperation(op);
+            handleUpdatePanel(activePanelId, { selectedOperation: op });
+          }}
           operationCounts={operationCounts}
           selectedCorrelation={selectedCorrelation}
-          onSelectCorrelation={setSelectedCorrelation}
+          onSelectCorrelation={(corr) => {
+            setSelectedCorrelation(corr);
+            handleUpdatePanel(activePanelId, { selectedCorrelation: corr });
+          }}
           correlationCounts={correlationCounts}
           isLiveTail={isLiveTail}
           liveLogsPerSec={liveLogsPerSec}
@@ -1880,6 +1940,7 @@ export const App: React.FC = () => {
           onDateRangeChange={(s, e) => {
             setStartDate(s);
             setEndDate(e);
+            handleUpdatePanel(activePanelId, { startDate: s, endDate: e });
           }}
           isSidebarOpen={!isFullscreen && isSidebarOpen}
           onToggleSidebar={toggleSidebar}
@@ -1900,6 +1961,8 @@ export const App: React.FC = () => {
           onSelectPreset={handleSelectPreset}
           onOpenPresetModal={handleOpenPresetModal}
           onCreateNewPreset={handleCreateNewPreset}
+          healthReport={healthReport}
+          onOpenHealthModal={() => setIsHealthModalOpen(true)}
         />
 
         {/* Panel Windows Grid (1, 2, 3, 4 Panels) */}
@@ -1907,13 +1970,14 @@ export const App: React.FC = () => {
           layout={panelLayout}
           panels={panels}
           activePanelId={activePanelId}
-          onSelectActivePanel={setActivePanelId}
+          onSelectActivePanel={handleSelectActivePanel}
           sources={sources}
           activePreset={activePreset}
           onUpdatePanel={handleUpdatePanel}
           onClosePanel={handleClosePanel}
           onMaximizePanel={handleMaximizePanel}
           onSplitPanel={handleSplitPanel}
+          onLoadedStats={handleLoadedStats}
           onViewContext={(line, srcId) => {
             setContextLineNumber(line);
             if (srcId) {
@@ -1923,6 +1987,7 @@ export const App: React.FC = () => {
               setContextSourceId(entry?.sourceId || activeSourceId || '');
             }
           }}
+          isLiveTail={isLiveTail}
         />
       </main>
 
@@ -1959,6 +2024,14 @@ export const App: React.FC = () => {
       <KeyboardShortcutsModal
         isOpen={isShortcutsOpen}
         onClose={() => setIsShortcutsOpen(false)}
+      />
+
+      <SystemHealthModal
+        isOpen={isHealthModalOpen}
+        onClose={() => setIsHealthModalOpen(false)}
+        onClearCache={() => {
+          fetch('/api/sources').then(() => {});
+        }}
       />
 
       {/* Dedicated JSON and XML Inspector on another div */}

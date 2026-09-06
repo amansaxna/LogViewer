@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   Terminal,
   FileText,
@@ -6,6 +6,7 @@ import {
   X,
   Search,
   Folder,
+  FolderOpen,
   CloudUpload,
   Link2,
   ClipboardList,
@@ -15,12 +16,19 @@ import {
   History,
   ChevronDown,
   ChevronRight,
-  Trash2,
   GitMerge,
   CheckSquare,
   Square,
+  FileCode,
+  FileJson,
+  Radio,
+  Layers,
+  Sparkles,
+  HardDrive,
+  ExternalLink,
 } from 'lucide-react';
 import { LogSource } from '../types.ts';
+import { PanelLayout, PanelState, getLayoutCount } from '../types/panel.ts';
 
 interface SidebarProps {
   sources: LogSource[];
@@ -39,6 +47,11 @@ interface SidebarProps {
   onRemoveCustomSource: (id: string) => void;
   isOpen?: boolean;
   onToggleOpen?: () => void;
+  // Multi-panel integration
+  panels?: PanelState[];
+  activePanelId?: string;
+  panelLayout?: PanelLayout;
+  onSelectActivePanel?: (id: string) => void;
 }
 
 function formatBytes(bytes?: number): string {
@@ -58,10 +71,26 @@ export function formatBytesSplit(bytes?: number): { value: string; unit: string 
   return { value: val.toString(), unit: sizes[i] };
 }
 
+function getFormatIcon(format?: string, category?: string) {
+  const cat = (category || '').toLowerCase();
+  const fmt = (format || '').toLowerCase();
+
+  if (cat.includes('xml') || fmt.includes('xml')) {
+    return <FileCode size={14} className="text-cyan-400" />;
+  }
+  if (cat.includes('json') || fmt.includes('json')) {
+    return <FileJson size={14} className="text-purple-400" />;
+  }
+  if (cat.includes('stream') || fmt.includes('stream')) {
+    return <Radio size={14} className="text-emerald-400" />;
+  }
+  return <FileText size={14} className="text-amber-400" />;
+}
+
 export const Sidebar: React.FC<SidebarProps> = ({
   sources,
   activeSourceId,
-  selectedSourceIds,
+  selectedSourceIds = [],
   onSelectSource,
   onToggleSourceSelect,
   onSelectAllSources,
@@ -75,12 +104,32 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onRemoveCustomSource,
   isOpen = true,
   onToggleOpen,
+  panels,
+  activePanelId,
+  panelLayout,
+  onSelectActivePanel,
 }) => {
   const [filterText, setFilterText] = useState('');
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [expandedCategories, setExpandedCategories] = useState<Record<string, boolean>>({});
   const [expandedRotations, setExpandedRotations] = useState<Record<string, boolean>>({});
 
-  // Auto-expand rotations if an active source is inside it
+  const visiblePanelsCount = panelLayout ? getLayoutCount(panelLayout) : 1;
+  const visiblePanels = panels ? panels.slice(0, visiblePanelsCount) : [];
+
+  // Initialize categories as expanded by default
+  useEffect(() => {
+    const initial: Record<string, boolean> = {};
+    for (const s of sources) {
+      const cat = s.category || 'General';
+      if (initial[cat] === undefined) {
+        initial[cat] = true;
+      }
+    }
+    setExpandedCategories((prev) => ({ ...initial, ...prev }));
+  }, [sources]);
+
+  // Auto-expand rotations if active source is an archive
   useEffect(() => {
     if (activeSourceId) {
       for (const s of sources) {
@@ -98,417 +147,452 @@ export const Sidebar: React.FC<SidebarProps> = ({
     setTimeout(() => setCopiedId(null), 1800);
   };
 
-  // Group sources by category
-  const filteredSources = sources.filter(
-    (s) =>
-      s.name.toLowerCase().includes(filterText.toLowerCase()) ||
-      s.category.toLowerCase().includes(filterText.toLowerCase()) ||
-      s.path.toLowerCase().includes(filterText.toLowerCase())
-  );
+  const toggleCategory = (cat: string) => {
+    setExpandedCategories((prev) => ({
+      ...prev,
+      [cat]: prev[cat] === undefined ? false : !prev[cat],
+    }));
+  };
 
-  const categories = Array.from(new Set(filteredSources.map((s) => s.category || 'General')));
+  // Filter sources by search keyword
+  const filteredSources = useMemo(() => {
+    if (!filterText.trim()) return sources;
+    const q = filterText.toLowerCase();
+    return sources.filter(
+      (s) =>
+        s.name.toLowerCase().includes(q) ||
+        s.category.toLowerCase().includes(q) ||
+        s.path.toLowerCase().includes(q) ||
+        s.description?.toLowerCase().includes(q)
+    );
+  }, [sources, filterText]);
+
+  // Unique categories
+  const categories = useMemo(() => {
+    const list = Array.from(new Set(filteredSources.map((s) => s.category || 'General')));
+    return list;
+  }, [filteredSources]);
+
+  // Overall statistics
+  const totalSizeBytes = useMemo(() => {
+    return sources.reduce((sum, s) => sum + (s.size || 0), 0);
+  }, [sources]);
+
+  const isAllMerged = sources.length > 1 && selectedSourceIds.length === sources.length;
+  const isSomeMerged = selectedSourceIds.length > 1 && !isAllMerged;
 
   return (
-    <aside className={`sidebar ${!isOpen ? 'collapsed' : ''}`}>
-      {/* Header */}
-      <div className="sidebar-header" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <div className="sidebar-logo">
-            <Terminal size={18} />
+    <aside className={`sidebar modern-sidebar ${!isOpen ? 'collapsed' : ''}`}>
+      {/* Sleek App Branding Header */}
+      <div className="sidebar-brand-header">
+        <div className="sidebar-brand-left">
+          <div className="sidebar-brand-mark">
+            <Terminal size={17} strokeWidth={2.4} />
           </div>
-          <div style={{ display: 'flex', flexDirection: 'column' }}>
-            <span className="sidebar-title">EconViewer</span>
-            <span style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>Modern log analyzer</span>
+          <div className="sidebar-brand-meta">
+            <div className="sidebar-brand-name">
+              <span>EconViewer</span>
+              <span className="sidebar-version-pill">v2.4</span>
+            </div>
+            <span className="sidebar-brand-sub">Universal Log Stream Engine</span>
           </div>
         </div>
+
         {onToggleOpen && (
           <button
-            className="btn-icon"
+            className="sidebar-collapse-btn"
             onClick={onToggleOpen}
-            title="Collapse left panel ([)"
-            style={{ width: 28, height: 28, flexShrink: 0 }}
+            title="Collapse Sidebar ([)"
+            aria-label="Collapse Sidebar"
           >
             <PanelLeftClose size={15} />
           </button>
         )}
       </div>
 
-      {/* Quick Action Buttons (Matching Image 2) */}
-      <div style={{ padding: '12px 14px 4px 14px', display: 'flex', flexDirection: 'column', gap: 8 }}>
-        {/* Load Files Button */}
+      {/* Primary Actions & Quick Controls Bar */}
+      <div className="sidebar-actions-section">
+        {/* Main Load Button */}
         <button
           onClick={onOpenModal}
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            gap: 8,
-            width: '100%',
-            padding: '9px 14px',
-            backgroundColor: 'var(--accent-primary)',
-            color: '#ffffff',
-            border: 'none',
-            borderRadius: 8,
-            fontWeight: 600,
-            fontSize: '0.86rem',
-            cursor: 'pointer',
-            boxShadow: '0 2px 8px var(--accent-bg)',
-            transition: 'all 0.15s ease',
-          }}
-          className="btn-load-files"
+          className="sidebar-primary-action-btn"
+          title="Open files or browse directory"
         >
-          <CloudUpload size={16} />
-          Load Files
+          <CloudUpload size={15} />
+          <span>Load Log Files</span>
+          <span className="sidebar-action-shortcut">⌘O</span>
         </button>
 
-        {/* Stream File Button */}
-        <button
-          onClick={onToggleLiveTail}
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            gap: 8,
-            width: '100%',
-            padding: '8px 14px',
-            backgroundColor: isLiveTail ? 'rgba(34, 197, 94, 0.15)' : 'var(--bg-surface)',
-            color: isLiveTail ? '#22c55e' : 'var(--text-primary)',
-            border: `1px solid ${isLiveTail ? 'rgba(34, 197, 94, 0.4)' : 'var(--border-subtle)'}`,
-            borderRadius: 8,
-            fontWeight: 500,
-            fontSize: '0.84rem',
-            cursor: 'pointer',
-            transition: 'all 0.15s ease',
-          }}
-        >
-          <Link2 size={15} />
-          {isLiveTail ? (
-            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-              <span>Streaming File</span>
-              <span
-                style={{
-                  background: 'rgba(34, 197, 94, 0.25)',
-                  padding: '1px 6px',
-                  borderRadius: 4,
-                  fontSize: '0.72rem',
-                  fontWeight: 700,
-                  fontFamily: 'var(--font-mono)',
-                }}
-              >
-                {liveAvgLogsPerSec > 0 ? `avg ${liveAvgLogsPerSec} logs/s` : `${liveLogsPerSec} logs/s`}
-              </span>
-            </span>
-          ) : (
-            'Stream File'
-          )}
-        </button>
-
-        {/* Paste Logs Button */}
-        <button
-          onClick={onOpenPasteModal}
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            gap: 8,
-            width: '100%',
-            padding: '8px 14px',
-            backgroundColor: 'var(--bg-surface)',
-            color: 'var(--text-primary)',
-            border: '1px solid var(--border-subtle)',
-            borderRadius: 8,
-            fontWeight: 500,
-            fontSize: '0.84rem',
-            cursor: 'pointer',
-            transition: 'all 0.15s ease',
-          }}
-        >
-          <ClipboardList size={15} />
-          Paste Logs
-        </button>
-
-        {/* Unified Stream Toggle Pill Button */}
-        {sources.length > 1 && (
+        {/* 3-Column Compact Quick Action Toolbar */}
+        <div className="sidebar-quick-toolbar">
+          {/* Live Tail Toggle */}
           <button
-            onClick={() => {
-              if (selectedSourceIds && selectedSourceIds.length === sources.length) {
-                onClearAllSources?.();
-              } else {
-                onSelectAllSources?.();
-              }
-            }}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: 8,
-              width: '100%',
-              padding: '8px 14px',
-              backgroundColor: selectedSourceIds && selectedSourceIds.length > 1 ? 'rgba(56, 189, 248, 0.12)' : 'var(--bg-surface)',
-              color: selectedSourceIds && selectedSourceIds.length > 1 ? '#38bdf8' : 'var(--text-secondary)',
-              border: `1.5px solid ${selectedSourceIds && selectedSourceIds.length > 1 ? '#38bdf8' : 'var(--border-subtle)'}`,
-              borderRadius: 20,
-              fontWeight: 600,
-              fontSize: '0.82rem',
-              cursor: 'pointer',
-              transition: 'all 0.15s ease',
-            }}
-            title="Toggle Unified Multi-Source Stream"
+            type="button"
+            onClick={onToggleLiveTail}
+            className={`sidebar-tool-btn ${isLiveTail ? 'active-streaming' : ''}`}
+            title={isLiveTail ? 'Live Tail is active — click to pause (Shortcut: T)' : 'Start live tailing incoming logs (Shortcut: T)'}
           >
-            <GitMerge size={14} color="#38bdf8" />
-            <span>
-              {selectedSourceIds && selectedSourceIds.length > 1
-                ? `Unified Stream (${selectedSourceIds.length}/${sources.length})`
-                : `Merge All Sources (${sources.length})`}
-            </span>
+            {isLiveTail ? (
+              <>
+                <span className="sidebar-status-dot pulsing" />
+                <span className="sidebar-tool-label">Tail</span>
+                <span className="sidebar-rate-chip">
+                  {liveAvgLogsPerSec > 0 ? `${liveAvgLogsPerSec}/s` : `${liveLogsPerSec}/s`}
+                </span>
+              </>
+            ) : (
+              <>
+                <Link2 size={13} />
+                <span className="sidebar-tool-label">Live Tail</span>
+              </>
+            )}
           </button>
-        )}
-      </div>
 
-      {/* Filter Sources */}
-      <div className="sidebar-search">
-        <div style={{ position: 'relative' }}>
-          <input
-            type="text"
-            className="sidebar-search-input"
-            placeholder="Search log files..."
-            value={filterText}
-            onChange={(e) => setFilterText(e.target.value)}
-          />
-          <Search
-            size={13}
-            style={{
-              position: 'absolute',
-              right: 10,
-              top: '50%',
-              transform: 'translateY(-50%)',
-              color: 'var(--text-muted)',
-              pointerEvents: 'none',
-            }}
-          />
+          {/* Paste Logs */}
+          <button
+            type="button"
+            onClick={onOpenPasteModal}
+            className="sidebar-tool-btn"
+            title="Paste log snippet from clipboard to inspect (Shortcut: ⌘V)"
+          >
+            <ClipboardList size={13} />
+            <span className="sidebar-tool-label">Paste</span>
+          </button>
+
+          {/* Merge All / Unified Stream */}
+          {sources.length > 1 ? (
+            <button
+              type="button"
+              onClick={() => {
+                if (isAllMerged || isSomeMerged) {
+                  onClearAllSources?.();
+                } else {
+                  onSelectAllSources?.();
+                }
+              }}
+              className={`sidebar-tool-btn ${isAllMerged || isSomeMerged ? 'active-merged' : ''}`}
+              title={
+                isAllMerged || isSomeMerged
+                  ? 'Exit Unified Stream (Clear multi-source merge)'
+                  : 'Merge all active log sources into a synchronized unified stream'
+              }
+            >
+              <GitMerge size={13} />
+              <span className="sidebar-tool-label">
+                {isAllMerged ? 'Merged' : isSomeMerged ? `Merged` : 'Merge All'}
+              </span>
+              {(isAllMerged || isSomeMerged) && (
+                <span className="sidebar-merge-chip">
+                  {isAllMerged ? 'All' : selectedSourceIds.length}
+                </span>
+              )}
+            </button>
+          ) : (
+            <button
+              type="button"
+              disabled
+              className="sidebar-tool-btn disabled"
+              title="Add 2 or more log sources to enable multi-source merge"
+            >
+              <GitMerge size={13} />
+              <span className="sidebar-tool-label">Merge</span>
+            </button>
+          )}
         </div>
       </div>
 
-      {/* Grouped Sources List */}
-      <div className="sidebar-sources-list">
+      {/* Focus Target Panel Switcher (When Multi-Panel is Active) */}
+      {visiblePanelsCount > 1 && (
+        <div className="sidebar-target-segment-wrapper">
+          <div className="sidebar-target-segment-header">
+            <span className="sidebar-target-segment-title">Focus Target Panel</span>
+            <span className="sidebar-target-segment-hint">Click file to load into target</span>
+          </div>
+          <div className="sidebar-target-segmented-control">
+            {visiblePanels.map((p, idx) => {
+              const panelNumber = parseInt(p.id.replace(/\D/g, ''), 10) || (idx + 1);
+              const isCurrentActive =
+                p.id === activePanelId ||
+                (idx === 0 && !visiblePanels.some((vp) => vp.id === activePanelId));
+              return (
+                <button
+                  key={p.id}
+                  type="button"
+                  className={`sidebar-target-segment-tab ${isCurrentActive ? 'active' : ''}`}
+                  onClick={() => onSelectActivePanel?.(p.id)}
+                  title={`Select Panel ${panelNumber} as active insertion target`}
+                >
+                  <span className="target-tab-badge">P{panelNumber}</span>
+                  <span className="target-tab-status">Panel {panelNumber}</span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Search Input Bar */}
+      <div className="sidebar-search-container">
+        <div className="sidebar-search-box">
+          <Search size={13} className="sidebar-search-icon" />
+          <input
+            type="text"
+            className="sidebar-search-field"
+            placeholder="Filter sources & files..."
+            value={filterText}
+            onChange={(e) => setFilterText(e.target.value)}
+          />
+          {filterText && (
+            <button
+              onClick={() => setFilterText('')}
+              className="sidebar-search-clear-btn"
+              title="Clear filter"
+            >
+              <X size={12} />
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Sources Tree View */}
+      <div className="sidebar-tree-viewport">
         {sources.length === 0 && (
-          <div style={{ padding: '8px 12px', display: 'flex', flexDirection: 'column', gap: 8 }}>
-            <div className="skeleton-box" style={{ width: '40%', height: 14 }} />
-            <div className="skeleton-box" style={{ width: '100%', height: 32 }} />
-            <div className="skeleton-box" style={{ width: '100%', height: 32 }} />
-            <div className="skeleton-box" style={{ width: '60%', height: 14, marginTop: 8 }} />
-            <div className="skeleton-box" style={{ width: '100%', height: 32 }} />
+          <div className="sidebar-empty-state">
+            <HardDrive size={28} className="sidebar-empty-icon" />
+            <p className="sidebar-empty-title">No log sources loaded</p>
+            <p className="sidebar-empty-subtitle">Drop files anywhere or click Load Files</p>
+            <button onClick={onOpenModal} className="sidebar-empty-btn">
+              <Plus size={13} />
+              Add Local Log Source
+            </button>
           </div>
         )}
+
         {categories.map((category) => {
           const categorySources = filteredSources.filter((s) => (s.category || 'General') === category);
+          const isCategoryExpanded = expandedCategories[category] !== false;
+
           return (
-            <div key={category} className="source-category-group">
-              <div className="source-category-title" style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-                <Folder size={12} />
-                {category}
-              </div>
+            <div key={category} className="sidebar-category-group">
+              {/* Collapsible Category Header */}
+              <button
+                type="button"
+                className="sidebar-category-header"
+                onClick={() => toggleCategory(category)}
+              >
+                <div className="sidebar-category-header-left">
+                  {isCategoryExpanded ? <FolderOpen size={13} /> : <Folder size={13} />}
+                  <span className="sidebar-category-name">{category}</span>
+                </div>
+                <div className="sidebar-category-header-right">
+                  <span className="sidebar-category-count">{categorySources.length}</span>
+                  {isCategoryExpanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
+                </div>
+              </button>
 
-              {categorySources.map((source) => {
-                const isMultiSelected = selectedSourceIds ? selectedSourceIds.includes(source.id) : false;
-                const isSingleActive = !selectedSourceIds || selectedSourceIds.length <= 1;
-                const isActive = isSingleActive ? source.id === activeSourceId : isMultiSelected;
-                const sizeInfo = formatBytesSplit(source.size);
-                const hasRotations = source.rotations && source.rotations.length > 0;
-                const isExpanded = !!expandedRotations[source.id];
+              {/* Source Items */}
+              {isCategoryExpanded && (
+                <div className="sidebar-category-items">
+                  {categorySources.map((source) => {
+                    const isMultiSelected = selectedSourceIds.includes(source.id);
+                    const isSingleActive = selectedSourceIds.length <= 1;
+                    const isActive = isSingleActive ? source.id === activeSourceId : isMultiSelected;
+                    const hasRotations = Boolean(source.rotations && source.rotations.length > 0);
+                    const isRotExpanded = Boolean(expandedRotations[source.id]);
+                    const sizeFormatted = formatBytes(source.size);
 
-                return (
-                  <div key={source.id} style={{ marginBottom: 4 }}>
-                    <div
-                      className={`source-item ${isActive ? 'active' : ''}`}
-                      onClick={() => onSelectSource(source.id)}
-                    >
-                      <div className="source-item-left">
-                        {onToggleSourceSelect && sources.length > 1 && (
-                          <button
-                            type="button"
-                            className="source-checkbox-btn"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              onToggleSourceSelect(source.id);
-                            }}
-                            style={{
-                              background: 'none',
-                              border: 'none',
-                              padding: 0,
-                              marginRight: 2,
-                              cursor: 'pointer',
-                              display: 'inline-flex',
-                              alignItems: 'center',
-                              color: isMultiSelected ? '#38bdf8' : 'var(--text-muted)',
-                              opacity: isMultiSelected ? 1 : 0.6,
-                            }}
-                            title={isMultiSelected ? 'Remove from unified stream' : 'Add to unified stream'}
-                          >
-                            {isMultiSelected ? <CheckSquare size={13} color="#38bdf8" /> : <Square size={13} />}
-                          </button>
-                        )}
-                        <FileText size={15} color={isActive ? '#38bdf8' : '#64748b'} />
-                        <span className="source-item-name" title={source.name}>
-                          {source.name}
-                        </span>
-                      </div>
+                    // Check which quadrant panels have this source loaded (deduplicated & strictly ordered P1..P4)
+                    const openInPanelsMap = new Map<number, { panelId: string; index: number }>();
+                    if (visiblePanelsCount > 1) {
+                      visiblePanels.forEach((p, idx) => {
+                        const panelNumber = parseInt(p.id.replace(/\D/g, ''), 10) || (idx + 1);
+                        const isLoaded = p.selectedSourceIds && p.selectedSourceIds.length > 0
+                          ? p.selectedSourceIds.includes(source.id)
+                          : p.sourceId === source.id;
+                        if (isLoaded) {
+                          if (!openInPanelsMap.has(panelNumber)) {
+                            openInPanelsMap.set(panelNumber, {
+                              panelId: p.id,
+                              index: panelNumber,
+                            });
+                          }
+                        }
+                      });
+                    }
+                    const openInPanels = Array.from(openInPanelsMap.values()).sort((a, b) => a.index - b.index);
 
-                      <div className="source-item-right">
-                        {/* Rotation toggle badge placed neatly in right group */}
-                        {hasRotations && (
-                          <button
-                            style={{
-                              display: 'inline-flex',
-                              alignItems: 'center',
-                              gap: 3,
-                              background: isExpanded ? 'rgba(56, 189, 248, 0.2)' : 'rgba(56, 189, 248, 0.08)',
-                              border: '1px solid rgba(56, 189, 248, 0.25)',
-                              borderRadius: 4,
-                              padding: '1px 5px',
-                              color: '#38bdf8',
-                              fontSize: '0.68rem',
-                              fontWeight: 600,
-                              cursor: 'pointer',
-                              flexShrink: 0,
-                            }}
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setExpandedRotations((prev) => ({ ...prev, [source.id]: !prev[source.id] }));
-                            }}
-                            title={`Toggle ${source.rotations?.length} rotated archives`}
-                          >
-                            <History size={10} />
-                            <span>{source.rotations?.length}</span>
-                            {isExpanded ? <ChevronDown size={10} /> : <ChevronRight size={10} />}
-                          </button>
-                        )}
-
-                        {/* Stacked 2-line size badge (matching screenshot) */}
-                        {source.exists !== false ? (
-                          <div
-                            className="source-size-badge"
-                            title={`File size: ${formatBytes(source.size)}`}
-                          >
-                            <span className="source-size-badge-val">{sizeInfo.value}</span>
-                            <span className="source-size-badge-unit">{sizeInfo.unit}</span>
-                          </div>
-                        ) : (
-                          <span className="source-size-badge" style={{ color: '#ef4444' }}>
-                            Missing
-                          </span>
-                        )}
-
-                        {/* Copy path button */}
-                        <button
-                          style={{
-                            background: 'transparent',
-                            border: 'none',
-                            color: copiedId === source.id ? '#4ade80' : '#64748b',
-                            cursor: 'pointer',
-                            display: 'flex',
-                            alignItems: 'center',
-                            padding: 2,
-                          }}
-                          onClick={(e) => handleCopy(e, source.path, source.id)}
-                          title={copiedId === source.id ? 'Copied path!' : `Copy path: ${source.path}`}
+                    return (
+                      <div key={source.id} className="sidebar-source-node">
+                        <div
+                          className={`sidebar-source-row ${isActive ? 'active-row' : ''}`}
+                          onClick={() => onSelectSource(source.id)}
+                          title={`${source.name}\n${source.path}\nSize: ${sizeFormatted}`}
                         >
-                          {copiedId === source.id ? <Check size={13} color="#4ade80" /> : <Copy size={13} />}
-                        </button>
+                          {/* Row Left: Checkbox + Format Icon + Title */}
+                          <div className="sidebar-source-row-left">
+                            {onToggleSourceSelect && sources.length > 1 && (
+                              <button
+                                type="button"
+                                className="sidebar-source-checkbox source-checkbox-btn"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  onToggleSourceSelect(source.id);
+                                }}
+                                title={
+                                  isMultiSelected
+                                    ? 'Remove from unified merge'
+                                    : 'Add to unified multi-source stream'
+                                }
+                              >
+                                {isMultiSelected ? (
+                                  <CheckSquare size={13} className="text-sky-400" />
+                                ) : (
+                                  <Square size={13} className="text-slate-500" />
+                                )}
+                              </button>
+                            )}
 
-                        {source.isCustom && (
-                          <button
-                            style={{
-                              background: 'transparent',
-                              border: 'none',
-                              color: 'var(--text-muted)',
-                              cursor: 'pointer',
-                              display: 'flex',
-                              alignItems: 'center',
-                              padding: 2,
-                            }}
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              onRemoveCustomSource(source.id);
-                            }}
-                            title="Close file"
-                          >
-                            <X size={12} />
-                          </button>
+                            <div className="sidebar-source-format-icon">
+                              {getFormatIcon(source.format, source.category)}
+                            </div>
+
+                            <div className="sidebar-source-title-meta">
+                              <span className="sidebar-source-title">{source.name}</span>
+                            </div>
+                          </div>
+
+                          {/* Row Right: Panel Badges + Rotations + Size + Copy */}
+                          <div className="sidebar-source-row-right">
+                            {/* Panel Chips (e.g. P1, P2) */}
+                            {openInPanels.length > 0 && (
+                              <div className="sidebar-panel-chips-group">
+                                {openInPanels.map((p) => (
+                                  <span
+                                    key={p.panelId}
+                                    className={`sidebar-panel-chip ${
+                                      p.panelId === activePanelId ? 'active-panel-chip' : ''
+                                    }`}
+                                    title={`Loaded in Panel ${p.index}`}
+                                  >
+                                    P{p.index}
+                                  </span>
+                                ))}
+                              </div>
+                            )}
+
+                            {/* Rotation Archive Counter */}
+                            {hasRotations && (
+                              <button
+                                type="button"
+                                className={`sidebar-rotations-toggle-pill ${isRotExpanded ? 'expanded' : ''}`}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setExpandedRotations((prev) => ({
+                                    ...prev,
+                                    [source.id]: !prev[source.id],
+                                  }));
+                                }}
+                                title={`Toggle ${source.rotations?.length} rotated archives`}
+                              >
+                                <History size={10} />
+                                <span>{source.rotations?.length}</span>
+                                {isRotExpanded ? <ChevronDown size={10} /> : <ChevronRight size={10} />}
+                              </button>
+                            )}
+
+                            {/* File Size */}
+                            <span className="sidebar-filesize-text">{sizeFormatted}</span>
+
+                            {/* Actions (Copy / Remove) */}
+                            <div className="sidebar-row-hover-actions">
+                              <button
+                                type="button"
+                                className="sidebar-row-action-btn"
+                                onClick={(e) => handleCopy(e, source.path, source.id)}
+                                title={copiedId === source.id ? 'Copied path!' : 'Copy full file path'}
+                              >
+                                {copiedId === source.id ? (
+                                  <Check size={12} className="text-emerald-400" />
+                                ) : (
+                                  <Copy size={12} />
+                                )}
+                              </button>
+
+                              {source.isCustom && (
+                                <button
+                                  type="button"
+                                  className="sidebar-row-action-btn delete-btn"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    onRemoveCustomSource(source.id);
+                                  }}
+                                  title="Close custom file"
+                                >
+                                  <X size={12} />
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Sub-tree for Rotations */}
+                        {hasRotations && isRotExpanded && (
+                          <div className="sidebar-rotations-subtree">
+                            {source.rotations!.map((rot) => {
+                              const isRotActive = rot.id === activeSourceId;
+                              const rotSize = formatBytes(rot.size);
+
+                              return (
+                                <div
+                                  key={rot.id}
+                                  className={`sidebar-rotated-row ${isRotActive ? 'active-row' : ''}`}
+                                  onClick={() => onSelectSource(rot.id)}
+                                  title={`Archive: ${rot.name}\n${rot.path}\nSize: ${rotSize}`}
+                                >
+                                  <div className="flex items-center gap-1.5 min-w-0 flex-1">
+                                    <History size={12} className="text-slate-500 shrink-0" />
+                                    <span className="sidebar-rotated-name">{rot.name}</span>
+                                  </div>
+                                  <div className="flex items-center gap-2 shrink-0">
+                                    <span className="sidebar-filesize-text">{rotSize}</span>
+                                    <button
+                                      type="button"
+                                      className="sidebar-row-action-btn"
+                                      onClick={(e) => handleCopy(e, rot.path, rot.id)}
+                                      title="Copy path"
+                                    >
+                                      {copiedId === rot.id ? (
+                                        <Check size={11} className="text-emerald-400" />
+                                      ) : (
+                                        <Copy size={11} />
+                                      )}
+                                    </button>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
                         )}
                       </div>
-                    </div>
-
-                    {/* Sub-list of Rotated Files in dedicated tree */}
-                    {hasRotations && isExpanded && (
-                      <div className="source-rotations-tree">
-                        {source.rotations!.map((rot) => {
-                          const isRotActive = rot.id === activeSourceId;
-                          const rotSize = formatBytesSplit(rot.size);
-                          return (
-                            <div
-                              key={rot.id}
-                              className={`source-rotated-item ${isRotActive ? 'active' : ''}`}
-                              onClick={() => onSelectSource(rot.id)}
-                              title={rot.name}
-                            >
-                              <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0, flex: 1 }}>
-                                <History size={12} color={isRotActive ? '#38bdf8' : '#64748b'} />
-                                <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                                  {rot.name}
-                                </span>
-                              </div>
-
-                              <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
-                                <div className="source-size-badge" style={{ padding: '1px 4px', minWidth: 30 }}>
-                                  <span className="source-size-badge-val" style={{ fontSize: '0.66rem' }}>
-                                    {rotSize.value}
-                                  </span>
-                                  <span className="source-size-badge-unit" style={{ fontSize: '0.52rem' }}>
-                                    {rotSize.unit}
-                                  </span>
-                                </div>
-
-                                <button
-                                  style={{
-                                    background: 'transparent',
-                                    border: 'none',
-                                    color: copiedId === rot.id ? '#4ade80' : '#64748b',
-                                    cursor: 'pointer',
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    padding: 2,
-                                  }}
-                                  onClick={(e) => handleCopy(e, rot.path, rot.id)}
-                                  title={`Copy path: ${rot.path}`}
-                                >
-                                  {copiedId === rot.id ? <Check size={11} color="#4ade80" /> : <Copy size={11} />}
-                                </button>
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
+                    );
+                  })}
+                </div>
+              )}
             </div>
           );
         })}
-
-        {filteredSources.length === 0 && (
-          <div style={{ textAlign: 'center', color: 'var(--text-muted)', padding: 20, fontSize: '0.8rem' }}>
-            No log files matching filter
-          </div>
-        )}
       </div>
 
-      {/* Footer / Open File Button */}
-      <div className="sidebar-footer">
-        <button className="btn-open-file" onClick={onOpenModal}>
-          <Plus size={15} />
-          Open Local File...
+      {/* Minimal Sleek Footer with Stats */}
+      <div className="sidebar-stats-footer">
+        <div className="sidebar-footer-stats-line">
+          <span className="sidebar-footer-count">{sources.length} sources</span>
+          <span className="sidebar-footer-dot">·</span>
+          <span className="sidebar-footer-size">{formatBytes(totalSizeBytes)} total</span>
+        </div>
+        <button onClick={onOpenModal} className="sidebar-footer-open-btn" title="Add another log file">
+          <Plus size={13} />
+          <span>Add Source</span>
         </button>
       </div>
     </aside>

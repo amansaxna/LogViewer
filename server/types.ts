@@ -100,7 +100,10 @@ export interface LogQuery {
   workflow?: string;
   operation?: string;
   marker?: string;
+  isMarkerRegex?: boolean;
   correlationId?: string;
+  pid?: string;
+  tid?: string;
   sortBy?: 'line' | 'time' | 'marker' | 'namespace' | 'duration' | 'level';
   direction?: 'desc' | 'asc';
   page?: number;

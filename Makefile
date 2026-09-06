@@ -1,4 +1,4 @@
-.PHONY: all install dev dev-server dev-client build start test clean
+.PHONY: all install dev dev-server dev-client service-logs build start test clean
 
 # Default target
 all: install build
@@ -23,6 +23,10 @@ dev-server:
 # Run frontend Vite dev server
 dev-client:
 	npm run dev
+
+# Run continuous high-throughput log stream generator (100 lines/sec, 1GB auto-truncation)
+service-logs:
+	npm run service:logs
 
 # Build production assets
 build:

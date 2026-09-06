@@ -22,10 +22,11 @@ const SHORTCUTS: ShortcutItem[] = [
   { keys: ['PgUp'], description: 'Jump 15 logs up', category: 'Navigation' },
   { keys: ['Home'], description: 'Jump to top of logs', category: 'Navigation' },
   { keys: ['End'], description: 'Jump to bottom of logs', category: 'Navigation' },
+  { keys: ['Ctrl', 'a'], description: 'Select all visible log lines in view', category: 'Navigation' },
 
   // Actions & Inspection
   { keys: ['Enter', 'Space'], description: 'Open Context Viewer for highlighted line', category: 'Inspection' },
-  { keys: ['Ctrl', 'c'], description: 'Copy selected log line content', category: 'Inspection' },
+  { keys: ['Ctrl', 'c'], description: 'Copy selected log line(s) content to clipboard', category: 'Inspection' },
   { keys: ['d'], description: 'Set Delta Time Anchor (T1) to measure latency to another line', category: 'Inspection' },
   { keys: ['g'], description: 'Open "Go to line" modal', category: 'Inspection' },
   { keys: ['Esc'], description: 'Close modal or deselect line', category: 'Inspection' },
@@ -44,6 +45,7 @@ const SHORTCUTS: ShortcutItem[] = [
   { keys: ['Alt', '2'], description: 'Switch to 2 Panels (Split View)', category: 'Multi-Panel Windows' },
   { keys: ['Alt', '3'], description: 'Switch to 3 Panels Layout', category: 'Multi-Panel Windows' },
   { keys: ['Alt', '4'], description: 'Switch to 4 Panels (2x2 Quad Grid)', category: 'Multi-Panel Windows' },
+  { keys: ['Shift', 'h'], description: 'Open Application Health & Telemetry Dashboard', category: 'General' },
   { keys: ['Alt', 'r'], description: 'Reset all settings & filters to default', category: 'General' },
   { keys: ['?'], description: 'Show keyboard shortcuts cheat sheet', category: 'General' },
 ];

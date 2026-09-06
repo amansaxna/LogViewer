@@ -106,10 +106,32 @@ export function stripBracketMarkers(text: string): string {
   return cleaned;
 }
 
+export interface SyntaxColoredOptions {
+  hideBrackets?: boolean;
+  showDatetime?: boolean;
+  showPid?: boolean;
+  showTid?: boolean;
+  showCorrelation?: boolean;
+}
+
 /**
  * Parses a flat log line into syntax-colored tokens matching Image 3 and Image 4.
  */
-export function renderSyntaxColoredLine(rawLine: string, hideBrackets = false): React.ReactNode {
+export function renderSyntaxColoredLine(
+  rawLine: string,
+  optionsOrHideBrackets: boolean | SyntaxColoredOptions = false
+): React.ReactNode {
+  const options: SyntaxColoredOptions =
+    typeof optionsOrHideBrackets === 'boolean'
+      ? { hideBrackets: optionsOrHideBrackets }
+      : (optionsOrHideBrackets || {});
+
+  const hideBrackets = options.hideBrackets ?? false;
+  const showDatetime = options.showDatetime ?? true;
+  const showPid = options.showPid ?? true;
+  const showTid = options.showTid ?? true;
+  const showCorrelation = options.showCorrelation ?? true;
+
   // Check if stack trace line
   const isTrace = /^\s*(Trace:|Error:|Exception:|at\s+|Caused by:)/i.test(rawLine);
   if (isTrace) {
@@ -131,9 +153,13 @@ export function renderSyntaxColoredLine(rawLine: string, hideBrackets = false): 
   // If no bracket tokens are present in this line, check for pure ANSI formatting
   const hasBrackets = /\[(.*?)\]/.test(rawLine);
   if (!hasBrackets) {
-    const ansiOnly = renderAnsiText(rawLine);
+    let processedLine = rawLine;
+    if (!showDatetime) {
+      processedLine = processedLine.replace(/^\d{4}[-/.]\d{2}[-/.]\d{2}[\sT]\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:?\d{2})?\s*/, '');
+    }
+    const ansiOnly = renderAnsiText(processedLine);
     if (ansiOnly) return ansiOnly;
-    return renderRichMessageContext(rawLine);
+    return renderRichMessageContext(processedLine);
   }
 
   // Bracket tokens regex
@@ -143,33 +169,61 @@ export function renderSyntaxColoredLine(rawLine: string, hideBrackets = false): 
   let match: RegExpExecArray | null;
 
   while ((match = bracketRegex.exec(rawLine)) !== null) {
-    // Non-bracket text preceding this token
-    if (match.index > lastIndex) {
-      const nonToken = rawLine.slice(lastIndex, match.index);
-      const ansiChunk = renderAnsiText(nonToken);
-      elements.push(
-        <span key={`txt-${lastIndex}`} style={{ color: 'var(--tok-msg)' }}>
-          {ansiChunk || nonToken}
-        </span>
-      );
-    }
-
     const token = match[1].trim();
     const tokenLower = token.toLowerCase();
+
+    // Check token types
+    const isDatetime = /^\d{4}[-/.]\d{2}[-/.]\d{2}/.test(token);
+    const isPid = /^\d{3,6}$/.test(token);
+    const isTid = /^thread[-_]?\w+/i.test(token) || /^worker[-_]?\w+/i.test(token);
+    const isCorr =
+      /^(corr|cid|correlation|req|traceid|trace_id|correlation_id|txn)[-_:]/i.test(token) ||
+      /^[0-9a-f]{8}-[0-9a-f]{4}-/i.test(token) ||
+      /^c_[a-f0-9]{6,}/i.test(token);
+
+    // Skip tokens that are hidden by user preferences
+    if (
+      (!showDatetime && isDatetime) ||
+      (!showPid && isPid) ||
+      (!showTid && isTid) ||
+      (!showCorrelation && isCorr)
+    ) {
+      lastIndex = bracketRegex.lastIndex;
+      continue;
+    }
+
+    // Non-bracket text preceding this token
+    if (match.index > lastIndex) {
+      let nonToken = rawLine.slice(lastIndex, match.index);
+      if (elements.length === 0) {
+        nonToken = nonToken.trimStart();
+      } else if (/^\s+$/.test(nonToken)) {
+        nonToken = ' ';
+      }
+      if (nonToken.length > 0) {
+        const ansiChunk = renderAnsiText(nonToken);
+        elements.push(
+          <span key={`txt-${lastIndex}`} style={{ color: 'var(--tok-msg)' }}>
+            {ansiChunk || nonToken}
+          </span>
+        );
+      }
+    }
+
     let tokenColor = 'var(--tok-pid)'; // Default slate
     let fontWeight: 400 | 500 | 600 | 700 = 400;
 
     // 1. Datetime: cyan
-    if (/^\d{4}[-/.]\d{2}[-/.]\d{2}/.test(token)) {
+    if (isDatetime) {
       tokenColor = 'var(--tok-datetime)';
       fontWeight = 600;
     }
     // 2. PID or TID: slate/gray
-    else if (/^\d{3,6}$/.test(token) || /^thread[-_]?\w+/i.test(token) || /^worker[-_]?\w+/i.test(token)) {
+    else if (isPid || isTid) {
       tokenColor = 'var(--tok-pid)';
     }
     // 3. Correlation ID: emerald green
-    else if (/^(corr|cid|correlation|req|traceid|trace_id|correlation_id|txn)[-_:]/i.test(token) || /^[0-9a-f]{8}-[0-9a-f]{4}-/i.test(token) || /^c_[a-f0-9]{6,}/i.test(token)) {
+    else if (isCorr) {
       tokenColor = 'var(--tok-corr)';
       fontWeight = 600;
     }
@@ -238,20 +292,25 @@ export function renderSyntaxColoredLine(rawLine: string, hideBrackets = false): 
 
   // Trailing remainder of line (message body)
   if (lastIndex < rawLine.length) {
-    const remainder = rawLine.slice(lastIndex);
-    if (remainder.includes('\x1b[')) {
-      const ansiRemainder = renderAnsiText(remainder);
-      elements.push(
-        <span key={`rem-${lastIndex}`} style={{ color: 'var(--tok-msg)' }}>
-          {ansiRemainder || remainder}
-        </span>
-      );
-    } else {
-      elements.push(
-        <span key={`rem-${lastIndex}`} style={{ color: 'var(--tok-msg)' }}>
-          {renderRichMessageContext(remainder)}
-        </span>
-      );
+    let remainder = rawLine.slice(lastIndex);
+    if (elements.length === 0) {
+      remainder = remainder.trimStart();
+    }
+    if (remainder.length > 0) {
+      if (remainder.includes('\x1b[')) {
+        const ansiRemainder = renderAnsiText(remainder);
+        elements.push(
+          <span key={`rem-${lastIndex}`} style={{ color: 'var(--tok-msg)' }}>
+            {ansiRemainder || remainder}
+          </span>
+        );
+      } else {
+        elements.push(
+          <span key={`rem-${lastIndex}`} style={{ color: 'var(--tok-msg)' }}>
+            {renderRichMessageContext(remainder)}
+          </span>
+        );
+      }
     }
   }
 

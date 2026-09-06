@@ -55,6 +55,14 @@
       "path": "./logs/events_stream.json",
       "format": "flat_file",
       "description": "Structured JSON / NDJSON microservices event logs"
+    },
+    {
+      "id": "stream-100lps",
+      "name": "Live Stream (100 lines/s · 1GB Cap)",
+      "category": "Live Streams",
+      "path": "./logs/stream_100lps.log",
+      "format": "flat_file",
+      "description": "High-throughput continuous log stream emitting 100 lines/sec capped at 1GB (1024MB)"
     }
   ]
 }

@@ -1,5 +1,16 @@
+# Dependencies
 node_modules/
+
+# Production build artifacts & cache
 dist/
 .vite/
 *.tsbuildinfo
 .DS_Store
+
+# Runtime generated, streaming & telemetry logs
+logs/stream_*.log
+logs/stream_100lps.log
+logs/telemetry/
+logs/dropped/
+logs/pasted_*.log
+*.log.large

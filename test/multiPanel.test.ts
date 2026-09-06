@@ -88,4 +88,89 @@ assert.strictEqual(closePanel('2-col'), '1');
 assert.strictEqual(closePanel('1'), '1');
 console.log('✓ Test 5 Passed: Layout transition logic cleanly handles panel reduction and maximize');
 
+// Test 6: Sidebar Source Panel Indicator Mapping (Single & Unified Multi-Source)
+const openInPanelsTest = (sourceId: string, activePanels: PanelState[]) => {
+  return activePanels
+    .map((p, idx) => ({
+      panelId: p.id,
+      index: idx + 1,
+      sourceId: p.sourceId,
+      selectedSourceIds: p.selectedSourceIds,
+    }))
+    .filter((p) =>
+      p.selectedSourceIds && p.selectedSourceIds.length > 0
+        ? p.selectedSourceIds.includes(sourceId)
+        : p.sourceId === sourceId
+    );
+};
+
+const appLogPanels = openInPanelsTest('app-log', panels);
+assert.strictEqual(appLogPanels.length, 1);
+assert.strictEqual(appLogPanels[0].index, 1);
+
+// Test unified multi-source in Panel 1
+const unifiedPanels: PanelState[] = [
+  createDefaultPanel('panel-1', {
+    sourceId: 'app-log',
+    selectedSourceIds: ['app-log', 'payments-log'],
+  }),
+  createDefaultPanel('panel-2', {
+    sourceId: 'sys-log',
+    selectedSourceIds: ['sys-log'],
+  }),
+];
+
+const appUnifiedPanels = openInPanelsTest('app-log', unifiedPanels);
+assert.strictEqual(appUnifiedPanels.length, 1);
+assert.strictEqual(appUnifiedPanels[0].index, 1);
+
+const paymentsUnifiedPanels = openInPanelsTest('payments-log', unifiedPanels);
+assert.strictEqual(paymentsUnifiedPanels.length, 1);
+assert.strictEqual(paymentsUnifiedPanels[0].index, 1);
+// Test 7: Strict Deduplication & Ascending Ordering of Sidebar Panel Chips
+const duplicateTestSource = 'common-service-log';
+const complexPanels: PanelState[] = [
+  createDefaultPanel('panel-1', { sourceId: duplicateTestSource }),
+  createDefaultPanel('panel-2', { selectedSourceIds: [duplicateTestSource, 'other-1'] }),
+  createDefaultPanel('panel-3', { sourceId: duplicateTestSource }),
+  createDefaultPanel('panel-4', { sourceId: duplicateTestSource }),
+];
+
+// Deduplicating mapping function matching Sidebar.tsx
+const computeDeduplicatedChips = (sourceId: string, activePanels: PanelState[]) => {
+  const openInPanelsMap = new Map<number, { panelId: string; index: number }>();
+  activePanels.forEach((p, idx) => {
+    const isLoaded = p.selectedSourceIds && p.selectedSourceIds.length > 0
+      ? p.selectedSourceIds.includes(sourceId)
+      : p.sourceId === sourceId;
+    if (isLoaded) {
+      const panelIndex = idx + 1;
+      if (!openInPanelsMap.has(panelIndex)) {
+        openInPanelsMap.set(panelIndex, {
+          panelId: p.id,
+          index: panelIndex,
+        });
+      }
+    }
+  });
+  return Array.from(openInPanelsMap.values()).sort((a, b) => a.index - b.index);
+};
+
+const chips = computeDeduplicatedChips(duplicateTestSource, complexPanels);
+assert.strictEqual(chips.length, 4);
+assert.deepStrictEqual(chips.map((c) => c.index), [1, 2, 3, 4]);
+
+// Verify that no duplicate index can ever exist even with dirty input data
+const dirtyPanels: PanelState[] = [
+  createDefaultPanel('panel-2', { sourceId: 'src-1' }),
+  createDefaultPanel('panel-2', { sourceId: 'src-1' }),
+  createDefaultPanel('panel-1', { sourceId: 'src-1' }),
+  createDefaultPanel('panel-4', { sourceId: 'src-1' }),
+];
+const dirtyChips = computeDeduplicatedChips('src-1', dirtyPanels);
+assert.deepStrictEqual(dirtyChips.map((c) => c.index), [1, 2, 3, 4]);
+const indices = dirtyChips.map((c) => c.index);
+assert.strictEqual(new Set(indices).size, indices.length, 'Every chip index must be unique');
+console.log('✓ Test 7 Passed: Sidebar panel chips strictly deduplicated and ordered ascending [P1, P2, P3, P4]');
+
 console.log('All Multi-Panel Window Tests Passed Successfully!');

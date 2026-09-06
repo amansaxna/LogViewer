@@ -149,3 +149,162 @@ export interface LogPreset {
   rules: PresetRules;
 }
 
+export type HealthStatus = 'OPTIMAL' | 'DEGRADED' | 'CRITICAL';
+
+export interface HealthDiagnostic {
+  type: 'info' | 'warning' | 'critical';
+  component: 'event_loop' | 'memory' | 'cache' | 'query_sla' | 'error_rate';
+  message: string;
+  recommendation: string;
+}
+
+export interface SlowQueryRecord {
+  id: string;
+  timestamp: string;
+  durationMs: number;
+  sourceIds: string[];
+  search?: string;
+  isRegex?: boolean;
+  matchedCount: number;
+  totalCount: number;
+}
+
+export interface TelemetryStorageInfo {
+  enabled: boolean;
+  directory: string;
+  currentFile: string;
+  currentFileSizeBytes: number;
+  currentFileSizeMb: number;
+  maxCapMb: number;
+  maxCapBytes: number;
+  totalDirSizeBytes: number;
+  totalDirSizeMb: number;
+  totalFilesCount: number;
+}
+
+export interface IncidentRecord {
+  id: string;
+  timestamp: string;
+  category: 'crash' | 'file_load_failure' | 'stream_drop' | 'flicker_burst' | 'slow_query' | 'memory_pressure' | 'client_error' | 'react_error';
+  severity: 'warning' | 'error' | 'critical';
+  source: 'server' | 'client' | 'file_reader' | 'stream_engine' | 'react_ui';
+  message: string;
+  details?: {
+    path?: string;
+    sourceId?: string;
+    reason?: string;
+    stack?: string;
+    panelId?: string;
+    durationMs?: number;
+    fileSizeMb?: number;
+    componentStack?: string;
+    url?: string;
+    [key: string]: any;
+  };
+}
+
+export interface FileLoadFailureRecord {
+  timestamp: string;
+  sourceId: string;
+  path: string;
+  reason: 'not_found' | 'permission_denied' | 'parse_error' | 'empty_file' | 'timeout' | 'read_error' | 'unknown';
+  error: string;
+}
+
+export interface FileLoadTelemetry {
+  totalAttempts: number;
+  successfulLoads: number;
+  failedLoads: number;
+  failureRatePercent: number;
+  avgLoadTimeMs: number;
+  p95LoadTimeMs: number;
+  maxLoadTimeMs: number;
+  slowestLoadedFile: {
+    path: string;
+    sourceId: string;
+    durationMs: number;
+    sizeBytes: number;
+    linesCount: number;
+  } | null;
+  recentFailures: FileLoadFailureRecord[];
+  malformedLinesCount: number;
+}
+
+export interface StabilityTelemetry {
+  serverCrashesCount: number;
+  clientErrorsCount: number;
+  streamDropsCount: number;
+  streamReconnectionsCount: number;
+  abortedQueriesCount: number;
+  flickerBurstCount: number;
+  lastIncidentTimestamp: string | null;
+}
+
+export interface ApplicationHealthReport {
+  timestamp: string;
+  status: HealthStatus;
+  healthScore: number;
+  isOptimal: boolean;
+  vitals: {
+    uptimeSeconds: number;
+    heapUsedMb: number;
+    heapTotalMb: number;
+    heapLimitMb: number;
+    rssMb: number;
+    externalMb: number;
+    heapUsagePercent: number;
+    cpuUserSeconds: number;
+    cpuSystemSeconds: number;
+    activeHandles: number;
+  };
+  eventLoop: {
+    minMs: number;
+    meanMs: number;
+    p50Ms: number;
+    p90Ms: number;
+    p95Ms: number;
+    p99Ms: number;
+    maxMs: number;
+  };
+  cache: {
+    totalLookups: number;
+    hits: number;
+    misses: number;
+    hitRatioPercent: number;
+    evictions: number;
+    cachedSourcesCount: number;
+    cachedEntriesTotal: number;
+    estimatedMemoryMb: number;
+    missReasons: {
+      initial_load: number;
+      file_modified: number;
+      evicted_lru: number;
+      not_found: number;
+    };
+  };
+  querySla: {
+    totalQueries: number;
+    queriesLastMinute: number;
+    throughputQps: number;
+    avgDurationMs: number;
+    p50Ms: number;
+    p95Ms: number;
+    p99Ms: number;
+    minMs: number;
+    maxMs: number;
+    slowQueriesCount: number;
+    criticalQueriesCount: number;
+    errorCount: number;
+    errorRatePercent: number;
+  };
+  fileLoading: FileLoadTelemetry;
+  stability: StabilityTelemetry;
+  incidents: IncidentRecord[];
+  diagnostics: HealthDiagnostic[];
+  recentSlowQueries: SlowQueryRecord[];
+  activeStreamsCount: number;
+  ingestionRateLinesPerSec: number;
+  storage?: TelemetryStorageInfo;
+}
+
+

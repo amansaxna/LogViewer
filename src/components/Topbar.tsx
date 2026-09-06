@@ -43,7 +43,7 @@ import {
   Columns3,
   Grid2x2,
 } from 'lucide-react';
-import { LogLevel, LogSource, SortOption, LogPreset } from '../types.ts';
+import { LogLevel, LogSource, SortOption, LogPreset, ApplicationHealthReport } from '../types.ts';
 import { PanelLayout } from '../types/panel.ts';
 import { Spinner } from './Loaders.tsx';
 
@@ -159,6 +159,10 @@ interface TopbarProps {
   onSelectPreset?: (id: string | null) => void;
   onOpenPresetModal?: () => void;
   onCreateNewPreset?: () => void;
+
+  // System Health & Telemetry
+  healthReport?: ApplicationHealthReport | null;
+  onOpenHealthModal?: () => void;
 }
 
 const AVAILABLE_LEVELS: { key: LogLevel; label: string }[] = [
@@ -261,6 +265,8 @@ export const Topbar: React.FC<TopbarProps> = ({
   onSelectPreset,
   onOpenPresetModal,
   onCreateNewPreset,
+  healthReport,
+  onOpenHealthModal,
 }) => {
   const [lineInput, setLineInput] = useState<string>(currentMatchIndex ? currentMatchIndex.toString() : '1');
   const [showDatePicker, setShowDatePicker] = useState(false);
@@ -273,7 +279,6 @@ export const Topbar: React.FC<TopbarProps> = ({
   const [workflowSearch, setWorkflowSearch] = useState('');
   const [operationSearch, setOperationSearch] = useState('');
   const [correlationSearch, setCorrelationSearch] = useState('');
-  const [isPathCopied, setIsPathCopied] = useState(false);
 
   // Refs for click outside & mouse leave
   const workflowRef = React.useRef<HTMLDivElement>(null);
@@ -359,14 +364,6 @@ export const Topbar: React.FC<TopbarProps> = ({
     if (dtLeaveTimer.current) clearTimeout(dtLeaveTimer.current);
   };
 
-  const handleCopyPath = () => {
-    if (activeSource?.path) {
-      navigator.clipboard.writeText(activeSource.path);
-      setIsPathCopied(true);
-      setTimeout(() => setIsPathCopied(false), 2000);
-    }
-  };
-
   const isAllSelected = selectedLevels.length === 0 && (excludeLevels || []).length === 0;
   const currentSortConfig = SORT_CONFIG.find((s) => s.key === sortOption) || SORT_CONFIG[0];
 
@@ -397,7 +394,8 @@ export const Topbar: React.FC<TopbarProps> = ({
         <div
           className="search-container"
           style={{
-            flex: '1 1 240px',
+            flex: '1 1 180px',
+            minWidth: 140,
             maxWidth: '380px',
             background: 'var(--bg-surface)',
             borderRadius: 6,
@@ -455,7 +453,8 @@ export const Topbar: React.FC<TopbarProps> = ({
         <div
           className="search-container"
           style={{
-            flex: '0 0 190px',
+            flex: '0 1 160px',
+            minWidth: 120,
             maxWidth: '220px',
             background: 'var(--bg-surface)',
             borderRadius: 6,
@@ -717,7 +716,8 @@ export const Topbar: React.FC<TopbarProps> = ({
             }}
             onFocus={(e) => e.target.select()}
             style={{
-              width: 50,
+              width: 52,
+              minWidth: 52,
               padding: '2px 4px',
               textAlign: 'center',
               backgroundColor: 'var(--bg-app)',
@@ -727,6 +727,7 @@ export const Topbar: React.FC<TopbarProps> = ({
               fontWeight: 700,
               fontSize: '0.82rem',
               fontFamily: 'var(--font-mono)',
+              fontVariantNumeric: 'tabular-nums',
               outline: 'none',
               cursor: 'text',
             }}
@@ -740,6 +741,7 @@ export const Topbar: React.FC<TopbarProps> = ({
             style={{
               color: '#38bdf8',
               fontWeight: 800,
+              fontVariantNumeric: 'tabular-nums',
             }}
             title={`Matching lines: ${filteredCount.toLocaleString()}`}
           >
@@ -752,6 +754,7 @@ export const Topbar: React.FC<TopbarProps> = ({
               style={{
                 color: 'var(--text-muted)',
                 fontSize: '0.75rem',
+                fontVariantNumeric: 'tabular-nums',
               }}
               title={`Total lines in source: ${totalEntries.toLocaleString()}`}
             >
@@ -761,8 +764,8 @@ export const Topbar: React.FC<TopbarProps> = ({
 
           {/* Query duration */}
           {durationMs !== undefined && (
-            <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
-              ({durationMs}ms)
+            <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontVariantNumeric: 'tabular-nums', fontFeatureSettings: '"tnum"' }}>
+              ({Math.round(durationMs)}ms)
             </span>
           )}
 
@@ -808,8 +811,8 @@ export const Topbar: React.FC<TopbarProps> = ({
                 className={`rate-badge instant ${Number(liveLogsPerSec) > 0 ? 'active-burst' : ''}`}
                 data-tooltip={`Instant velocity: ${liveLogsPerSec || 0} new logs added in the last second`}
               >
-                <Zap size={11} />
-                <span>+{liveLogsPerSec || 0}</span>
+                <Zap size={11} style={{ flexShrink: 0 }} />
+                <span className="rate-badge-value">+{liveLogsPerSec || 0}</span>
               </span>
 
               <div className="live-telemetry-divider" />
@@ -819,8 +822,8 @@ export const Topbar: React.FC<TopbarProps> = ({
                 className="rate-badge average"
                 data-tooltip={`Rolling average: ${liveAvgLogsPerSec || 0} logs/sec (Session total: ${liveTotalAdded || 0} logs)`}
               >
-                <Activity size={11} />
-                <span>avg {liveAvgLogsPerSec || 0}</span>
+                <Activity size={11} style={{ flexShrink: 0 }} />
+                <span className="rate-badge-value">avg {liveAvgLogsPerSec || 0}</span>
               </span>
             </div>
           ) : (
@@ -1832,24 +1835,57 @@ export const Topbar: React.FC<TopbarProps> = ({
             <Download size={13} />
           </button>
 
-          {/* Copy Path */}
-          {activeSource?.path && (
+          {/* System Health & SLA Telemetry Button */}
+          {onOpenHealthModal && (
             <button
-              className={`btn-secondary ${isPathCopied ? 'active' : ''}`}
-              onClick={handleCopyPath}
+              className="btn-secondary"
+              onClick={onOpenHealthModal}
               style={{
                 height: 28,
                 padding: '0 8px',
                 fontSize: '0.74rem',
-                gap: 4,
-                borderColor: isPathCopied ? '#4ade80' : undefined,
-                color: isPathCopied ? '#4ade80' : undefined,
-                backgroundColor: isPathCopied ? 'rgba(74, 222, 128, 0.15)' : undefined,
+                gap: 5,
+                borderColor:
+                  healthReport?.status === 'CRITICAL'
+                    ? '#f43f5e'
+                    : healthReport?.status === 'DEGRADED'
+                    ? '#f59e0b'
+                    : undefined,
+                color:
+                  healthReport?.status === 'CRITICAL'
+                    ? '#f43f5e'
+                    : healthReport?.status === 'DEGRADED'
+                    ? '#f59e0b'
+                    : '#38bdf8',
+                backgroundColor:
+                  healthReport?.status === 'CRITICAL'
+                    ? 'rgba(244, 63, 94, 0.12)'
+                    : healthReport?.status === 'DEGRADED'
+                    ? 'rgba(245, 158, 11, 0.12)'
+                    : undefined,
               }}
-              title={`Copy system path: ${activeSource.path}`}
+              title={`Application Health: ${healthReport?.healthScore ?? 100}/100 (${healthReport?.status ?? 'OPTIMAL'})\nEvent Loop Lag: ${healthReport?.eventLoop?.p95Ms ?? 0}ms\nCache Hit: ${healthReport?.cache?.hitRatioPercent ?? 100}%\nClick to open Health & Diagnostics Dashboard`}
             >
-              {isPathCopied ? <Check size={12} color="#4ade80" /> : <Copy size={12} />}
-              <span>{isPathCopied ? 'Copied' : 'Path'}</span>
+              <span
+                style={{
+                  width: 6,
+                  height: 6,
+                  borderRadius: '50%',
+                  backgroundColor:
+                    healthReport?.status === 'CRITICAL'
+                      ? '#f43f5e'
+                      : healthReport?.status === 'DEGRADED'
+                      ? '#f59e0b'
+                      : '#4ade80',
+                  display: 'inline-block',
+                }}
+              />
+              <Activity size={12} />
+              <span>
+                {healthReport
+                  ? `${healthReport.healthScore}% · ${healthReport.eventLoop.p95Ms}ms · ${healthReport.cache.hitRatioPercent}% Hit`
+                  : 'Health'}
+              </span>
             </button>
           )}
 

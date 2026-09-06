@@ -1,1 +1,0 @@
-127.0.0.1 - - [02/Sep/2026:04:45:21 +0530] "GET /api/v1/users HTTP/1.1" 200 482 "https://example.com" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36" {"status": "success", "results": 42, "cached": false}

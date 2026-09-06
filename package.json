@@ -9,7 +9,8 @@
     "dev:all": "concurrently -k -n \"SERVER,VITE\" -c \"cyan,magenta\" \"npm run server\" \"npm run dev\"",
     "build": "tsc -b && vite build",
     "start": "NODE_ENV=production tsx server/index.ts",
-    "test": "tsx test/parser.test.ts && tsx test/highlighter.test.ts && tsx test/settings.test.ts && tsx test/presets.test.ts && tsx test/textSelection.test.ts && tsx test/unifiedStream.test.ts && tsx test/deltaTime.test.ts && tsx test/multiPanel.test.ts && tsx test/dragDrop.test.ts"
+    "service:logs": "tsx scripts/log_stream_service.ts",
+    "test": "tsx test/parser.test.ts && tsx test/highlighter.test.ts && tsx test/settings.test.ts && tsx test/presets.test.ts && tsx test/textSelection.test.ts && tsx test/unifiedStream.test.ts && tsx test/deltaTime.test.ts && tsx test/multiPanel.test.ts && tsx test/dragDrop.test.ts && tsx test/metrics.test.ts && tsx test/filters.test.ts && tsx test/keyboardSelection.test.ts && tsx test/sortingAndTokenFilter.test.ts && tsx test/keyboardShortcutsAll.test.ts"
   },
   "dependencies": {
     "@tanstack/react-virtual": "^3.13.2",

@@ -9,7 +9,7 @@ import { copyWithToast } from '../utils/copyNotifier.ts';
 interface LogRowProps {
   entry: LogEntry;
   isSelected?: boolean;
-  onSelect?: (lineNumber: number, isShift?: boolean) => void;
+  onSelect?: (lineNumber: number, isShift?: boolean, entry?: LogEntry, isCtrlOrMeta?: boolean) => void;
   onViewContext: (lineNumber: number, sourceId?: string) => void;
   onSetDeltaAnchor?: (lineNumber: number) => void;
   wrapLines?: boolean;
@@ -23,6 +23,7 @@ interface LogRowProps {
   isDeltaAnchor?: boolean;
   isDeltaTarget?: boolean;
   isDeltaInRange?: boolean;
+  gutterWidth?: number;
 }
 
 const LEVEL_COLORS: Record<LogLevel, string> = {
@@ -56,6 +57,7 @@ export const LogRow: React.FC<LogRowProps> = ({
   isDeltaAnchor = false,
   isDeltaTarget = false,
   isDeltaInRange = false,
+  gutterWidth = 48,
 }) => {
   const [expanded, setExpanded] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -79,6 +81,8 @@ export const LogRow: React.FC<LogRowProps> = ({
     onSetDeltaAnchor?.(entry.lineNumber);
   };
 
+  const effectiveGutterWidth = Math.max(gutterWidth, String(entry.lineNumber).length * 9 + 20);
+
   return (
     <div
       className={`log-row-item ${expanded ? 'expanded' : ''} ${isSelected ? 'selected' : ''} ${
@@ -90,7 +94,7 @@ export const LogRow: React.FC<LogRowProps> = ({
       <div
         className="log-row-summary"
         onClick={(e) => {
-          onSelect?.(entry.lineNumber, e.shiftKey);
+          onSelect?.(entry.lineNumber, e.shiftKey, entry, e.ctrlKey || e.metaKey);
           setExpanded(!expanded);
         }}
       >
@@ -105,7 +109,16 @@ export const LogRow: React.FC<LogRowProps> = ({
         {/* Line Number with Fast Copy Button */}
         <span
           className="log-line-num"
-          style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}
+          style={{
+            width: effectiveGutterWidth,
+            minWidth: effectiveGutterWidth,
+            display: 'inline-flex',
+            alignItems: 'center',
+            justifyContent: 'flex-end',
+            gap: 4,
+            paddingRight: 8,
+            boxSizing: 'border-box',
+          }}
         >
           <button
             className="fast-copy-btn"

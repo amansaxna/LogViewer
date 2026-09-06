@@ -8,7 +8,7 @@ import { copyWithToast } from '../utils/copyNotifier.ts';
 interface CompactLogRowProps {
   entry: LogEntry;
   isSelected: boolean;
-  onSelect: (lineNumber: number, isShift?: boolean) => void;
+  onSelect: (lineNumber: number, isShift?: boolean, entry?: LogEntry, isCtrlOrMeta?: boolean) => void;
   onDoubleClick: (lineNumber: number, sourceId?: string) => void;
   searchQuery?: string;
   markerQuery?: string;
@@ -23,6 +23,7 @@ interface CompactLogRowProps {
   isDeltaAnchor?: boolean;
   isDeltaTarget?: boolean;
   isDeltaInRange?: boolean;
+  gutterWidth?: number;
 }
 
 export const CompactLogRow: React.FC<CompactLogRowProps> = ({
@@ -43,18 +44,19 @@ export const CompactLogRow: React.FC<CompactLogRowProps> = ({
   isDeltaAnchor = false,
   isDeltaTarget = false,
   isDeltaInRange = false,
+  gutterWidth = 48,
 }) => {
   const [copied, setCopied] = useState(false);
   // Helper to highlight matching terms inside text
-  const highlightMatches = (text: string, queries: (string | undefined)[]) => {
-    const validQueries = queries
-      .filter((q): q is string => Boolean(q && q.trim().length > 0))
-      .map((q) => q.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
-
+  const highlightMatches = (text?: string, queries?: (string | undefined)[]) => {
+    if (!text) return text;
+    const validQueries = (queries || []).filter((q): q is string => Boolean(q && q.trim().length > 0));
     if (validQueries.length === 0) return text;
 
-    const regex = new RegExp(`(${validQueries.join('|')})`, 'gi');
+    const escaped = validQueries.map((q) => q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|');
+    const regex = new RegExp(`(${escaped})`, 'gi');
     const parts = text.split(regex);
+    if (parts.length === 1) return text;
 
     return parts.map((part, i) =>
       regex.test(part) ? (
@@ -92,9 +94,11 @@ export const CompactLogRow: React.FC<CompactLogRowProps> = ({
   // Operation method color (POST/GET/etc orange vs action amber)
   const isHttpOp = Boolean(entry.operation && /^(POST|GET|PUT|DELETE|PATCH|HEAD)/i.test(entry.operation));
 
+  const effectiveGutterWidth = Math.max(gutterWidth, String(entry.lineNumber).length * 9 + 18);
+
   return (
     <div
-      onClick={(e) => onSelect(entry.lineNumber, e.shiftKey)}
+      onClick={(e) => onSelect(entry.lineNumber, e.shiftKey, entry, e.ctrlKey || e.metaKey)}
       onDoubleClick={() => onDoubleClick(entry.lineNumber, entry.sourceId)}
       style={{
         display: 'flex',
@@ -140,8 +144,8 @@ export const CompactLogRow: React.FC<CompactLogRowProps> = ({
       {/* Line Number Gutter with Fast Copy Button */}
       <span
         style={{
-          width: 62,
-          minWidth: 62,
+          width: effectiveGutterWidth,
+          minWidth: effectiveGutterWidth,
           color: isDeltaAnchor
             ? '#38bdf8'
             : isDeltaTarget
@@ -150,7 +154,9 @@ export const CompactLogRow: React.FC<CompactLogRowProps> = ({
             ? 'var(--gutter-selected-text)'
             : 'var(--text-muted)',
           textAlign: 'right',
-          paddingRight: 10,
+          paddingRight: 8,
+          paddingLeft: 4,
+          boxSizing: 'border-box',
           userSelect: 'none',
           flexShrink: 0,
           fontWeight: isSelected || isDeltaAnchor || isDeltaTarget ? 700 : 400,
@@ -167,7 +173,6 @@ export const CompactLogRow: React.FC<CompactLogRowProps> = ({
           display: 'inline-flex',
           alignItems: 'center',
           justifyContent: 'flex-end',
-          gap: 5,
         }}
       >
         <button
@@ -180,6 +185,8 @@ export const CompactLogRow: React.FC<CompactLogRowProps> = ({
           }}
           title={`Copy line #${entry.lineNumber}`}
           style={{
+            position: 'absolute',
+            left: 0,
             background: 'none',
             border: 'none',
             padding: 0,
@@ -190,7 +197,7 @@ export const CompactLogRow: React.FC<CompactLogRowProps> = ({
             opacity: copied ? 1 : undefined,
           }}
         >
-          {copied ? <Check size={11} color="#22c55e" /> : <Copy size={11} />}
+          {copied ? <Check size={10} color="#22c55e" /> : <Copy size={10} />}
         </button>
         <span>{entry.lineNumber}</span>
       </span>

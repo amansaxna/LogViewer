@@ -5,6 +5,7 @@ import path from 'node:path';
 import { getSources, registerCustomSource, removeCustomSource, findSourceById, getPresets, savePreset, deletePreset } from './config.ts';
 import { queryLogs, getContextLines, clearFileCache } from './fileReader.ts';
 import { LogLevel, LogQuery, LogPreset } from './types.ts';
+import { metrics } from './metrics.ts';
 
 const app = express();
 const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3001;
@@ -12,6 +13,76 @@ const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3001;
 app.use(cors());
 app.use(express.json({ limit: '100mb' }));
 app.use(express.urlencoded({ extended: true, limit: '100mb' }));
+
+// System Health Endpoint (Fast, lightweight check)
+app.get('/api/health', (_req: Request, res: Response) => {
+  try {
+    const report = metrics.getHealthReport();
+    res.json({
+      status: report.status,
+      healthScore: report.healthScore,
+      isOptimal: report.isOptimal,
+      vitals: report.vitals,
+      eventLoop: report.eventLoop,
+      cache: report.cache,
+      querySla: report.querySla,
+      diagnostics: report.diagnostics,
+      timestamp: report.timestamp,
+    });
+  } catch (err: any) {
+    metrics.recordError();
+    res.status(500).json({ error: err.message || 'Failed to generate health report' });
+  }
+});
+
+// Full System Metrics Telemetry Endpoint
+app.get('/api/metrics', (_req: Request, res: Response) => {
+  try {
+    const report = metrics.getHealthReport();
+    res.json(report);
+  } catch (err: any) {
+    metrics.recordError();
+    res.status(500).json({ error: err.message || 'Failed to fetch metrics telemetry' });
+  }
+});
+
+// Reset metrics counters
+app.post('/api/metrics/reset', (_req: Request, res: Response) => {
+  try {
+    metrics.resetMetrics();
+    res.json({ success: true, message: 'System metrics successfully reset' });
+  } catch (err: any) {
+    metrics.recordError();
+    res.status(500).json({ error: err.message || 'Failed to reset metrics' });
+  }
+});
+
+// Record Client-Side Crash, Error, or Flicker Incident
+app.post('/api/metrics/client-event', (req: Request, res: Response) => {
+  try {
+    const { type, message, stack, panelId, context } = req.body;
+    metrics.recordClientEvent({
+      type: type || 'error',
+      message: message || 'Unknown client error',
+      stack,
+      panelId,
+      context,
+    });
+    res.json({ success: true, message: 'Client event recorded in telemetry engine' });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || 'Failed to record client event' });
+  }
+});
+
+// Clear active incident log
+app.post('/api/metrics/clear-incidents', (_req: Request, res: Response) => {
+  try {
+    metrics.clearIncidents();
+    res.json({ success: true, message: 'Incident log cleared' });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || 'Failed to clear incidents' });
+  }
+});
 
 // 1. Get all log sources
 app.get('/api/sources', (_req: Request, res: Response) => {
@@ -168,7 +239,7 @@ app.get('/api/logs/entries', (req: Request, res: Response) => {
       sourceId,
       sourceIds,
       search: req.query.search as string | undefined,
-      isRegex: req.query.isRegex === 'true',
+      isRegex: req.query.isRegex === 'true' || req.query.regex === 'true',
       caseSensitive: req.query.caseSensitive === 'true',
       invert: req.query.invert === 'true',
       levels,
@@ -179,9 +250,12 @@ app.get('/api/logs/entries', (req: Request, res: Response) => {
       workflow: req.query.workflow as string | undefined,
       operation: req.query.operation as string | undefined,
       marker: req.query.marker as string | undefined,
+      isMarkerRegex: req.query.isMarkerRegex === 'true' || req.query.markerRegex === 'true',
       correlationId: req.query.correlationId as string | undefined,
+      pid: req.query.pid as string | undefined,
+      tid: req.query.tid as string | undefined,
       sortBy: (req.query.sortBy as any) || 'time',
-      direction: (req.query.direction as 'desc' | 'asc') || 'desc',
+      direction: ((req.query.direction || req.query.sortDirection) as 'desc' | 'asc') || 'desc',
       page: req.query.page ? parseInt(req.query.page as string, 10) : 1,
       pageSize: req.query.pageSize ? parseInt(req.query.pageSize as string, 10) : 25000,
     };
@@ -189,6 +263,7 @@ app.get('/api/logs/entries', (req: Request, res: Response) => {
     const result = queryLogs(query);
     res.json(result);
   } catch (err: any) {
+    metrics.recordError();
     res.status(500).json({ error: err.message || 'Failed to query logs' });
   }
 });
@@ -218,6 +293,89 @@ app.post('/api/logs/paste', (req: Request, res: Response) => {
   }
 });
 
+// 4c. Server-Sent Events (SSE) Live Tail Stream
+app.get('/api/logs/stream', (req: Request, res: Response) => {
+  try {
+    const sourceId = req.query.sourceId as string;
+    if (!sourceId) {
+      res.status(400).json({ error: 'sourceId query parameter is required' });
+      return;
+    }
+
+    const source = findSourceById(sourceId);
+    if (!source) {
+      res.status(404).json({ error: 'Log source not found' });
+      return;
+    }
+
+    const resolvedPath = path.isAbsolute(source.path)
+      ? source.path
+      : path.resolve(process.cwd(), source.path);
+
+    if (!fs.existsSync(resolvedPath)) {
+      res.status(404).json({ error: 'Log file not found on disk' });
+      return;
+    }
+
+    // Set SSE Headers
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache, no-transform');
+    res.setHeader('Connection', 'keep-alive');
+    res.flushHeaders();
+
+    let lastSize = 0;
+    let lastMtime = 0;
+    try {
+      const stats = fs.statSync(resolvedPath);
+      lastSize = stats.size;
+      lastMtime = stats.mtimeMs;
+    } catch {}
+
+    // Send initial connection handshake
+    res.write(`data: ${JSON.stringify({ type: 'connected', sourceId, timestamp: Date.now() })}\n\n`);
+
+    // High frequency file change detector (200ms)
+    const watcherInterval = setInterval(() => {
+      try {
+        if (!fs.existsSync(resolvedPath)) return;
+        const stats = fs.statSync(resolvedPath);
+        if (stats.size !== lastSize || stats.mtimeMs !== lastMtime) {
+          const sizeDiff = stats.size - lastSize;
+          lastSize = stats.size;
+          lastMtime = stats.mtimeMs;
+
+          // Clear cache so queryLogs fetches fresh content
+          clearFileCache(resolvedPath);
+
+          const estimatedAdded = sizeDiff > 0 ? Math.max(1, Math.round(sizeDiff / 100)) : 1;
+          res.write(
+            `data: ${JSON.stringify({
+              type: 'file_changed',
+              sourceId,
+              addedLogs: estimatedAdded,
+              fileSize: stats.size,
+              timestamp: Date.now(),
+            })}\n\n`
+          );
+        }
+      } catch {}
+    }, 200);
+
+    // Heartbeat ping every 10 seconds to keep connection open through proxies
+    const pingInterval = setInterval(() => {
+      res.write(': ping\n\n');
+    }, 10000);
+
+    req.on('close', () => {
+      clearInterval(watcherInterval);
+      clearInterval(pingInterval);
+    });
+  } catch (err: any) {
+    metrics.recordError();
+    res.status(500).json({ error: err.message || 'Live tail stream encountered an error' });
+  }
+});
+
 // 5. Context lines for deep dive
 app.get('/api/logs/context', (req: Request, res: Response) => {
   try {
@@ -238,6 +396,8 @@ app.get('/api/logs/context', (req: Request, res: Response) => {
 });
 
 // 6. Real-time Live Tail stream via Server-Sent Events (SSE)
+let activeStreamsCount = 0;
+
 app.get('/api/logs/stream', (req: Request, res: Response) => {
   const sourceId = req.query.sourceId as string;
   if (!sourceId) {
@@ -259,6 +419,9 @@ app.get('/api/logs/stream', (req: Request, res: Response) => {
   res.setHeader('Cache-Control', 'no-cache');
   res.setHeader('Connection', 'keep-alive');
   res.flushHeaders();
+
+  activeStreamsCount++;
+  metrics.setActiveStreams(activeStreamsCount);
 
   // Send initial ping
   res.write(`data: ${JSON.stringify({ type: 'connected', sourceId })}\n\n`);
@@ -293,6 +456,10 @@ app.get('/api/logs/stream', (req: Request, res: Response) => {
           }
         }
 
+        if (addedLogs > 0) {
+          metrics.recordIngestion(addedLogs);
+        }
+
         lastSize = stats.size;
         clearFileCache(resolvedPath);
         res.write(
@@ -312,6 +479,8 @@ app.get('/api/logs/stream', (req: Request, res: Response) => {
 
   req.on('close', () => {
     clearInterval(pollInterval);
+    activeStreamsCount = Math.max(0, activeStreamsCount - 1);
+    metrics.setActiveStreams(activeStreamsCount);
   });
 });
 
@@ -331,9 +500,11 @@ app.post('/api/logs/append', (req: Request, res: Response) => {
     const logLines = Array.isArray(lines) ? lines : [lines || ''];
     const content = logLines.join('\n') + '\n';
     fs.appendFileSync(resolvedPath, content, 'utf-8');
+    metrics.recordIngestion(logLines.length);
     clearFileCache(resolvedPath);
     res.json({ success: true, count: logLines.length });
   } catch (err: any) {
+    metrics.recordError();
     res.status(500).json({ error: err.message || 'Failed to append logs' });
   }
 });
@@ -397,6 +568,20 @@ if (fs.existsSync(distPath)) {
   });
 }
 
-app.listen(PORT, () => {
+const server = app.listen(PORT, () => {
   console.log(`[LogViewer Server] Running on http://localhost:${PORT}`);
 });
+
+// Instant graceful process termination on restart/kill to prevent port lockups
+const handleShutdown = (_signal: string) => {
+  metrics.stopDiskLogger();
+  server.close(() => {
+    process.exit(0);
+  });
+  setTimeout(() => {
+    process.exit(0);
+  }, 250).unref();
+};
+
+process.on('SIGTERM', () => handleShutdown('SIGTERM'));
+process.on('SIGINT', () => handleShutdown('SIGINT'));

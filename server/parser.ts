@@ -332,13 +332,19 @@ export function parseSingleLine(rawLine: string, lineNumber: number): LogEntry {
     }
 
     // Check DateTime
-    if (!datetime && (DATETIME_REGEX.test(token) || !isNaN(Date.parse(token)) && token.length >= 10)) {
-      datetime = token;
-      const parsedTime = Date.parse(token);
-      if (!isNaN(parsedTime)) {
-        timestamp = parsedTime;
+    if (!datetime && (DATETIME_REGEX.test(token) || token.length >= 10)) {
+      const normalizedTimeStr = token.replace(' ', 'T').replace(',', '.');
+      let parsedTime = Date.parse(normalizedTimeStr);
+      if (isNaN(parsedTime) && !normalizedTimeStr.endsWith('Z') && !/[+-]\d{2}:?\d{2}$/.test(normalizedTimeStr)) {
+        parsedTime = Date.parse(normalizedTimeStr + 'Z');
       }
-      continue;
+      if (!isNaN(parsedTime) || DATETIME_REGEX.test(token)) {
+        datetime = token;
+        if (!isNaN(parsedTime)) {
+          timestamp = parsedTime;
+        }
+        continue;
+      }
     }
 
     // Check Duration
