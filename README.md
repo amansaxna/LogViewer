@@ -12,6 +12,7 @@
 [![Air-Gapped Privacy](https://img.shields.io/badge/Security-100%25%20Air--Gapped-success)](docs/blueprint/HLD.md)
 [![Build & Tests](https://img.shields.io/badge/Tests-100%25%20Passing-brightgreen)](test/)
 
+![Viewer](<Viewer.png>)
 <p align="center">
   <a href="#-key-features">Key Features</a> •
   <a href="#-quick-start">Quick Start</a> •
