@@ -425,25 +425,25 @@
   align-items: center;
   justify-content: center;
   overflow: hidden;
-  padding: 1.5rem;
+  padding: 1rem 1.5rem;
 }
 
 /* Stage Header HUD */
 .lp-stage-hud {
   position: absolute;
-  top: 1.5rem;
+  top: 1.25rem;
   left: 50%;
   transform: translateX(-50%);
   display: flex;
   align-items: center;
   gap: 1rem;
-  background: rgba(10, 13, 20, 0.85);
+  background: rgba(10, 13, 20, 0.88);
   backdrop-filter: blur(16px);
   border: 1px solid var(--lp-border-highlight);
   padding: 0.45rem 1.25rem;
   border-radius: 9999px;
   z-index: 30;
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6);
 }
 
 .lp-stage-step-pill {
@@ -491,11 +491,12 @@
   flex-direction: column;
   gap: 0.65rem;
   z-index: 35;
-  background: rgba(10, 13, 20, 0.75);
+  background: rgba(10, 13, 20, 0.85);
   backdrop-filter: blur(16px);
   border: 1px solid var(--lp-border-subtle);
   border-radius: 12px;
   padding: 0.75rem 0.5rem;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
 }
 
 .lp-jumper-btn {
@@ -541,8 +542,10 @@
 .lp-3d-stage {
   perspective: 1400px;
   width: 100%;
-  max-width: 1240px;
-  height: 72vh;
+  max-width: 1180px;
+  height: 68vh;
+  min-height: 480px;
+  max-height: 720px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -558,10 +561,12 @@
   border: 1px solid rgba(255, 255, 255, 0.15);
   box-shadow: 
     0 25px 60px -15px rgba(0, 0, 0, 0.9),
-    0 0 80px rgba(0, 242, 254, 0.12),
+    0 0 70px rgba(0, 242, 254, 0.12),
     inset 0 1px 0 rgba(255, 255, 255, 0.2);
   overflow: hidden;
   position: relative;
+  display: flex;
+  flex-direction: column;
   transition: transform 0.6s var(--lp-ease-out), box-shadow 0.6s var(--lp-ease-out);
   transform-style: preserve-3d;
 }
@@ -577,6 +582,7 @@
   padding: 0 1rem;
   position: relative;
   z-index: 10;
+  flex-shrink: 0;
 }
 
 .lp-window-controls {
@@ -608,72 +614,114 @@
   border-radius: 4px;
 }
 
-/* Image Viewport & Camera Controller */
+/* Image Viewport & High-Precision Image Container */
 .lp-camera-viewport {
+  flex: 1;
   width: 100%;
-  height: calc(100% - 38px);
   position: relative;
   overflow: hidden;
   background: #000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .lp-camera-canvas {
   width: 100%;
   height: 100%;
-  position: absolute;
-  top: 0;
-  left: 0;
-  transform-origin: center center;
-  transition: transform 0.7s cubic-bezier(0.2, 0.8, 0.2, 1);
-  will-change: transform;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.6s var(--lp-ease-out);
+}
+
+.lp-image-box {
+  width: 100%;
+  height: 100%;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .lp-retina-img {
   width: 100%;
   height: 100%;
-  object-fit: cover;
-  object-position: left top;
+  object-fit: contain;
   display: block;
 }
 
 /* --------------------------------------------------------------------------
-   DYNAMIC CAMERA STAGES (Transforms Applied via JS State or Class)
+   DYNAMIC ILLUMINATED SPOTLIGHT OVERLAYS (Pixel-Perfect Bounding Boxes)
    -------------------------------------------------------------------------- */
-/* Stage 0: 3D Hero Perspective */
-.lp-camera-stage-0 {
-  transform: translate3d(0, 0, 0) scale(1.0);
-}
-.lp-frame-stage-0 {
-  transform: rotateX(10deg) rotateY(-2deg) scale(0.94);
+.lp-spotlight-box {
+  position: absolute;
+  pointer-events: none;
+  border-radius: 8px;
+  transition: all 0.5s var(--lp-ease-out);
+  z-index: 20;
 }
 
-/* Stage 1: Focus Topbar & Search Pills */
-.lp-camera-stage-1 {
-  transform: translate3d(0%, 36%, 0) scale(2.3);
+/* Stage 0: Clean Overview */
+.lp-spotlight-stage-0 {
+  display: none;
+}
+.lp-frame-stage-0 {
+  transform: rotateX(8deg) rotateY(-1deg) scale(0.96);
+}
+
+/* Stage 1: Topbar Spotlight */
+.lp-spotlight-stage-1 {
+  top: 0%;
+  left: 0%;
+  width: 100%;
+  height: 14%;
+  border: 2px solid var(--lp-cyan);
+  background: rgba(0, 242, 254, 0.05);
+  box-shadow: 0 0 35px rgba(0, 242, 254, 0.35), inset 0 0 20px rgba(0, 242, 254, 0.15);
 }
 .lp-frame-stage-1 {
   transform: rotateX(0deg) scale(1.0);
 }
 
-/* Stage 2: Focus 60 FPS Log Table */
-.lp-camera-stage-2 {
-  transform: translate3d(-10%, -6%, 0) scale(1.8);
+/* Stage 2: Central Virtualized Log Table Spotlight */
+.lp-spotlight-stage-2 {
+  top: 14%;
+  left: 20%;
+  width: 80%;
+  height: 86%;
+  border: 2px solid var(--lp-cyan);
+  background: rgba(0, 242, 254, 0.04);
+  box-shadow: 0 0 40px rgba(0, 242, 254, 0.3), inset 0 0 30px rgba(0, 242, 254, 0.1);
 }
 .lp-frame-stage-2 {
   transform: rotateX(0deg) scale(1.0);
 }
 
-/* Stage 3: Focus Sidebar & Live Streaming */
-.lp-camera-stage-3 {
-  transform: translate3d(34%, 2%, 0) scale(1.9);
+/* Stage 3: Sidebar & Live Stream Spotlight */
+.lp-spotlight-stage-3 {
+  top: 14%;
+  left: 0%;
+  width: 20%;
+  height: 86%;
+  border: 2px solid var(--lp-purple);
+  background: rgba(138, 43, 226, 0.06);
+  box-shadow: 0 0 35px rgba(138, 43, 226, 0.35), inset 0 0 20px rgba(138, 43, 226, 0.15);
 }
 .lp-frame-stage-3 {
   transform: rotateX(0deg) scale(1.0);
 }
 
-/* Stage 4: Focus Delta Latency & Exception Trace */
-.lp-camera-stage-4 {
-  transform: translate3d(-12%, -18%, 0) scale(2.1);
+/* Stage 4: Delta Latency & Exception Trace Spotlight */
+.lp-spotlight-stage-4 {
+  top: 48%;
+  left: 20%;
+  width: 80%;
+  height: 38%;
+  border: 2px solid var(--lp-amber);
+  background: rgba(245, 158, 11, 0.05);
+  box-shadow: 0 0 35px rgba(245, 158, 11, 0.35), inset 0 0 20px rgba(245, 158, 11, 0.15);
 }
 .lp-frame-stage-4 {
   transform: rotateX(0deg) scale(1.0);
@@ -690,8 +738,8 @@
 }
 
 .lp-radar-pin {
-  width: 24px;
-  height: 24px;
+  width: 22px;
+  height: 22px;
   position: relative;
   display: flex;
   align-items: center;
@@ -700,8 +748,8 @@
 }
 
 .lp-radar-core {
-  width: 10px;
-  height: 10px;
+  width: 9px;
+  height: 9px;
   border-radius: 50%;
   background: var(--lp-cyan);
   box-shadow: 0 0 15px var(--lp-cyan);
@@ -722,10 +770,10 @@
 
 .lp-hotspot-tag {
   position: absolute;
-  left: 28px;
+  left: 26px;
   top: 50%;
   transform: translateY(-50%);
-  background: rgba(10, 13, 20, 0.92);
+  background: rgba(10, 13, 20, 0.94);
   backdrop-filter: blur(12px);
   border: 1px solid var(--lp-cyan);
   color: #fff;
@@ -735,29 +783,29 @@
   padding: 0.2rem 0.55rem;
   border-radius: 4px;
   white-space: nowrap;
-  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.6);
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.7);
   pointer-events: none;
 }
 
 /* Floating Narrative Card in Sticky Viewport */
 .lp-story-card {
   position: absolute;
-  bottom: 2.5rem;
-  left: 2.5rem;
+  bottom: 2rem;
+  left: 2rem;
   max-width: 420px;
-  background: rgba(10, 13, 20, 0.88);
+  background: rgba(10, 13, 20, 0.9);
   backdrop-filter: blur(24px);
   -webkit-backdrop-filter: blur(24px);
   border: 1px solid var(--lp-border-highlight);
   border-radius: 14px;
-  padding: 1.35rem 1.5rem;
+  padding: 1.25rem 1.4rem;
   box-shadow: 0 20px 50px rgba(0, 0, 0, 0.8), 0 0 30px rgba(0, 242, 254, 0.15);
   z-index: 35;
-  animation: lpFadeSlideIn 0.5s var(--lp-ease-out);
+  animation: lpFadeSlideIn 0.4s var(--lp-ease-out);
 }
 
 @keyframes lpFadeSlideIn {
-  from { opacity: 0; transform: translateY(15px); }
+  from { opacity: 0; transform: translateY(12px); }
   to { opacity: 1; transform: translateY(0); }
 }
 
@@ -771,36 +819,36 @@
   color: var(--lp-cyan);
   text-transform: uppercase;
   letter-spacing: 0.05em;
-  margin-bottom: 0.4rem;
+  margin-bottom: 0.35rem;
 }
 
 .lp-story-title {
-  font-size: 1.2rem;
+  font-size: 1.15rem;
   font-weight: 700;
   letter-spacing: -0.02em;
-  margin: 0 0 0.5rem;
+  margin: 0 0 0.45rem;
   color: #fff;
 }
 
 .lp-story-desc {
-  font-size: 0.88rem;
+  font-size: 0.85rem;
   color: var(--lp-text-secondary);
-  line-height: 1.55;
-  margin: 0 0 0.85rem;
+  line-height: 1.5;
+  margin: 0 0 0.75rem;
 }
 
 .lp-story-chips {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.4rem;
+  gap: 0.35rem;
 }
 
 .lp-chip {
-  font-size: 0.72rem;
+  font-size: 0.7rem;
   font-family: var(--lp-font-mono);
   background: rgba(255, 255, 255, 0.06);
   border: 1px solid var(--lp-border-subtle);
-  padding: 0.15rem 0.45rem;
+  padding: 0.12rem 0.45rem;
   border-radius: 4px;
   color: var(--lp-text-primary);
 }

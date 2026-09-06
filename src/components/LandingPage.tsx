@@ -401,12 +401,15 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLaunchApp }) => {
 
                 {/* Viewport & 3D Camera Canvas */}
                 <div className="lp-camera-viewport">
-                  <div className={`lp-camera-canvas ${activeStage.cameraClass}`}>
+                  <div className="lp-image-box">
                     <img
                       src="/Viewer.png"
                       alt="EconViewer Log Observability UI"
                       className="lp-retina-img"
                     />
+
+                    {/* Dynamic Illuminated Spotlight Bounding Box */}
+                    <div className={`lp-spotlight-box lp-spotlight-stage-${activeStage.id}`} />
 
                     {/* Animated Multi-Pin Hotspots */}
                     {activeStage.hotspots?.map((pin, i) => (
@@ -428,7 +431,25 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLaunchApp }) => {
 
               {/* Floating Story Card */}
               <div className="lp-story-card" key={activeStage.id}>
-                <div className="lp-story-badge">{activeStage.badge}</div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div className="lp-story-badge">{activeStage.badge}</div>
+                  <div style={{ display: 'flex', gap: '4px' }}>
+                    <button
+                      onClick={() => jumpToStage(Math.max(0, activeStageIndex - 1))}
+                      style={{ background: 'rgba(255,255,255,0.08)', border: 'none', color: '#fff', padding: '2px 7px', borderRadius: '4px', cursor: 'pointer', fontSize: '0.72rem' }}
+                      title="Previous Stage"
+                    >
+                      ‹
+                    </button>
+                    <button
+                      onClick={() => jumpToStage(Math.min(STAGES.length - 1, activeStageIndex + 1))}
+                      style={{ background: 'rgba(255,255,255,0.08)', border: 'none', color: '#fff', padding: '2px 7px', borderRadius: '4px', cursor: 'pointer', fontSize: '0.72rem' }}
+                      title="Next Stage"
+                    >
+                      ›
+                    </button>
+                  </div>
+                </div>
                 <h3 className="lp-story-title">{activeStage.title}</h3>
                 <p className="lp-story-desc">{activeStage.description}</p>
                 <div className="lp-story-chips">
