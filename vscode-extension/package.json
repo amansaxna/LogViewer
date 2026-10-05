@@ -1,0 +1,97 @@
+{
+  "name": "logviewer",
+  "displayName": "LogViewer",
+  "description": "High-performance structured log viewer, virtualized scrolling, live-tail, and jump-to-source navigation for VS Code.",
+  "type": "module",
+  "version": "1.0.0",
+  "publisher": "amansaxna",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/amansaxna/LogViewer.git"
+  },
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Debuggers",
+    "Other",
+    "Formatters"
+  ],
+  "keywords": [
+    "log",
+    "logs",
+    "logviewer",
+    "viewer",
+    "tail",
+    "trace",
+    "stacktrace",
+    "virtualized"
+  ],
+  "main": "./dist/extension.js",
+  "activationEvents": [
+    "onCustomEditor:logviewer.editor",
+    "onCommand:logviewer.open",
+    "onCommand:logviewer.openCurrentFile"
+  ],
+  "contributes": {
+    "commands": [
+      {
+        "command": "logviewer.open",
+        "title": "Open LogViewer (Workspace Logs)",
+        "category": "LogViewer",
+        "icon": "$(file-text)"
+      },
+      {
+        "command": "logviewer.openCurrentFile",
+        "title": "Open Current File in LogViewer",
+        "category": "LogViewer"
+      }
+    ],
+    "customEditors": [
+      {
+        "viewType": "logviewer.editor",
+        "displayName": "LogViewer",
+        "selector": [
+          { "filenamePattern": "*.log" },
+          { "filenamePattern": "*.log.*" },
+          { "filenamePattern": "*.txt" }
+        ],
+        "priority": "option"
+      }
+    ],
+    "menus": {
+      "commandPalette": [
+        {
+          "command": "logviewer.open"
+        },
+        {
+          "command": "logviewer.openCurrentFile"
+        }
+      ],
+      "explorer/context": [
+        {
+          "command": "logviewer.openCurrentFile",
+          "when": "resourceExtname == .log || resourceExtname == .txt",
+          "group": "navigation"
+        }
+      ],
+      "editor/title": [
+        {
+          "command": "logviewer.openCurrentFile",
+          "when": "resourceExtname == .log || resourceExtname == .txt",
+          "group": "navigation"
+        }
+      ]
+    }
+  },
+  "scripts": {
+    "build": "node esbuild.js",
+    "watch": "node esbuild.js --watch"
+  },
+  "devDependencies": {
+    "@types/node": "^22.13.5",
+    "@types/vscode": "^1.85.0",
+    "esbuild": "^0.25.0",
+    "typescript": "^5.7.3"
+  }
+}

@@ -1,0 +1,12 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "type": "npm",
+      "script": "build:ext",
+      "problemMatcher": [],
+      "label": "npm: build:ext",
+      "detail": "npm run build && cd vscode-extension && npm run build"
+    }
+  ]
+}

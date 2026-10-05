@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { X, FolderOpen, AlertCircle } from 'lucide-react';
 import { ButtonSpinner } from './Loaders.tsx';
+import { chooseFileNative, isVsCode } from '../api/bridge.ts';
 
 interface OpenFileModalProps {
   isOpen: boolean;
@@ -87,15 +88,36 @@ export const OpenFileModal: React.FC<OpenFileModalProps> = ({ isOpen, onClose, o
               <label style={{ fontSize: '0.82rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
                 File Path (Absolute or Relative)
               </label>
-              <input
-                type="text"
-                className="input-field"
-                placeholder="/var/log/system.log or ./logs/my_app.log"
-                value={filePath}
-                onChange={(e) => setFilePath(e.target.value)}
-                autoFocus
-                required
-              />
+              <div style={{ display: 'flex', gap: 8 }}>
+                <input
+                  type="text"
+                  className="input-field"
+                  placeholder="/var/log/system.log or ./logs/my_app.log"
+                  value={filePath}
+                  onChange={(e) => setFilePath(e.target.value)}
+                  style={{ flex: 1 }}
+                  autoFocus
+                  required
+                />
+                {isVsCode() && (
+                  <button
+                    type="button"
+                    className="btn-secondary"
+                    onClick={async () => {
+                      const picked = await chooseFileNative();
+                      if (picked) {
+                        setFilePath(picked);
+                        if (!name) {
+                          setName(picked.split(/[/\\]/).pop() || '');
+                        }
+                      }
+                    }}
+                    style={{ padding: '0 12px', whiteSpace: 'nowrap' }}
+                  >
+                    Browse...
+                  </button>
+                )}
+              </div>
             </div>
 
             <div style={{ display: 'flex', gap: 12 }}>

@@ -5,6 +5,7 @@ import { TraceViewer } from './TraceViewer.tsx';
 import { renderRichMessageContext } from '../utils/messageContextHighlighter.tsx';
 import { stripBracketMarkers } from '../utils/coloredLogRenderer.tsx';
 import { copyWithToast } from '../utils/copyNotifier.ts';
+import { openSourceLocation, isVsCode } from '../api/bridge.ts';
 
 interface LogRowProps {
   entry: LogEntry;
@@ -232,7 +233,15 @@ export const LogRow: React.FC<LogRowProps> = ({
 
         {/* Trailing Location [FileName::LineNumber] */}
         {!hideBrackets && entry.fileLocation && (
-          <span className="badge-location">
+          <span
+            className="badge-location"
+            onClick={(e) => {
+              e.stopPropagation();
+              openSourceLocation(entry.fileLocation!);
+            }}
+            title={isVsCode() ? 'Click to open in editor' : `Code location: ${entry.fileLocation}`}
+            style={{ cursor: 'pointer' }}
+          >
             {entry.fileLocation}
           </span>
         )}
@@ -315,7 +324,17 @@ export const LogRow: React.FC<LogRowProps> = ({
             {entry.fileLocation && (
               <div className="detail-item">
                 <span className="detail-label">Code Location</span>
-                <span className="detail-value">{entry.fileLocation}</span>
+                <span
+                  className="detail-value"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    openSourceLocation(entry.fileLocation!);
+                  }}
+                  title={isVsCode() ? 'Click to open in editor' : `Code location: ${entry.fileLocation}`}
+                  style={{ cursor: 'pointer', textDecoration: 'underline' }}
+                >
+                  {entry.fileLocation}
+                </span>
               </div>
             )}
           </div>

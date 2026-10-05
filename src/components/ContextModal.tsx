@@ -3,6 +3,7 @@ import { X, AlignLeft, Maximize2, Minimize2, WrapText, Target, Copy, Check } fro
 import { renderSyntaxColoredLine } from '../utils/coloredLogRenderer.tsx';
 import { ModalLoadingState } from './Loaders.tsx';
 import { copyWithToast } from '../utils/copyNotifier.ts';
+import { apiFetch } from '../api/bridge.ts';
 
 interface ContextLine {
   number: number;
@@ -51,8 +52,7 @@ export const ContextModal: React.FC<ContextModalProps> = ({
   useEffect(() => {
     if (isOpen && sourceId && lineNumber) {
       setLoading(true);
-      fetch(`/api/logs/context?sourceId=${encodeURIComponent(sourceId)}&lineNumber=${lineNumber}&radius=${radius}`)
-        .then((res) => res.json())
+      apiFetch(`/api/logs/context?sourceId=${encodeURIComponent(sourceId)}&lineNumber=${lineNumber}&radius=${radius}`)
         .then((data) => {
           if (data.sourceName) {
             setSourceName(data.sourceName);

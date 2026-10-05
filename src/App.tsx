@@ -16,6 +16,7 @@ import { DeltaTimeToolbar } from './components/DeltaTimeToolbar.tsx';
 import { calculateDeltaTime } from './utils/deltaTimeEngine.ts';
 import { copyWithToast } from './utils/copyNotifier.ts';
 import { DEFAULT_PRESETS } from './presets.ts';
+import { apiFetch, subscribeLogStream } from './api/bridge.ts';
 
 export const App: React.FC = () => {
   const [sources, setSources] = useState<LogSource[]>([]);
@@ -499,15 +500,12 @@ export const App: React.FC = () => {
     setIsSidebarOpen(true);
   }, []);
 
-  // Load available presets from server
+  // Load available presets from server or extension host
   const fetchPresets = useCallback(async () => {
     try {
-      const res = await fetch('/api/presets');
-      if (res.ok) {
-        const data = await res.json();
-        if (Array.isArray(data.presets)) {
-          setPresets(data.presets);
-        }
+      const data = await apiFetch('/api/presets');
+      if (Array.isArray(data.presets)) {
+        setPresets(data.presets);
       }
     } catch (err) {
       console.error('Failed to load presets:', err);
@@ -636,26 +634,17 @@ export const App: React.FC = () => {
   }, [presets]);
 
   const handleSavePreset = async (preset: LogPreset) => {
-    const res = await fetch('/api/presets', {
+    await apiFetch('/api/presets', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(preset),
+      body: preset,
     });
-    if (!res.ok) {
-      const data = await res.json();
-      throw new Error(data.error || 'Failed to save preset');
-    }
     await fetchPresets();
   };
 
   const handleDeletePreset = async (id: string) => {
-    const res = await fetch(`/api/presets/${encodeURIComponent(id)}`, {
+    await apiFetch(`/api/presets/${encodeURIComponent(id)}`, {
       method: 'DELETE',
     });
-    if (!res.ok) {
-      const data = await res.json();
-      throw new Error(data.error || 'Failed to delete preset');
-    }
     if (activePresetId === id) {
       handleSelectPreset(null);
     }
@@ -675,9 +664,8 @@ export const App: React.FC = () => {
   // Load available sources
   const fetchSources = useCallback(async () => {
     try {
-      const res = await fetch('/api/sources');
-      const data = await res.json();
-      if (data.sources) {
+      const data = await apiFetch('/api/sources');
+      if (data && data.sources) {
         setSources(data.sources);
         if (data.sources.length > 0) {
           setActiveSourceId((prev) => {
@@ -696,6 +684,18 @@ export const App: React.FC = () => {
 
   useEffect(() => {
     fetchSources();
+  }, [fetchSources]);
+
+  // Handle active source switched directly from VS Code editor provider
+  useEffect(() => {
+    const handleVsCodeActiveSource = (e: any) => {
+      if (e.detail?.sourceId) {
+        setActiveSourceId(e.detail.sourceId);
+        fetchSources();
+      }
+    };
+    window.addEventListener('vscode-set-active-source', handleVsCodeActiveSource);
+    return () => window.removeEventListener('vscode-set-active-source', handleVsCodeActiveSource);
   }, [fetchSources]);
 
   // Source selection & Unified stream callbacks
@@ -818,9 +818,7 @@ export const App: React.FC = () => {
     }
 
     try {
-      const res = await fetch(`/api/logs/entries?${params.toString()}`);
-      if (!res.ok) throw new Error('Query failed');
-      const data: LogQueryResult = await res.json();
+      const data: LogQueryResult = await apiFetch(`/api/logs/entries?${params.toString()}`);
 
       // Track newly added logs in live tail mode
       if (prevTotalEntriesRef.current !== null && data.total > prevTotalEntriesRef.current && isLiveTail) {
@@ -942,33 +940,25 @@ export const App: React.FC = () => {
     return () => clearInterval(interval);
   }, [isLiveTail]);
 
-  // Setup SSE Live Tail
+  // Setup Live Tail (supports both SSE for Web and IPC events for VS Code)
   useEffect(() => {
-    if (eventSourceRef.current) {
-      eventSourceRef.current.close();
-      eventSourceRef.current = null;
-    }
+    let unsubscribe: (() => void) | null = null;
 
     if (isLiveTail && activeSourceId) {
-      const es = new EventSource(`/api/logs/stream?sourceId=${encodeURIComponent(activeSourceId)}`);
-      es.onmessage = (event) => {
-        try {
-          const payload = JSON.parse(event.data);
-          if (payload.type === 'file_changed') {
-            const addedCount = payload.addedLogs || 1;
-            liveTotalAddedRef.current += addedCount;
-            setLiveTotalAdded(liveTotalAddedRef.current);
-            recentArrivalsRef.current.push({ timestamp: Date.now(), count: addedCount });
-            fetchEntries();
-          }
-        } catch {}
-      };
-      eventSourceRef.current = es;
+      unsubscribe = subscribeLogStream(activeSourceId, (payload) => {
+        if (payload && payload.type === 'file_changed') {
+          const addedCount = payload.addedLogs || 1;
+          liveTotalAddedRef.current += addedCount;
+          setLiveTotalAdded(liveTotalAddedRef.current);
+          recentArrivalsRef.current.push({ timestamp: Date.now(), count: addedCount });
+          fetchEntries();
+        }
+      });
     }
 
     return () => {
-      if (eventSourceRef.current) {
-        eventSourceRef.current.close();
+      if (unsubscribe) {
+        unsubscribe();
       }
     };
   }, [isLiveTail, activeSourceId, fetchEntries, fetchSources]);
@@ -1547,35 +1537,25 @@ export const App: React.FC = () => {
 
   // Source Handlers
   const handleOpenSource = async (path: string, name?: string, category?: string) => {
-    const res = await fetch('/api/sources/open', {
+    const data = await apiFetch('/api/sources/open', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ path, name, category }),
+      body: { path, name, category },
     });
-    const data = await res.json();
-    if (!res.ok) {
-      throw new Error(data.error || 'Failed to open source');
-    }
     await fetchSources();
     setActiveSourceId(data.source.id);
   };
 
   const handlePasteSubmit = async (text: string, name?: string) => {
-    const res = await fetch('/api/logs/paste', {
+    const data = await apiFetch('/api/logs/paste', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text, name }),
+      body: { text, name },
     });
-    const data = await res.json();
-    if (!res.ok) {
-      throw new Error(data.error || 'Failed to analyze pasted logs');
-    }
     await fetchSources();
     setActiveSourceId(data.source.id);
   };
 
   const handleRemoveCustomSource = async (id: string) => {
-    await fetch(`/api/sources/${id}`, { method: 'DELETE' });
+    await apiFetch(`/api/sources/${id}`, { method: 'DELETE' });
     await fetchSources();
     if (activeSourceId === id) {
       setActiveSourceId(sources[0]?.id || null);

@@ -4,6 +4,7 @@ import { LogEntry } from '../types.ts';
 import { renderRichMessageContext } from '../utils/messageContextHighlighter.tsx';
 import { stripBracketMarkers } from '../utils/coloredLogRenderer.tsx';
 import { copyWithToast } from '../utils/copyNotifier.ts';
+import { openSourceLocation, isVsCode } from '../api/bridge.ts';
 
 interface CompactLogRowProps {
   entry: LogEntry;
@@ -297,7 +298,14 @@ export const CompactLogRow: React.FC<CompactLogRowProps> = ({
 
         {/* Code Location */}
         {!hideBrackets && entry.fileLocation && (
-          <span style={{ color: 'var(--tok-file)', marginLeft: 8 }}>
+          <span
+            onClick={(e) => {
+              e.stopPropagation();
+              openSourceLocation(entry.fileLocation!);
+            }}
+            title={isVsCode() ? 'Click to open in editor' : `Code location: ${entry.fileLocation}`}
+            style={{ color: 'var(--tok-file)', marginLeft: 8, cursor: 'pointer' }}
+          >
             [{entry.fileLocation}]
           </span>
         )}

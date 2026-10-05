@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Copy, Check, ChevronDown, ChevronRight } from 'lucide-react';
 import { TraceData } from '../types.ts';
 import { copyWithToast } from '../utils/copyNotifier.ts';
+import { openSourceLocation, isVsCode } from '../api/bridge.ts';
 
 interface TraceViewerProps {
   trace: TraceData;
@@ -38,7 +39,15 @@ export const TraceViewer: React.FC<TraceViewerProps> = ({ trace }) => {
               <div key={idx} className="trace-frame-row">
                 <span className="trace-frame-fn">{frame.text}</span>
                 {frame.file && (
-                  <span className="trace-frame-loc">
+                  <span
+                    className="trace-frame-loc"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      openSourceLocation(frame.file!, frame.line);
+                    }}
+                    title={isVsCode() ? 'Click to open in editor' : `Location: ${frame.file}:${frame.line || 1}`}
+                    style={{ cursor: 'pointer', textDecoration: 'underline' }}
+                  >
                     {frame.file}:{frame.line || 1}
                   </span>
                 )}
