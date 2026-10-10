@@ -351,9 +351,21 @@ export class LogService {
         if (!entry.correlationId || !entry.correlationId.toLowerCase().includes(corr)) return false;
       }
 
+      if (query.marker && query.marker.trim().length > 0) {
+        const mQuery = query.marker.trim().toLowerCase();
+        if (!entry.workflow || !entry.workflow.toLowerCase().includes(mQuery)) return false;
+      }
+
       if (searchRegex) {
-        const textToMatch = `${entry.raw} ${entry.message} ${entry.fileLocation || ''}`;
-        const matched = searchRegex.test(textToMatch);
+        const matched =
+          searchRegex.test(entry.raw) ||
+          searchRegex.test(entry.message) ||
+          (entry.workflow ? searchRegex.test(entry.workflow) : false) ||
+          (entry.namespace ? searchRegex.test(entry.namespace) : false) ||
+          (entry.fileLocation ? searchRegex.test(entry.fileLocation) : false) ||
+          (entry.pid ? searchRegex.test(entry.pid) : false) ||
+          (entry.tid ? searchRegex.test(entry.tid) : false) ||
+          (entry.correlationId ? searchRegex.test(entry.correlationId) : false);
         if (query.invert ? matched : !matched) return false;
       }
 
@@ -578,6 +590,7 @@ export class LogService {
         endDate: queryParams.get('endDate') || undefined,
         namespace: queryParams.get('namespace') || undefined,
         workflow: queryParams.get('workflow') || undefined,
+        marker: queryParams.get('marker') || undefined,
         operation: queryParams.get('operation') || undefined,
         correlationId: queryParams.get('correlationId') || undefined,
         sortBy: (queryParams.get('sortBy') as any) || 'time',

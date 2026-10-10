@@ -136,18 +136,15 @@ export class LogViewerEditorProvider implements vscode.CustomReadonlyEditorProvi
   public async handleOpenSourceLocation(location: string, explicitLine?: number): Promise<void> {
     if (!location) return;
 
-    let targetFile = location;
+    let targetFile = location.replace(/^[\[\(]+|[\]\)]+$/g, '').trim();
     let targetLine = explicitLine || 1;
 
-    // Parse [FileName.ts::LineNumber] or FileName.ts:LineNumber
-    const match = location.match(/^(.+?)(?:::|:)(\d+)$/);
+    // Parse FileName.ts::LineNumber or FileName.ts:LineNumber
+    const match = targetFile.match(/^(.+?)(?:::|:)(\d+)$/);
     if (match) {
       targetFile = match[1].trim();
       targetLine = parseInt(match[2], 10);
     }
-
-    // Strip leading brackets if any
-    targetFile = targetFile.replace(/^[\[\(]+|[\]\)]+$/g, '').trim();
 
     try {
       let targetUri: vscode.Uri | null = null;

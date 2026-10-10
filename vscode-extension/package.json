@@ -2,7 +2,6 @@
   "name": "logviewer",
   "displayName": "LogViewer",
   "description": "High-performance structured log viewer, virtualized scrolling, live-tail, and jump-to-source navigation for VS Code.",
-  "type": "module",
   "version": "1.0.0",
   "publisher": "amansaxna",
   "repository": {
@@ -52,9 +51,15 @@
         "viewType": "logviewer.editor",
         "displayName": "LogViewer",
         "selector": [
-          { "filenamePattern": "*.log" },
-          { "filenamePattern": "*.log.*" },
-          { "filenamePattern": "*.txt" }
+          {
+            "filenamePattern": "*.log"
+          },
+          {
+            "filenamePattern": "*.log.*"
+          },
+          {
+            "filenamePattern": "*.txt"
+          }
         ],
         "priority": "option"
       }
@@ -85,8 +90,8 @@
     }
   },
   "scripts": {
-    "build": "node esbuild.js",
-    "watch": "node esbuild.js --watch"
+    "build": "node esbuild.mjs",
+    "watch": "node esbuild.mjs --watch"
   },
   "devDependencies": {
     "@types/node": "^22.13.5",
