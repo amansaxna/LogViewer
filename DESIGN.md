@@ -157,7 +157,7 @@ graph TD
 ### 5.1 Sidebar Navigation
 - **Width**: `300px` (provides adequate clearance for deep file paths and rotation badges).
 - **Header**: High-density header (`10px 12px`) with outline branding (`.sidebar-logo`: transparent background, marked 1px accent border) and a 2-row quick-action grid:
-  - Row 1: `Load Files` (`.btn-load-files`: transparent background, marked 1px cobalt border, hover accent) + `Paste Logs` (`.btn-paste-logs`: transparent background, subtle border)
+  - Row 1: `Load Files` (`.btn-load-files`) + `Paste Logs` (`.btn-paste-logs`) sharing uniform neutral outline borders (`var(--border-subtle)`) and subtle hover surfaces.
   - Row 2: `Merge All Sources` (`.btn-merge-all`: outline multi-source toggle)
 - **Item Rows**:
   - Height: `28px` with `padding: 3px 6px`.
@@ -198,3 +198,27 @@ To eliminate visual clipping, overlay trapping, and tooltip corruption, the appl
 | **Inspector Modals** | `1,000` | JSON/XML beautifier, Context lines modal |
 | **System Diagnostics** | `2,000` | System health & SLA percentile modal |
 | **Tooltips** | `100,000` | Global floating tooltips (`data-tooltip-align="left"`) |
+
+---
+
+## 7. Product Storytelling Landing Page Specification (Obsidian Studio Relay)
+
+The product landing page ([LandingPage.tsx](file:///Users/amansaxena/Documents/Claude/Projects/LogViewer/src/components/LandingPage.tsx), [src/landing.css](file:///Users/amansaxena/Documents/Claude/Projects/LogViewer/src/landing.css)) extends the **Obsidian Studio** design system into a scroll-choreographed product storytelling narrative inspired by GetLayers Relay:
+
+1. **Color & Border Architecture**:
+   - Canvas: Neutral carbon black `#0b0c10` (`--lv-bg-void`), grounded drawer `#101216` (`--lv-bg-panel`), and elevated surface `#14161b` (`--lv-bg-surface`).
+   - Primary Accent: **Engineering Cobalt** (`#3b82f6` / `#60a5fa`) with marked 1px structural borders (`border: 1px solid var(--lv-accent)`) and zero solid-filled pill slop.
+   - Authentic Semantic Tokens: Uses the exact `--tok-*` palette (`#8b949e` datetime, `#34d399` correlation, `#60a5fa` namespace, `#a78bfa` workflow, `#f59e0b` HTTP operation, `#f87171` error, `#fbbf24` warn, `#eab308` duration).
+2. **Signature Evolving Storytelling Elements**:
+   - **Continuous Signal Conduit Spine**: A vertical 1px telemetry trace line along the left viewport rail with a scroll-linked diamond packet tracking narrative progression across stages.
+   - **Stage 01 — 3D Interactive Instrument Hero**: Asymmetric split hero pairing concise engineering copy and a live scenario selector with a mouse-tracked 3D tilting Obsidian Studio workbench (complete with Tier 1 velocity meters, Tier 2 single-line severity & negative `-` exclusion pills, Tier 3 comma-AND search, live range-selection $\Delta t$ calculation, inline JSON/XML payload inspection, and a full `Viewer.png` capture toggle).
+   - **Stage 02 — Seven-Layer Telemetry Evolution Deck**: Auto-evolving and interactive sticky mechanical hardware stage that unfolds across all seven layers of the `main` branch pipeline:
+     1. *Layer 01*: Multi-Source Unified Stream & Rotation Hierarchy (`server/fileReader.ts`, `Sidebar.tsx`, `PasteLogsModal.tsx`) with animated SVG K-Way merge packet conduits.
+     2. *Layer 02*: Permissive Bracket & Multi-Format Heuristic Tokenizer (`server/parser.ts`, `coloredLogRenderer.tsx`) with a continuous laser scanner beam and `[ ]` bracket stripper toggle.
+     3. *Layer 03*: 3-Tier Topbar & Single-Line Facet Engine (`src/components/Topbar.tsx`) with negative (`-`) exclusion toggle, `Workflows`/`Operations`/`Correlations` facets, and comma-AND search.
+     4. *Layer 04*: Embedded Entity Highlighter & Collapsible AST Tree Inspector (`messageContextHighlighter.tsx`, `JsonXmlInspectorModal.tsx`) with synchronized line gutters.
+     5. *Layer 05*: Automatic Range Selection Delta Time ($\Delta t$) (`DeltaTimeToolbar.tsx`), `TextSelectionToolbar`, and $\pm 20$ line `ContextModal`.
+     6. *Layer 06*: JSON-Driven Filter Presets (`PresetModal.tsx`, `config/presets.json`), `CompactLogRow` vs `LogRow` density toggle, and 20-char `CopyToast`.
+     7. *Layer 07*: Constant-Memory 60 FPS Virtualization (`LogTable.tsx`) and Dual Runtime IPC Bridge (`src/api/bridge.ts`).
+   - **Stage 03 — 3D Isometric Exploded Layer Stack**: Interactive 7-plate 3D isometric stack (`rotateX(14deg) rotateZ(-2deg)`) that elevates and unpacks telemetry SLA details on hover/selection.
+   - **Stage 04 — 60 FPS Virtualization Engine & Vim Navigation Matrix**: Interactive 250,000-line `@tanstack/react-virtual` window scrubber demonstrating dynamic gutter scaling ($\max(30\text{px}, \text{digits} \times 8 + 14\text{px})$) alongside a live keyboard-driven Vim keycap matrix (`j`, `k`, `gg`, `G`, `/`, `Enter`, `Shift`, `?`).

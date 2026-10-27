@@ -282,6 +282,12 @@ body {
   background: #d97706;
   border-color: rgba(0, 0, 0, 0.1);
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
+  color: #ffffff;
+}
+
+[data-theme='light'] .sidebar-logo svg {
+  color: #ffffff;
+  stroke: #ffffff;
 }
 
 .sidebar-search {
@@ -306,31 +312,8 @@ body {
   box-shadow: 0 0 0 2px var(--accent-bg);
 }
 
-/* Sidebar Quick Action Buttons (Anti-Slop Marked Border Style) */
-.btn-load-files {
-  flex: 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 5px;
-  padding: 5px 8px;
-  background-color: transparent;
-  color: var(--accent-primary);
-  border: 1px solid var(--accent-primary);
-  border-radius: 5px;
-  font-weight: 600;
-  font-size: 0.76rem;
-  cursor: pointer;
-  box-shadow: none;
-  transition: all 0.15s ease;
-}
-
-.btn-load-files:hover {
-  background-color: var(--accent-bg);
-  border-color: var(--accent-hover);
-  color: #ffffff;
-}
-
+/* Sidebar Quick Action Buttons */
+.btn-load-files,
 .btn-paste-logs {
   flex: 1;
   display: flex;
@@ -349,6 +332,7 @@ body {
   transition: all 0.15s ease;
 }
 
+.btn-load-files:hover,
 .btn-paste-logs:hover {
   background-color: var(--bg-surface-hover);
   border-color: var(--border-highlight);
@@ -385,26 +369,18 @@ body {
   border-color: var(--accent-primary);
 }
 
-[data-theme='light'] .btn-load-files {
-  background-color: transparent;
-  color: var(--accent-primary);
-  border: 1px solid var(--accent-primary);
-}
-
-[data-theme='light'] .btn-load-files:hover {
-  background-color: var(--accent-bg);
-  color: var(--accent-hover);
-}
-
+[data-theme='light'] .btn-load-files,
 [data-theme='light'] .btn-paste-logs {
   background-color: transparent;
   border-color: var(--border-subtle);
   color: var(--text-primary);
 }
 
+[data-theme='light'] .btn-load-files:hover,
 [data-theme='light'] .btn-paste-logs:hover {
   background-color: var(--bg-surface-hover);
   border-color: var(--border-highlight);
+  color: var(--text-primary);
 }
 
 .sidebar-sources-list {
@@ -2566,11 +2542,6 @@ body {
   opacity: 1 !important;
   color: var(--accent-primary) !important;
   background-color: var(--accent-bg);
-}
-
-.btn-load-files:hover {
-  filter: brightness(1.1);
-  opacity: 0.95;
 }
 
 mark {

@@ -15,10 +15,22 @@ import { TextSelectionToolbar } from './components/TextSelectionToolbar.tsx';
 import { DeltaTimeToolbar } from './components/DeltaTimeToolbar.tsx';
 import { calculateDeltaTime } from './utils/deltaTimeEngine.ts';
 import { copyWithToast } from './utils/copyNotifier.ts';
+import { LandingPage } from './components/LandingPage.tsx';
 import { DEFAULT_PRESETS } from './presets.ts';
 import { apiFetch, subscribeLogStream } from './api/bridge.ts';
 
 export const App: React.FC = () => {
+  const [viewModeState, setViewModeState] = useState<'app' | 'landing'>(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('view') === 'landing' || window.location.hash === '#landing' || params.get('tour') === 'true') {
+      return 'landing';
+    }
+    if (params.get('view') === 'app') {
+      return 'app';
+    }
+    return localStorage.getItem('lv_has_visited') ? 'app' : 'app';
+  });
+
   const [sources, setSources] = useState<LogSource[]>([]);
   const [activeSourceId, setActiveSourceId] = useState<string | null>(() => localStorage.getItem('lv_active_source') || null);
   const [selectedSourceIds, setSelectedSourceIds] = useState<string[]>(() => {
@@ -1604,6 +1616,21 @@ export const App: React.FC = () => {
 
   const activeSource = sources.find((s) => s.id === activeSourceId);
 
+  if (viewModeState === 'landing') {
+    return (
+      <LandingPage
+        onLaunchApp={() => {
+          localStorage.setItem('lv_has_visited', 'true');
+          setViewModeState('app');
+          const u = new URL(window.location.href);
+          u.searchParams.delete('view');
+          u.searchParams.delete('tour');
+          window.history.replaceState({}, '', u.pathname + (u.search ? '?' + u.searchParams.toString() : ''));
+        }}
+      />
+    );
+  }
+
   return (
     <div className={`app-container ${isFullscreen ? 'app-fullscreen' : ''}`}>
       {/* Sidebar with LogViewer.io 3 Quick Actions */}
@@ -1624,6 +1651,7 @@ export const App: React.FC = () => {
         onRemoveCustomSource={handleRemoveCustomSource}
         isOpen={!isFullscreen && isSidebarOpen}
         onToggleOpen={toggleSidebar}
+        onOpenLanding={() => setViewModeState('landing')}
       />
 
       {/* Main Content Area */}
@@ -1686,6 +1714,7 @@ export const App: React.FC = () => {
           theme={theme}
           onToggleTheme={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
           onOpenShortcuts={() => setIsShortcutsOpen(true)}
+          onOpenLanding={() => setViewModeState('landing')}
           onResetSettings={handleResetSettings}
           startDate={startDate}
           endDate={endDate}

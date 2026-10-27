@@ -123,6 +123,7 @@ interface TopbarProps {
   theme: 'dark' | 'light';
   onToggleTheme: () => void;
   onOpenShortcuts?: () => void;
+  onOpenLanding?: () => void;
   onResetSettings?: () => void;
 
   // Sidebar & Fullscreen
@@ -230,6 +231,7 @@ export const Topbar: React.FC<TopbarProps> = ({
   theme,
   onToggleTheme,
   onOpenShortcuts,
+  onOpenLanding,
   onResetSettings,
   isSidebarOpen,
   onToggleSidebar,
@@ -2120,6 +2122,19 @@ export const Topbar: React.FC<TopbarProps> = ({
             >
               {isPathCopied ? <Check size={12} color="#4ade80" /> : <Copy size={12} />}
               <span>{isPathCopied ? 'Copied' : 'Path'}</span>
+            </button>
+          )}
+
+          {/* Product Overview / Landing Page */}
+          {onOpenLanding && (
+            <button
+              className="btn-secondary"
+              onClick={onOpenLanding}
+              style={{ height: 28, padding: '0 8px', fontSize: '0.74rem', gap: 4 }}
+              title="Product Tour & Architecture Overview"
+            >
+              <Zap size={12} color="#ccff00" />
+              <span>Tour</span>
             </button>
           )}
 

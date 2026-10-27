@@ -39,6 +39,7 @@ interface SidebarProps {
   onRemoveCustomSource: (id: string) => void;
   isOpen?: boolean;
   onToggleOpen?: () => void;
+  onOpenLanding?: () => void;
 }
 
 function formatBytes(bytes?: number): string {
@@ -75,6 +76,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onRemoveCustomSource,
   isOpen = true,
   onToggleOpen,
+  onOpenLanding,
 }) => {
   const [filterText, setFilterText] = useState('');
   const [copiedId, setCopiedId] = useState<string | null>(null);
@@ -112,7 +114,16 @@ export const Sidebar: React.FC<SidebarProps> = ({
     <aside className={`sidebar ${!isOpen ? 'collapsed' : ''}`}>
       {/* Header */}
       <div className="sidebar-header" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        <div
+          onClick={onOpenLanding}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
+            cursor: onOpenLanding ? 'pointer' : 'default',
+          }}
+          title={onOpenLanding ? 'Open Product Tour & Architecture Overview' : undefined}
+        >
           <div className="sidebar-logo">
             <Terminal size={14} />
           </div>

@@ -764,3 +764,27 @@ This document captures the architectural decisions made during the design and im
   4. **Tokenize Interactive Control States**:
      - Converted active states for `.source-item.active`, `.meta-toggle-btn.active`, `.preset-trigger-btn.active`, `.toolbar-toggle-btn.active`, and `.rate-badge.average` to reference `var(--accent-primary)`, `var(--accent-bg)`, and `var(--tok-namespace)`.
 - **Consequences**: Delivers a fatigue-free, professional engineering tool aesthetic aligned with Datadog, Sentry, and Linear. Errors and anomalies command immediate visual focus. All interactive components adapt dynamically across theme switches.
+
+---
+
+## ADR-041: GetLayers Relay Black & Lime Product Page Architecture
+- **Status**: Accepted
+- **Context**: The landing page from the `feature/multi-panel-window` branch provided foundational interactive demos but utilized dated cyan/purple palettes and lacked the cinematic high-craft aesthetic of modern workflow tools. The user requested rebuilding the page following the **GetLayers Relay** template (`black & electric acid lime`, interactive light conduit, 3D tilting glass window, and tactile mechanical plates).
+- **Decision**:
+  1. **Black & Electric Lime Aesthetic**:
+     - Adopted ultra-deep void `#060809` paired with electric acid lime (`#ccff00`, `#a3e635`, `#10b981`).
+     - Added the signature Relay vertical light conduit running the length of the page with a glowing particle tracking scroll position.
+     - Added the rotating lime countdown ring folding into the brand logo mark in the navbar.
+  2. **3D Tilting Glass Hero Window**:
+     - Engineered an interactive perspective viewport (`perspective(1200px)`) that dynamically calculates `rotateX` and `rotateY` from mouse coordinates with specular glare reflections.
+     - Embeds a live 5-step incident refund transaction flow with step-by-step latency deltas and JSON payloads, alongside a real-time virtualized log stream with live severity filter pills (`ALL`, `ERR`, `WARN`, `AUDIT`, `PERF`).
+  3. **Tactile Mechanical Bento Plates**:
+     - Built an interactive throughput scrubber (1,000 to 1,000,000 LPS) illustrating zero DOM bloat (constant 40 physical nodes).
+     - Multi-panel spatial grid preview (1-Panel, 2-Col, 2-Row, 4-Grid).
+     - 28-keyboard shortcut simulator with tactile button lighting.
+     - Embedded JSON & XML SOAP tree inspector with collapsible nodes.
+     - Continuous SVG flowing sine-wave oscilloscope tracking event loop lag.
+  4. **Seamless Two-Way Navigation**:
+     - Integrated `viewModeState` in `src/App.tsx` (`?view=landing` or `#landing`).
+     - Added a "Tour" button in `Topbar.tsx` and clickable sidebar logo to transition back and forth instantly.
+- **Consequences**: Provides a world-class marketing and architectural tour matching the GetLayers Relay design while remaining 100% functional and test-verified.

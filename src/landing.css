@@ -1,0 +1,1402 @@
+/* ============================================================================
+   LOGVIEWER — OBSIDIAN STUDIO KINETIC STORYTELLING (VISUAL-FIRST EDITION)
+   Minimal text, maximum continuous hardware animation, 3D isometric stack,
+   and 1px marked outline cells matching LogViewer main.
+   ============================================================================ */
+
+.lv-relay-page {
+  --lv-bg-void: #0b0c10;
+  --lv-bg-panel: #101216;
+  --lv-bg-surface: #14161b;
+  --lv-bg-elevated: #17191e;
+  --lv-bg-hover: #20232a;
+
+  --lv-border-subtle: rgba(255, 255, 255, 0.07);
+  --lv-border-mid: rgba(255, 255, 255, 0.13);
+  --lv-border-strong: rgba(255, 255, 255, 0.24);
+
+  --lv-accent: #3b82f6;
+  --lv-accent-bright: #60a5fa;
+  --lv-accent-dim: rgba(59, 130, 246, 0.12);
+  --lv-accent-glow: rgba(59, 130, 246, 0.36);
+
+  --lv-text-primary: #f1f5f9;
+  --lv-text-secondary: #94a3b8;
+  --lv-text-muted: #64748b;
+
+  /* Authentic LogViewer Semantic Syntax Tokens */
+  --lv-tok-datetime: #8b949e;
+  --lv-tok-pid: #64748b;
+  --lv-tok-corr: #34d399;
+  --lv-tok-namespace: #60a5fa;
+  --lv-tok-workflow: #a78bfa;
+  --lv-tok-op-http: #f59e0b;
+  --lv-tok-status-error: #f87171;
+  --lv-tok-status-warn: #fbbf24;
+  --lv-tok-status-info: #60a5fa;
+  --lv-tok-status-audit: #c084fc;
+  --lv-tok-status-ok: #4ade80;
+  --lv-tok-duration: #eab308;
+  --lv-tok-file: #64748b;
+
+  --lv-font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --lv-font-mono: 'Fira Code', 'JetBrains Mono', 'SF Mono', Menlo, Monaco, Consolas, monospace;
+
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  overflow-y: auto;
+  overflow-x: hidden;
+  background-color: var(--lv-bg-void);
+  color: var(--lv-text-primary);
+  font-family: var(--lv-font-sans);
+  scroll-behavior: smooth;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Animated perspective engineering grid */
+.lv-relay-backdrop {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  background-image:
+    linear-gradient(to right, rgba(255, 255, 255, 0.025) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(255, 255, 255, 0.025) 1px, transparent 1px);
+  background-size: 52px 52px;
+  mask-image: radial-gradient(ellipse 92% 80% at 50% 25%, #000 45%, transparent 100%);
+  -webkit-mask-image: radial-gradient(ellipse 92% 80% at 50% 25%, #000 45%, transparent 100%);
+  animation: lvGridDrift 24s linear infinite;
+}
+
+@keyframes lvGridDrift {
+  0% {
+    background-position: 0 0;
+  }
+  100% {
+    background-position: 52px 52px;
+  }
+}
+
+/* ============================================================================
+   CONTINUOUS VERTICAL SIGNAL CONDUIT SPINE & FLOATING LAYER RAIL
+   ============================================================================ */
+.lv-conduit-spine {
+  position: fixed;
+  top: 64px;
+  bottom: 0;
+  left: 28px;
+  width: 1px;
+  background: rgba(255, 255, 255, 0.07);
+  z-index: 40;
+  pointer-events: none;
+}
+
+.lv-conduit-progress {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 1px;
+  background: linear-gradient(180deg, transparent 0%, var(--lv-accent) 65%, var(--lv-accent-bright) 100%);
+  box-shadow: 0 0 16px var(--lv-accent-glow);
+  transition: height 80ms linear;
+}
+
+.lv-conduit-packet {
+  position: absolute;
+  left: -4px;
+  width: 9px;
+  height: 9px;
+  background: var(--lv-bg-void);
+  border: 1.5px solid var(--lv-accent-bright);
+  box-shadow: 0 0 14px var(--lv-accent), 0 0 28px var(--lv-accent-glow);
+  transform: translateY(-50%) rotate(45deg);
+  transition: top 80ms linear;
+}
+
+.lv-conduit-nodes {
+  position: fixed;
+  left: 16px;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 45;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.lv-conduit-node-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: transparent;
+  border: none;
+  padding: 2px;
+  cursor: pointer;
+  color: var(--lv-text-muted);
+  font-family: var(--lv-font-mono);
+  font-size: 10px;
+}
+
+.lv-conduit-node-dot {
+  width: 24px;
+  height: 24px;
+  border-radius: 5px;
+  background: var(--lv-bg-panel);
+  border: 1px solid var(--lv-border-subtle);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 9.5px;
+  color: var(--lv-text-muted);
+  transition: all 180ms ease;
+}
+
+.lv-conduit-node-btn:hover .lv-conduit-node-dot,
+.lv-conduit-node-btn.active .lv-conduit-node-dot {
+  border-color: var(--lv-accent);
+  color: var(--lv-accent-bright);
+  background: rgba(59, 130, 246, 0.14);
+  box-shadow: 0 0 14px rgba(59, 130, 246, 0.3);
+}
+
+.lv-conduit-node-label {
+  opacity: 0;
+  transform: translateX(-4px);
+  pointer-events: none;
+  background: var(--lv-bg-panel);
+  border: 1px solid var(--lv-border-mid);
+  padding: 2px 7px;
+  border-radius: 4px;
+  color: var(--lv-text-primary);
+  white-space: nowrap;
+  transition: all 150ms ease;
+}
+
+.lv-conduit-node-btn:hover .lv-conduit-node-label {
+  opacity: 1;
+  transform: translateX(0);
+}
+
+@media (max-width: 1220px) {
+  .lv-conduit-spine,
+  .lv-conduit-nodes {
+    display: none;
+  }
+}
+
+/* ============================================================================
+   KEYFRAME CHOREOGRAPHY
+   ============================================================================ */
+@keyframes lvSpinSlow {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes lvLaserSweep {
+  0% {
+    left: -12%;
+    opacity: 0;
+  }
+  15% {
+    opacity: 1;
+  }
+  85% {
+    opacity: 1;
+  }
+  100% {
+    left: 102%;
+    opacity: 0;
+  }
+}
+
+@keyframes lvVerticalScan {
+  0% {
+    top: -10%;
+    opacity: 0;
+  }
+  20% {
+    opacity: 1;
+  }
+  80% {
+    opacity: 1;
+  }
+  100% {
+    top: 105%;
+    opacity: 0;
+  }
+}
+
+@keyframes lvRowStreamIn {
+  0% {
+    opacity: 0;
+    transform: translateY(-8px) scale(0.99);
+    background-color: rgba(59, 130, 246, 0.25);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes lvPulseGlow {
+  0%, 100% {
+    opacity: 0.5;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.22);
+  }
+}
+
+@keyframes lvPacketFlow {
+  0% {
+    stroke-dashoffset: 160;
+  }
+  100% {
+    stroke-dashoffset: 0;
+  }
+}
+
+@keyframes lvPlateUnfold {
+  0% {
+    opacity: 0;
+    transform: perspective(1100px) rotateX(8deg) translateY(16px) scale(0.98);
+  }
+  100% {
+    opacity: 1;
+    transform: perspective(1100px) rotateX(0deg) translateY(0) scale(1);
+  }
+}
+
+@keyframes lvProgressFill {
+  from {
+    width: 0%;
+  }
+  to {
+    width: 100%;
+  }
+}
+
+@keyframes lvFloatNode {
+  0%, 100% {
+    transform: translateY(0px);
+  }
+  50% {
+    transform: translateY(-4px);
+  }
+}
+
+@keyframes lvWaveScroll {
+  0% {
+    transform: translateX(0);
+  }
+  100% {
+    transform: translateX(-50%);
+  }
+}
+
+/* Scroll-triggered section reveal */
+.lv-reveal-block {
+  opacity: 0;
+  transform: perspective(1200px) rotateX(6deg) translateY(32px);
+  transition:
+    opacity 640ms cubic-bezier(0.16, 1, 0.3, 1),
+    transform 640ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.lv-reveal-block.is-visible {
+  opacity: 1;
+  transform: perspective(1200px) rotateX(0deg) translateY(0);
+}
+
+.lv-plate-animate {
+  animation: lvPlateUnfold 380ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+/* ============================================================================
+   TOP NAVIGATION BAR
+   ============================================================================ */
+.lv-nav {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  height: 60px;
+  background: rgba(11, 12, 16, 0.88);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border-bottom: 1px solid var(--lv-border-subtle);
+}
+
+.lv-nav-inner {
+  max-width: 1380px;
+  height: 100%;
+  margin: 0 auto;
+  padding: 0 32px 0 64px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+}
+
+.lv-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  background: transparent;
+  border: none;
+  color: var(--lv-text-primary);
+  cursor: pointer;
+  padding: 0;
+}
+
+.lv-brand-mark {
+  width: 30px;
+  height: 30px;
+  border-radius: 6px;
+  background: transparent;
+  border: 1px solid var(--lv-accent);
+  color: var(--lv-accent-bright);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  box-shadow: inset 0 0 12px rgba(59, 130, 246, 0.16);
+}
+
+.lv-brand-ring {
+  position: absolute;
+  inset: -4px;
+  border-radius: 9px;
+  border: 1px dashed rgba(96, 165, 250, 0.42);
+  animation: lvSpinSlow 14s linear infinite;
+}
+
+.lv-brand-name {
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  color: var(--lv-text-primary);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.lv-nav-stages {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.lv-nav-stage-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 30px;
+  padding: 0 10px;
+  border-radius: 6px;
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--lv-text-secondary);
+  font-size: 11.5px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 150ms ease;
+  white-space: nowrap;
+}
+
+.lv-nav-stage-btn:hover {
+  color: var(--lv-text-primary);
+  background: rgba(255, 255, 255, 0.03);
+  border-color: var(--lv-border-subtle);
+}
+
+.lv-nav-stage-btn.active {
+  color: var(--lv-text-primary);
+  background: rgba(59, 130, 246, 0.09);
+  border-color: var(--lv-accent);
+}
+
+.lv-nav-stage-idx {
+  font-family: var(--lv-font-mono);
+  font-size: 10px;
+  color: var(--lv-accent-bright);
+}
+
+.lv-nav-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.lv-telemetry-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 30px;
+  padding: 0 10px;
+  border-radius: 6px;
+  background: var(--lv-bg-panel);
+  border: 1px solid var(--lv-border-subtle);
+  font-family: var(--lv-font-mono);
+  font-size: 10.5px;
+  color: var(--lv-text-secondary);
+  white-space: nowrap;
+}
+
+.lv-status-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--lv-tok-status-ok);
+  box-shadow: 0 0 8px var(--lv-tok-status-ok);
+  animation: lvPulseGlow 1.8s ease-in-out infinite;
+}
+
+/* Marked 1px Outline CTA Buttons */
+.lv-btn-primary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: 36px;
+  padding: 0 16px;
+  border-radius: 6px;
+  background: rgba(59, 130, 246, 0.09);
+  border: 1px solid var(--lv-accent);
+  color: var(--lv-text-primary);
+  font-size: 12.5px;
+  font-weight: 500;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 160ms ease;
+}
+
+.lv-btn-primary:hover {
+  background: rgba(59, 130, 246, 0.18);
+  border-color: var(--lv-accent-bright);
+  box-shadow: 0 0 22px rgba(59, 130, 246, 0.25);
+  transform: translateY(-1px);
+}
+
+.lv-btn-secondary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: 36px;
+  padding: 0 15px;
+  border-radius: 6px;
+  background: var(--lv-bg-panel);
+  border: 1px solid var(--lv-border-mid);
+  color: var(--lv-text-secondary);
+  font-size: 12.5px;
+  font-weight: 500;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 160ms ease;
+}
+
+.lv-btn-secondary:hover {
+  color: var(--lv-text-primary);
+  border-color: var(--lv-border-strong);
+  background: var(--lv-bg-hover);
+}
+
+/* ============================================================================
+   MAIN CONTAINER
+   ============================================================================ */
+.lv-main {
+  position: relative;
+  z-index: 10;
+  max-width: 1380px;
+  margin: 0 auto;
+  padding: 0 32px 84px 64px;
+}
+
+@media (max-width: 1024px) {
+  .lv-nav-inner,
+  .lv-main {
+    padding-left: 24px;
+    padding-right: 24px;
+  }
+  .lv-nav-stages {
+    display: none;
+  }
+}
+
+/* ============================================================================
+   STAGE 01: HERO (Minimal Copy, Giant Live-Streaming 3D Instrument)
+   ============================================================================ */
+.lv-hero {
+  min-height: calc(100dvh - 60px);
+  padding: 28px 0 40px;
+  display: grid;
+  grid-template-columns: minmax(0, 4.2fr) minmax(0, 7.8fr);
+  gap: 32px;
+  align-items: center;
+  border-bottom: 1px solid var(--lv-border-subtle);
+}
+
+@media (max-width: 1100px) {
+  .lv-hero {
+    grid-template-columns: 1fr;
+    min-height: auto;
+  }
+}
+
+.lv-hero-copy {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 16px;
+}
+
+.lv-eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 10px;
+  border-radius: 6px;
+  background: var(--lv-bg-panel);
+  border: 1px solid var(--lv-border-mid);
+  font-family: var(--lv-font-mono);
+  font-size: 10.5px;
+  color: var(--lv-accent-bright);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.lv-hero-title {
+  font-size: clamp(2.25rem, 3.6vw, 3.4rem);
+  font-weight: 600;
+  line-height: 1.04;
+  letter-spacing: -0.035em;
+  color: var(--lv-text-primary);
+  margin: 0;
+}
+
+.lv-hero-title-emphasis {
+  font-style: italic;
+  font-weight: 500;
+  color: var(--lv-accent-bright);
+  padding-bottom: 4px;
+}
+
+.lv-hero-sub {
+  font-size: 14.5px;
+  line-height: 1.5;
+  color: var(--lv-text-secondary);
+  margin: 0;
+  max-width: 38ch;
+}
+
+.lv-hero-cta-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+/* Compact 3-pill stream switcher */
+.lv-stream-pills {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  padding-top: 8px;
+}
+
+.lv-stream-pill-btn {
+  padding: 6px 10px;
+  border-radius: 5px;
+  background: var(--lv-bg-panel);
+  border: 1px solid var(--lv-border-subtle);
+  color: var(--lv-text-secondary);
+  font-family: var(--lv-font-mono);
+  font-size: 10.5px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  transition: all 140ms ease;
+}
+
+.lv-stream-pill-btn.active {
+  border-color: var(--lv-accent);
+  color: var(--lv-text-primary);
+  background: rgba(59, 130, 246, 0.08);
+}
+
+/* 3D Perspective Workbench Stage */
+.lv-hero-stage-wrap {
+  perspective: 1400px;
+  position: relative;
+}
+
+.lv-workbench-frame {
+  border-radius: 8px;
+  background: var(--lv-bg-panel);
+  border: 1px solid var(--lv-border-mid);
+  box-shadow:
+    0 32px 64px -16px rgba(0, 0, 0, 0.85),
+    0 0 0 1px rgba(255, 255, 255, 0.04);
+  overflow: hidden;
+  transition: transform 160ms cubic-bezier(0.22, 1, 0.36, 1), border-color 180ms ease;
+  position: relative;
+}
+
+.lv-workbench-glare {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 30;
+}
+
+.lv-mini-tier1 {
+  height: 36px;
+  padding: 0 12px;
+  background: var(--lv-bg-void);
+  border-bottom: 1px solid var(--lv-border-subtle);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 11px;
+}
+
+.lv-mini-breadcrumb {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--lv-font-mono);
+  font-size: 11px;
+  color: var(--lv-text-primary);
+}
+
+.lv-mini-rate-group {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 5px;
+  border: 1px solid var(--lv-border-subtle);
+  background: var(--lv-bg-panel);
+  overflow: hidden;
+  font-family: var(--lv-font-mono);
+  font-size: 10px;
+}
+
+.lv-mini-rate-now {
+  padding: 2px 7px;
+  color: var(--lv-tok-corr);
+  border-right: 1px solid var(--lv-border-subtle);
+}
+
+.lv-mini-rate-avg {
+  padding: 2px 7px;
+  color: var(--lv-text-muted);
+}
+
+.lv-mini-mode-switch {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: var(--lv-bg-panel);
+  border: 1px solid var(--lv-border-subtle);
+  border-radius: 5px;
+  padding: 2px;
+}
+
+.lv-mini-mode-btn {
+  padding: 3px 8px;
+  border-radius: 4px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--lv-text-muted);
+  font-family: var(--lv-font-mono);
+  font-size: 10px;
+  cursor: pointer;
+}
+
+.lv-mini-mode-btn.active {
+  color: var(--lv-text-primary);
+  background: rgba(59, 130, 246, 0.12);
+  border-color: var(--lv-accent);
+}
+
+.lv-mini-tier2 {
+  height: 32px;
+  padding: 0 12px;
+  background: var(--lv-bg-panel);
+  border-bottom: 1px solid var(--lv-border-subtle);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.lv-mini-pills {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-wrap: nowrap;
+}
+
+.lv-sev-pill {
+  height: 22px;
+  padding: 0 8px;
+  border-radius: 4px;
+  background: transparent;
+  border: 1px solid var(--lv-border-subtle);
+  color: var(--lv-text-secondary);
+  font-family: var(--lv-font-mono);
+  font-size: 10px;
+  font-weight: 500;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+  transition: all 120ms ease;
+}
+
+.lv-sev-pill:hover {
+  border-color: var(--lv-border-mid);
+  color: var(--lv-text-primary);
+}
+
+.lv-sev-pill.active-all {
+  border-color: var(--lv-accent);
+  color: var(--lv-accent-bright);
+  background: rgba(59, 130, 246, 0.1);
+}
+
+.lv-sev-pill.active-error {
+  border-color: var(--lv-tok-status-error);
+  color: var(--lv-tok-status-error);
+  background: rgba(248, 113, 113, 0.1);
+}
+
+.lv-sev-pill.active-warn {
+  border-color: var(--lv-tok-status-warn);
+  color: var(--lv-tok-status-warn);
+  background: rgba(251, 191, 36, 0.1);
+}
+
+.lv-sev-pill.active-info {
+  border-color: var(--lv-tok-status-info);
+  color: var(--lv-tok-status-info);
+  background: rgba(96, 165, 250, 0.1);
+}
+
+.lv-sev-pill.active-audit {
+  border-color: var(--lv-tok-status-audit);
+  color: var(--lv-tok-status-audit);
+  background: rgba(192, 132, 252, 0.1);
+}
+
+.lv-mini-tier3 {
+  height: 32px;
+  padding: 0 12px;
+  background: var(--lv-bg-surface);
+  border-bottom: 1px solid var(--lv-border-subtle);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.lv-mini-search {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 22px;
+  padding: 0 8px;
+  border-radius: 4px;
+  background: var(--lv-bg-void);
+  border: 1px solid var(--lv-border-subtle);
+  font-family: var(--lv-font-mono);
+  font-size: 11px;
+  color: var(--lv-text-primary);
+}
+
+.lv-mini-search input {
+  background: transparent;
+  border: none;
+  outline: none;
+  color: var(--lv-text-primary);
+  font-family: var(--lv-font-mono);
+  font-size: 11px;
+  width: 100%;
+}
+
+.lv-mini-viewport {
+  background: var(--lv-bg-void);
+  min-height: 270px;
+  max-height: 270px;
+  overflow-y: auto;
+  font-family: var(--lv-font-mono);
+  font-size: 11.5px;
+  line-height: 1.45;
+  position: relative;
+}
+
+.lv-mini-row {
+  display: grid;
+  grid-template-columns: 36px 1fr;
+  align-items: baseline;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+  border-left: 2px solid transparent;
+  cursor: pointer;
+  user-select: none;
+  transition: background 120ms ease;
+  animation: lvRowStreamIn 320ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.lv-mini-row:hover {
+  background: rgba(255, 255, 255, 0.035);
+}
+
+.lv-mini-row.selected {
+  background: rgba(59, 130, 246, 0.12);
+  border-left-color: var(--lv-accent);
+}
+
+.lv-mini-row.error-row {
+  border-left-color: var(--lv-tok-status-error);
+}
+
+.lv-mini-row.warn-row {
+  border-left-color: var(--lv-tok-status-warn);
+}
+
+.lv-mini-gutter {
+  padding: 4px 6px 4px 8px;
+  color: var(--lv-text-muted);
+  font-size: 10.5px;
+  text-align: right;
+  border-right: 1px solid var(--lv-border-subtle);
+  background: rgba(16, 18, 22, 0.78);
+}
+
+.lv-mini-row.selected .lv-mini-gutter {
+  color: var(--lv-accent-bright);
+  font-weight: 600;
+}
+
+.lv-mini-cell {
+  padding: 4px 10px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.lv-mini-delta-hud {
+  padding: 8px 12px;
+  background: var(--lv-bg-panel);
+  border-top: 1px solid var(--lv-border-mid);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  font-family: var(--lv-font-mono);
+  font-size: 11px;
+}
+
+.lv-delta-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 8px;
+  border-radius: 4px;
+  border: 1px solid var(--lv-accent);
+  background: rgba(59, 130, 246, 0.12);
+  color: var(--lv-accent-bright);
+  font-weight: 600;
+}
+
+/* ============================================================================
+   STAGE 02: FULL-WIDTH 7-LAYER KINETIC THEATER (Zero Text Wall, Pure Motion)
+   ============================================================================ */
+.lv-layers-section {
+  padding: 64px 0;
+  border-bottom: 1px solid var(--lv-border-subtle);
+}
+
+.lv-compact-head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 24px;
+  flex-wrap: wrap;
+}
+
+.lv-section-title {
+  font-size: clamp(1.65rem, 2.5vw, 2.25rem);
+  font-weight: 600;
+  letter-spacing: -0.03em;
+  line-height: 1.1;
+  color: var(--lv-text-primary);
+  margin: 0;
+}
+
+/* 7-Node Horizontal Layer Selector Track */
+.lv-layer-ribbon {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 6px;
+  margin-bottom: 16px;
+}
+
+@media (max-width: 980px) {
+  .lv-layer-ribbon {
+    grid-template-columns: repeat(4, 1fr);
+  }
+}
+
+@media (max-width: 580px) {
+  .lv-layer-ribbon {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+.lv-ribbon-node {
+  position: relative;
+  overflow: hidden;
+  padding: 10px 12px;
+  border-radius: 6px;
+  background: var(--lv-bg-panel);
+  border: 1px solid var(--lv-border-subtle);
+  color: var(--lv-text-secondary);
+  cursor: pointer;
+  text-align: left;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  transition: all 160ms ease;
+}
+
+.lv-ribbon-node:hover {
+  border-color: var(--lv-border-mid);
+  color: var(--lv-text-primary);
+  background: var(--lv-bg-surface);
+}
+
+.lv-ribbon-node.active {
+  border-color: var(--lv-accent);
+  background: rgba(59, 130, 246, 0.08);
+  color: var(--lv-text-primary);
+}
+
+.lv-ribbon-idx {
+  font-family: var(--lv-font-mono);
+  font-size: 10px;
+  color: var(--lv-accent-bright);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.lv-ribbon-name {
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.lv-ribbon-bar {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  height: 2px;
+  background: linear-gradient(90deg, var(--lv-accent), var(--lv-accent-bright));
+  animation: lvProgressFill 4.8s linear forwards;
+}
+
+/* Full-Width Kinetic Stage Frame */
+.lv-kinetic-stage {
+  border-radius: 8px;
+  background: var(--lv-bg-panel);
+  border: 1px solid var(--lv-border-mid);
+  box-shadow: 0 28px 60px rgba(0, 0, 0, 0.72);
+  overflow: hidden;
+  position: relative;
+}
+
+.lv-stage-topbar {
+  height: 40px;
+  padding: 0 16px;
+  background: var(--lv-bg-void);
+  border-bottom: 1px solid var(--lv-border-subtle);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-family: var(--lv-font-mono);
+  font-size: 11px;
+}
+
+.lv-stage-body {
+  padding: 24px;
+  min-height: 360px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 18px;
+  background:
+    radial-gradient(circle at 80% 20%, rgba(59, 130, 246, 0.08), transparent 55%),
+    var(--lv-bg-panel);
+  position: relative;
+}
+
+/* Laser Scanner Beam for Tokenizer Layer */
+.lv-laser-box {
+  position: relative;
+  overflow: hidden;
+  padding: 14px 16px;
+  border-radius: 6px;
+  background: var(--lv-bg-void);
+  border: 1px solid var(--lv-border-subtle);
+  font-family: var(--lv-font-mono);
+  font-size: 12px;
+  line-height: 1.55;
+  color: var(--lv-text-secondary);
+}
+
+.lv-laser-beam {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 80px;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(59, 130, 246, 0.18) 50%,
+    rgba(96, 165, 250, 0.65) 95%,
+    transparent 100%
+  );
+  pointer-events: none;
+  animation: lvLaserSweep 2.6s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+}
+
+.lv-token-anatomy-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+}
+
+@media (max-width: 780px) {
+  .lv-token-anatomy-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+.lv-token-plate {
+  padding: 10px 12px;
+  border-radius: 6px;
+  background: var(--lv-bg-void);
+  border: 1px solid var(--lv-border-subtle);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  cursor: pointer;
+  transition: all 160ms ease;
+}
+
+.lv-token-plate.active {
+  background: rgba(59, 130, 246, 0.07);
+  transform: translateY(-3px);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.45);
+}
+
+.lv-token-plate-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-family: var(--lv-font-mono);
+  font-size: 10px;
+  color: var(--lv-text-muted);
+}
+
+.lv-token-plate-val {
+  font-family: var(--lv-font-mono);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+/* ============================================================================
+   STAGE 03: 3D ISOMETRIC EXPLODED STACK WITH LASER CORE BEAM
+   ============================================================================ */
+.lv-exploded-section {
+  padding: 64px 0;
+  border-bottom: 1px solid var(--lv-border-subtle);
+}
+
+.lv-exploded-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 6fr) minmax(0, 6fr);
+  gap: 32px;
+  align-items: center;
+}
+
+@media (max-width: 980px) {
+  .lv-exploded-layout {
+    grid-template-columns: 1fr;
+  }
+}
+
+.lv-iso-stack-wrap {
+  position: relative;
+  perspective: 1300px;
+  padding: 20px 12px;
+}
+
+/* Vertical glowing laser core piercing all 7 isometric plates */
+.lv-iso-core-beam {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  width: 2px;
+  background: linear-gradient(
+    180deg,
+    transparent 0%,
+    rgba(59, 130, 246, 0.65) 20%,
+    rgba(96, 165, 250, 0.95) 50%,
+    rgba(52, 211, 153, 0.65) 80%,
+    transparent 100%
+  );
+  box-shadow: 0 0 18px var(--lv-accent);
+  z-index: 1;
+  pointer-events: none;
+}
+
+.lv-iso-stack {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.lv-iso-plate {
+  border-radius: 8px;
+  background: rgba(16, 18, 22, 0.92);
+  backdrop-filter: blur(8px);
+  border: 1px solid var(--lv-border-mid);
+  padding: 11px 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  cursor: pointer;
+  transform: rotateX(18deg) rotateZ(-2.5deg) translateZ(0);
+  transition:
+    transform 280ms cubic-bezier(0.16, 1, 0.3, 1),
+    border-color 200ms ease,
+    background 200ms ease,
+    box-shadow 280ms ease;
+  box-shadow: -8px 12px 24px rgba(0, 0, 0, 0.6);
+}
+
+.lv-iso-plate:hover,
+.lv-iso-plate.active {
+  transform: rotateX(6deg) rotateZ(0deg) translateY(-4px) scale(1.025);
+  border-color: var(--lv-accent-bright);
+  background: rgba(23, 25, 30, 0.96);
+  box-shadow:
+    -10px 18px 34px rgba(0, 0, 0, 0.8),
+    0 0 24px rgba(59, 130, 246, 0.25);
+}
+
+.lv-layer-index {
+  font-family: var(--lv-font-mono);
+  font-size: 10px;
+  color: var(--lv-accent-bright);
+  padding: 2px 7px;
+  border-radius: 4px;
+  border: 1px solid rgba(59, 130, 246, 0.38);
+  background: rgba(59, 130, 246, 0.1);
+}
+
+/* ============================================================================
+   STAGE 04: AUTO-ANIMATING VIM DECK & VIRTUAL DOM SCRUBBER
+   ============================================================================ */
+.lv-engine-section {
+  padding: 64px 0;
+  border-bottom: 1px solid var(--lv-border-subtle);
+}
+
+.lv-engine-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 24px;
+}
+
+@media (max-width: 960px) {
+  .lv-engine-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.lv-hardware-plate {
+  border-radius: 8px;
+  background: var(--lv-bg-panel);
+  border: 1px solid var(--lv-border-mid);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.lv-plate-header {
+  padding: 12px 16px;
+  background: var(--lv-bg-void);
+  border-bottom: 1px solid var(--lv-border-subtle);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.lv-plate-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--lv-text-primary);
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.lv-plate-content {
+  padding: 18px;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.lv-spec-chip {
+  font-family: var(--lv-font-mono);
+  font-size: 10px;
+  padding: 2px 7px;
+  border-radius: 4px;
+  background: var(--lv-bg-void);
+  border: 1px solid var(--lv-border-subtle);
+  color: var(--lv-text-secondary);
+}
+
+.lv-keycap-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+}
+
+.lv-keycap-btn {
+  padding: 10px 8px;
+  border-radius: 6px;
+  background: var(--lv-bg-void);
+  border: 1px solid var(--lv-border-mid);
+  box-shadow: inset 0 -2px 0 rgba(255, 255, 255, 0.06);
+  color: var(--lv-text-primary);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+  transition: all 120ms ease;
+}
+
+.lv-keycap-btn.active {
+  border-color: var(--lv-accent-bright);
+  background: rgba(59, 130, 246, 0.14);
+  color: var(--lv-accent-bright);
+  transform: translateY(2px);
+  box-shadow: 0 0 16px rgba(59, 130, 246, 0.25);
+}
+
+.lv-keycap-kbd {
+  font-family: var(--lv-font-mono);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.lv-keycap-lbl {
+  font-size: 10px;
+  color: var(--lv-text-muted);
+}
+
+/* ============================================================================
+   DUAL RUNTIME & COMPACT FOOTER
+   ============================================================================ */
+.lv-runtime-section {
+  padding: 56px 0 32px;
+}
+
+.lv-runtime-banner {
+  border-radius: 8px;
+  background: var(--lv-bg-panel);
+  border: 1px solid var(--lv-border-mid);
+  padding: 28px 32px;
+  display: grid;
+  grid-template-columns: minmax(0, 5.5fr) minmax(0, 6.5fr);
+  gap: 28px;
+  align-items: center;
+}
+
+@media (max-width: 960px) {
+  .lv-runtime-banner {
+    grid-template-columns: 1fr;
+    padding: 20px;
+  }
+}
+
+.lv-cli-box {
+  border-radius: 6px;
+  background: var(--lv-bg-void);
+  border: 1px solid var(--lv-border-subtle);
+  overflow: hidden;
+  font-family: var(--lv-font-mono);
+  font-size: 12px;
+}
+
+.lv-cli-head {
+  height: 30px;
+  padding: 0 12px;
+  background: var(--lv-bg-surface);
+  border-bottom: 1px solid var(--lv-border-subtle);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 10px;
+  color: var(--lv-text-muted);
+}
+
+.lv-cli-body {
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  color: var(--lv-text-secondary);
+}
+
+.lv-footer {
+  margin-top: 40px;
+  padding-top: 20px;
+  border-top: 1px solid var(--lv-border-subtle);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 16px;
+  font-size: 11.5px;
+  color: var(--lv-text-muted);
+}

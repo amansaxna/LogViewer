@@ -268,3 +268,24 @@ LogViewer includes native instrumentation to ensure zero lag even when processin
   - Structured, flat action buttons with 1px architectural borders and smooth transitions.
 - **Normalized Theme Token Bindings**:
   - Replaced hardcoded `#38bdf8` hex values across active pill states, rate metrics, search markers, and selection indicators with dynamic CSS custom property variables (`var(--accent-primary)`, `var(--accent-bg)`, `var(--tok-namespace)`).
+
+---
+
+### 2.14 Cinematic GetLayers Relay Product Page
+
+- **Black & Electric Lime Aesthetic**:
+  - Deep void black canvas (`#060809`) with neon acid lime accents (`#ccff00`, `#a3e635`, `#10b981`), frosted glass surfaces, and laser glow effects.
+  - Signature Relay vertical light conduit running the length of the page with a glowing laser packet tracking scroll position.
+  - Rotating lime countdown ring folding into the brand logo in the header.
+- **3D Tilting Glass Hero Window**:
+  - Interactive perspective frame (`perspective(1200px)`) that dynamically tilts based on mouse coordinates with specular glare reflections.
+  - Interactive 5-step incident refund transaction flow with microsecond delta latency ($\Delta t$) and JSON payload inspection.
+  - Live virtualized log stream with real-time severity level filter pills (`ALL`, `ERR`, `WARN`, `AUDIT`, `PERF`).
+- **Tactile Mechanical Bento Plates**:
+  - Virtualization & Throughput Scrubber: Interactive slider from 1,000 to 1,000,000 LPS demonstrating constant 40 physical DOM node footprint.
+  - Spatial Multi-Panel Matrix: 1-Panel, 2-Col, 2-Row, 4-Grid interactive layout switcher.
+  - 28-Keyboard Shortcut Simulator: Interactive vim keys with tactile feedback.
+  - Embedded JSON & XML Tree Inspector: Real-time syntax highlighting and collapsible nodes.
+  - Native System Health Telemetry & Oscilloscope: Continuous SVG sine-wave monitoring event loop lag.
+- **Seamless App Interoperability**:
+  - Two-way navigation between the landing page and the main log viewer tool via Topbar "Tour" action and URL routing (`?view=landing`).
