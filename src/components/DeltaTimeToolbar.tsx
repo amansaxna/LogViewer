@@ -1,12 +1,12 @@
 import React, { useEffect } from 'react';
-import { Timer, ArrowRight, ArrowLeftRight, X, Anchor, Target } from 'lucide-react';
+import { Timer, ArrowRight, X, Anchor, Target } from 'lucide-react';
 import { DeltaMeasurement } from '../utils/deltaTimeEngine.ts';
 
 interface DeltaTimeToolbarProps {
   measurement: DeltaMeasurement | null;
   anchorLine: number | null;
   targetLine: number | null;
-  onSwap: () => void;
+  onSwap?: () => void;
   onClear: () => void;
   onJumpToLine?: (line: number) => void;
 }
@@ -15,7 +15,6 @@ export const DeltaTimeToolbar: React.FC<DeltaTimeToolbarProps> = ({
   measurement,
   anchorLine,
   targetLine,
-  onSwap,
   onClear,
   onJumpToLine,
 }) => {
@@ -116,17 +115,6 @@ export const DeltaTimeToolbar: React.FC<DeltaTimeToolbarProps> = ({
       </div>
 
       <div className="delta-hud-right">
-        {/* Swap Direction */}
-        <button
-          type="button"
-          className="delta-hud-btn swap"
-          onClick={onSwap}
-          title="Swap Anchor and Target directions"
-        >
-          <ArrowLeftRight size={13} />
-          <span>Swap</span>
-        </button>
-
         {/* Clear */}
         <button
           type="button"

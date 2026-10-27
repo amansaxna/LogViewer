@@ -24,6 +24,7 @@ interface CompactLogRowProps {
   isDeltaAnchor?: boolean;
   isDeltaTarget?: boolean;
   isDeltaInRange?: boolean;
+  gutterWidth?: number;
 }
 
 export const CompactLogRow: React.FC<CompactLogRowProps> = ({
@@ -44,6 +45,7 @@ export const CompactLogRow: React.FC<CompactLogRowProps> = ({
   isDeltaAnchor = false,
   isDeltaTarget = false,
   isDeltaInRange = false,
+  gutterWidth = 32,
 }) => {
   const [copied, setCopied] = useState(false);
   // Helper to highlight matching terms inside text
@@ -144,8 +146,8 @@ export const CompactLogRow: React.FC<CompactLogRowProps> = ({
       {/* Line Number Gutter with Fast Copy Button */}
       <span
         style={{
-          width: 62,
-          minWidth: 62,
+          width: gutterWidth,
+          minWidth: gutterWidth,
           color: isDeltaAnchor
             ? '#38bdf8'
             : isDeltaTarget
@@ -154,7 +156,7 @@ export const CompactLogRow: React.FC<CompactLogRowProps> = ({
             ? 'var(--gutter-selected-text)'
             : 'var(--text-muted)',
           textAlign: 'right',
-          paddingRight: 10,
+          paddingRight: 6,
           userSelect: 'none',
           flexShrink: 0,
           fontWeight: isSelected || isDeltaAnchor || isDeltaTarget ? 700 : 400,
@@ -171,7 +173,6 @@ export const CompactLogRow: React.FC<CompactLogRowProps> = ({
           display: 'inline-flex',
           alignItems: 'center',
           justifyContent: 'flex-end',
-          gap: 5,
         }}
       >
         <button

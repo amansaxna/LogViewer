@@ -228,3 +228,27 @@ LogViewer includes native instrumentation to ensure zero lag even when processin
 - **Query SLA Benchmarking**: Measures exact query execution times and percentile distributions.
 - **Client UX Telemetry**: Monitors FPS frame drops, virtual scroll rendering latencies, and user interaction delays (INP).
 - **Incident Audit Log**: Automatically captures system degradation events (e.g. event loop lag spikes > 50ms) into an incident timeline.
+
+---
+
+### 2.12 Enhanced Telemetry, High-Density Controls & Delta Time Engine
+
+- **Automatic Range Selection Delta Time**:
+  - Selecting any range of log entries (e.g. Lines 1 to 10 via Shift+Click or Shift+Arrows) automatically computes elapsed latency ($\Delta t$) and step counts in real time.
+  - Floating HUD displays anchor line $T_1$, target line $T_2$, human-readable formatted delta (e.g. `+9.000s`), raw millisecond counts, and step counter.
+  - Interactive anchor and target tags allow 1-click jump-to-line navigation.
+  - Streamlined HUD action bar with instant Escape-key dismiss and 1-click Clear.
+- **Dynamic Line Number Gutter Sizing**:
+  - Gutter width dynamically scales based on maximum visible line number in the current file (e.g. `30px` for 1-2 digits, expanding cleanly for 5-6 digits).
+  - Eliminates over 50% of unused blank gutter space on low-line logs.
+- **Zero-Reservation Hover Copy Buttons**:
+  - Line copy buttons and sidebar file path copy buttons consume 0px of flex layout space when idle (`position: absolute` / `display: none`).
+  - Smoothly fade in on row hover without causing text shifts or pre-reserving empty whitespace.
+- **Strict Single-Line Topbar Tier 2**:
+  - Enforces `flex-wrap: nowrap` across severity pills (`ALL`, `ERROR`, `WARN`, `INFO`, `AUDIT`, `DEBUG`, `TRACE`) and dimension facets (`Workflows`, `Operations`, `Correlation`).
+  - Tightened pill padding (`3px 8px`) and hidden overflow scrolling prevents awkward multiline wrapping.
+- **Enhanced Search Engine & History**:
+  - Comma-separated search token engine matching multiple independent criteria (e.g. `status=504, user_id`).
+  - Trailing wildcard ellipsis support (`...`) matching prefixes across raw log entries.
+  - Caches the last 3 searched items for both main search and marker search in `localStorage` with quick-access dropdown popovers.
+  - Full `TRACE` severity level filter parity with positive inclusion, negative exclusion (`-`), and real-time counts.

@@ -691,3 +691,51 @@ This document captures the architectural decisions made during the design and im
      - Added Test 19 in `test/highlighter.test.ts` verifying flip logic for row 0, scrolled top edges, and standard rows.
      - All test suites pass 100%.
 - **Consequences**: Floating action bars are completely visible on row 0 and top-boundary scrolled rows with zero clipping.
+
+---
+
+## ADR-038: Automatic Range Selection Delta Latency Engine
+- **Status**: Accepted
+- **Context**: Users frequently need to measure the elapsed time and step count between arbitrary lines (e.g. from line 1 to line 10) to identify latency bottlenecks, network timeouts, or slow database transactions without manually calculating timestamp differences.
+- **Decision**:
+  1. **Automatic Detection in App.tsx**:
+     - When a range selection is detected (`selectedLineNumbers.size > 1`), `rangeSelectedEntries` extracts the earliest line as $T_1$ and the latest line as $T_2$.
+     - Computes `calculateDeltaTime(entry1, entry2, allEntries)` and passes the resulting `DeltaMeasurement` to the floating `DeltaTimeToolbar`.
+  2. **Streamlined Floating HUD**:
+     - Displays anchor line `#X` with timestamp, target line `#Y` with timestamp, human-readable latency (e.g. `+9.000s`), raw millisecond counts `(9,000 ms)`, and step counts.
+     - Provides 1-click jump-to-line navigation and Escape-key dismiss.
+     - Removed redundant Swap control to keep the toolbar focused on latency output.
+  3. **Verification**:
+     - Test 7 in `test/deltaTime.test.ts` validates range selection forward and reverse delta calculations.
+     - All 10 test suites pass.
+- **Consequences**: Users get instant latency telemetry whenever selecting lines with zero manual math required.
+
+---
+
+## ADR-039: High-Density Layout, Dynamic Gutter Sizing, and Single-Line Topbar
+- **Status**: Accepted
+- **Context**: Users reported excessive whitespace across the sidebar, line number gutters, and topbar tiers. Specifically:
+  1. The sidebar was consuming vertical space with duplicate buttons, tall headers, and loose item padding while filenames truncated aggressively.
+  2. The line number gutter had a hardcoded 62px width, leaving ~50px of empty space on files with 1–2 digit line numbers.
+  3. The copy buttons pre-allocated layout space when idle (`opacity: 0`), creating blank voids.
+  4. Topbar Tier 2 wrapped severity pills and facet dropdowns onto multiple lines on narrower viewports.
+  5. Topbar tooltips clipped against the sidebar border due to missing left-alignment and stacking context trapping.
+- **Decision**:
+  1. **High-Density Sidebar**:
+     - Widened sidebar from 280px to 300px and reclaimed 16px of internal list padding (+36px visible filename width).
+     - Reduced file row height from ~44px to 28px (`padding: 3px 6px; margin: 1px 0`).
+     - Streamlined header padding to `10px 12px` and condensed quick action buttons into a 2-button grid.
+     - Preserved the File Size badge (`.source-size-badge`) and Rotation Badge `(🕒 2 >)`.
+  2. **Dynamic Line Number Gutter (`LogTable.tsx`)**:
+     - Computes gutter width dynamically: `Math.max(30, digitCount * 8 + 14)`.
+     - Scales from 30px (1-2 digits) to 66px+ (6 digits), cutting empty gutter void by >50%.
+  3. **Zero-Reservation Hover Copy Buttons**:
+     - Sidebar copy buttons use `display: none` when idle and `display: inline-flex` on hover/copied.
+     - Gutter copy buttons use `position: absolute; left: 2px;` so they consume 0px of flex layout space when idle.
+  4. **Strict Single-Line Topbar Tier 2**:
+     - Changed `.topbar-tier-2` to `flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none;`.
+     - Refined `.level-pill` padding to `3px 8px; gap: 5px;` with `white-space: nowrap; flex-shrink: 0;`.
+  5. **Z-Index & Tooltip Boundary Fix**:
+     - Added `position: relative; z-index: 20;` to `.main-content`, lowered `.sidebar` to `z-index: 10;`, raised `.topbar` to `z-index: 90;`, and tooltips to `z-index: 100000;`.
+     - Added `data-tooltip-align="left"` to leftmost buttons to anchor tooltips inwards.
+- **Consequences**: Eliminates wasted whitespace across all views, ensures zero multiline wrapping in Tier 2, and prevents tooltip clipping.

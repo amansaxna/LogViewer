@@ -112,122 +112,80 @@ export const Sidebar: React.FC<SidebarProps> = ({
     <aside className={`sidebar ${!isOpen ? 'collapsed' : ''}`}>
       {/* Header */}
       <div className="sidebar-header" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <div className="sidebar-logo">
-            <Terminal size={18} />
+            <Terminal size={14} />
           </div>
-          <div style={{ display: 'flex', flexDirection: 'column' }}>
-            <span className="sidebar-title">LogViewer</span>
-            <span style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>Modern log analyzer</span>
-          </div>
+          <span className="sidebar-title">LogViewer</span>
         </div>
         {onToggleOpen && (
           <button
             className="btn-icon"
             onClick={onToggleOpen}
             title="Collapse left panel ([)"
-            style={{ width: 28, height: 28, flexShrink: 0 }}
+            style={{ width: 24, height: 24, flexShrink: 0 }}
           >
-            <PanelLeftClose size={15} />
+            <PanelLeftClose size={13} />
           </button>
         )}
       </div>
 
-      {/* Quick Action Buttons (Matching Image 2) */}
-      <div style={{ padding: '12px 14px 4px 14px', display: 'flex', flexDirection: 'column', gap: 8 }}>
-        {/* Load Files Button */}
-        <button
-          onClick={onOpenModal}
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            gap: 8,
-            width: '100%',
-            padding: '9px 14px',
-            backgroundColor: 'var(--accent-primary)',
-            color: '#ffffff',
-            border: 'none',
-            borderRadius: 8,
-            fontWeight: 600,
-            fontSize: '0.86rem',
-            cursor: 'pointer',
-            boxShadow: '0 2px 8px var(--accent-bg)',
-            transition: 'all 0.15s ease',
-          }}
-          className="btn-load-files"
-        >
-          <CloudUpload size={16} />
-          Load Files
-        </button>
+      {/* Quick Action Buttons */}
+      <div style={{ padding: '5px 8px 3px 8px', display: 'flex', flexDirection: 'column', gap: 4 }}>
+        {/* Row 1: Primary File Actions in 2-button grid */}
+        <div style={{ display: 'flex', gap: 4 }}>
+          <button
+            onClick={onOpenModal}
+            style={{
+              flex: 1,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 5,
+              padding: '5px 8px',
+              backgroundColor: 'var(--accent-primary)',
+              color: '#ffffff',
+              border: 'none',
+              borderRadius: 5,
+              fontWeight: 600,
+              fontSize: '0.76rem',
+              cursor: 'pointer',
+              boxShadow: '0 1px 4px var(--accent-bg)',
+              transition: 'all 0.15s ease',
+            }}
+            className="btn-load-files"
+            title="Open local log files or folders (Ctrl+O)"
+          >
+            <CloudUpload size={13} />
+            <span>Load Files</span>
+          </button>
 
-        {/* Stream File Button */}
-        <button
-          onClick={onToggleLiveTail}
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            gap: 8,
-            width: '100%',
-            padding: '8px 14px',
-            backgroundColor: isLiveTail ? 'rgba(34, 197, 94, 0.15)' : 'var(--bg-surface)',
-            color: isLiveTail ? '#22c55e' : 'var(--text-primary)',
-            border: `1px solid ${isLiveTail ? 'rgba(34, 197, 94, 0.4)' : 'var(--border-subtle)'}`,
-            borderRadius: 8,
-            fontWeight: 500,
-            fontSize: '0.84rem',
-            cursor: 'pointer',
-            transition: 'all 0.15s ease',
-          }}
-        >
-          <Link2 size={15} />
-          {isLiveTail ? (
-            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-              <span>Streaming File</span>
-              <span
-                style={{
-                  background: 'rgba(34, 197, 94, 0.25)',
-                  padding: '1px 6px',
-                  borderRadius: 4,
-                  fontSize: '0.72rem',
-                  fontWeight: 700,
-                  fontFamily: 'var(--font-mono)',
-                }}
-              >
-                {liveAvgLogsPerSec > 0 ? `avg ${liveAvgLogsPerSec} logs/s` : `${liveLogsPerSec} logs/s`}
-              </span>
-            </span>
-          ) : (
-            'Stream File'
-          )}
-        </button>
+          <button
+            onClick={onOpenPasteModal}
+            style={{
+              flex: 1,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 5,
+              padding: '5px 8px',
+              backgroundColor: 'var(--bg-surface)',
+              color: 'var(--text-primary)',
+              border: '1px solid var(--border-subtle)',
+              borderRadius: 5,
+              fontWeight: 500,
+              fontSize: '0.76rem',
+              cursor: 'pointer',
+              transition: 'all 0.15s ease',
+            }}
+            title="Paste raw log lines directly into session"
+          >
+            <ClipboardList size={13} />
+            <span>Paste Logs</span>
+          </button>
+        </div>
 
-        {/* Paste Logs Button */}
-        <button
-          onClick={onOpenPasteModal}
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            gap: 8,
-            width: '100%',
-            padding: '8px 14px',
-            backgroundColor: 'var(--bg-surface)',
-            color: 'var(--text-primary)',
-            border: '1px solid var(--border-subtle)',
-            borderRadius: 8,
-            fontWeight: 500,
-            fontSize: '0.84rem',
-            cursor: 'pointer',
-            transition: 'all 0.15s ease',
-          }}
-        >
-          <ClipboardList size={15} />
-          Paste Logs
-        </button>
-
-        {/* Unified Stream Toggle Pill Button */}
+        {/* Row 2: Unified Multi-Source Stream Toggle */}
         {sources.length > 1 && (
           <button
             onClick={() => {
@@ -241,21 +199,21 @@ export const Sidebar: React.FC<SidebarProps> = ({
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              gap: 8,
+              gap: 5,
               width: '100%',
-              padding: '8px 14px',
+              padding: '4px 8px',
               backgroundColor: selectedSourceIds && selectedSourceIds.length > 1 ? 'rgba(56, 189, 248, 0.12)' : 'var(--bg-surface)',
               color: selectedSourceIds && selectedSourceIds.length > 1 ? '#38bdf8' : 'var(--text-secondary)',
-              border: `1.5px solid ${selectedSourceIds && selectedSourceIds.length > 1 ? '#38bdf8' : 'var(--border-subtle)'}`,
-              borderRadius: 20,
+              border: `1px solid ${selectedSourceIds && selectedSourceIds.length > 1 ? '#38bdf8' : 'var(--border-subtle)'}`,
+              borderRadius: 5,
               fontWeight: 600,
-              fontSize: '0.82rem',
+              fontSize: '0.74rem',
               cursor: 'pointer',
               transition: 'all 0.15s ease',
             }}
             title="Toggle Unified Multi-Source Stream"
           >
-            <GitMerge size={14} color="#38bdf8" />
+            <GitMerge size={12} color="#38bdf8" />
             <span>
               {selectedSourceIds && selectedSourceIds.length > 1
                 ? `Unified Stream (${selectedSourceIds.length}/${sources.length})`
@@ -276,10 +234,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
             onChange={(e) => setFilterText(e.target.value)}
           />
           <Search
-            size={13}
+            size={12}
             style={{
               position: 'absolute',
-              right: 10,
+              right: 8,
               top: '50%',
               transform: 'translateY(-50%)',
               color: 'var(--text-muted)',
@@ -318,7 +276,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 const isExpanded = !!expandedRotations[source.id];
 
                 return (
-                  <div key={source.id} style={{ marginBottom: 4 }}>
+                  <div key={source.id} style={{ marginBottom: 1 }}>
                     <div
                       className={`source-item ${isActive ? 'active' : ''}`}
                       onClick={() => onSelectSource(source.id)}
@@ -336,7 +294,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                               background: 'none',
                               border: 'none',
                               padding: 0,
-                              marginRight: 2,
+                              marginRight: 1,
                               cursor: 'pointer',
                               display: 'inline-flex',
                               alignItems: 'center',
@@ -345,10 +303,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
                             }}
                             title={isMultiSelected ? 'Remove from unified stream' : 'Add to unified stream'}
                           >
-                            {isMultiSelected ? <CheckSquare size={13} color="#38bdf8" /> : <Square size={13} />}
+                            {isMultiSelected ? <CheckSquare size={12} color="#38bdf8" /> : <Square size={12} />}
                           </button>
                         )}
-                        <FileText size={15} color={isActive ? '#38bdf8' : '#64748b'} />
+                        <FileText size={14} color={isActive ? '#38bdf8' : '#64748b'} />
                         <span className="source-item-name" title={source.name}>
                           {source.name}
                         </span>
@@ -361,13 +319,13 @@ export const Sidebar: React.FC<SidebarProps> = ({
                             style={{
                               display: 'inline-flex',
                               alignItems: 'center',
-                              gap: 3,
+                              gap: 2,
                               background: isExpanded ? 'rgba(56, 189, 248, 0.2)' : 'rgba(56, 189, 248, 0.08)',
                               border: '1px solid rgba(56, 189, 248, 0.25)',
-                              borderRadius: 4,
-                              padding: '1px 5px',
+                              borderRadius: 3,
+                              padding: '1px 4px',
                               color: '#38bdf8',
-                              fontSize: '0.68rem',
+                              fontSize: '0.66rem',
                               fontWeight: 600,
                               cursor: 'pointer',
                               flexShrink: 0,
@@ -380,7 +338,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                           >
                             <History size={10} />
                             <span>{source.rotations?.length}</span>
-                            {isExpanded ? <ChevronDown size={10} /> : <ChevronRight size={10} />}
+                            {isExpanded ? <ChevronDown size={9} /> : <ChevronRight size={9} />}
                           </button>
                         )}
 
@@ -399,21 +357,16 @@ export const Sidebar: React.FC<SidebarProps> = ({
                           </span>
                         )}
 
-                        {/* Copy path button */}
+                        {/* Copy path button (shown on hover without reserving layout space) */}
                         <button
+                          className={`source-copy-btn ${copiedId === source.id ? 'copied' : ''}`}
                           style={{
-                            background: 'transparent',
-                            border: 'none',
                             color: copiedId === source.id ? '#4ade80' : '#64748b',
-                            cursor: 'pointer',
-                            display: 'flex',
-                            alignItems: 'center',
-                            padding: 2,
                           }}
                           onClick={(e) => handleCopy(e, source.path, source.id)}
                           title={copiedId === source.id ? 'Copied path!' : `Copy path: ${source.path}`}
                         >
-                          {copiedId === source.id ? <Check size={13} color="#4ade80" /> : <Copy size={13} />}
+                          {copiedId === source.id ? <Check size={12} color="#4ade80" /> : <Copy size={12} />}
                         </button>
 
                         {source.isCustom && (
@@ -452,32 +405,27 @@ export const Sidebar: React.FC<SidebarProps> = ({
                               onClick={() => onSelectSource(rot.id)}
                               title={rot.name}
                             >
-                              <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0, flex: 1 }}>
-                                <History size={12} color={isRotActive ? '#38bdf8' : '#64748b'} />
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 5, minWidth: 0, flex: 1 }}>
+                                <History size={11} color={isRotActive ? '#38bdf8' : '#64748b'} />
                                 <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                                   {rot.name}
                                 </span>
                               </div>
 
-                              <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
-                                <div className="source-size-badge" style={{ padding: '1px 4px', minWidth: 30 }}>
-                                  <span className="source-size-badge-val" style={{ fontSize: '0.66rem' }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
+                                <div className="source-size-badge" style={{ padding: '1px 3px', minWidth: 28 }}>
+                                  <span className="source-size-badge-val" style={{ fontSize: '0.64rem' }}>
                                     {rotSize.value}
                                   </span>
-                                  <span className="source-size-badge-unit" style={{ fontSize: '0.52rem' }}>
+                                  <span className="source-size-badge-unit" style={{ fontSize: '0.5rem' }}>
                                     {rotSize.unit}
                                   </span>
                                 </div>
 
                                 <button
+                                  className={`source-copy-btn ${copiedId === rot.id ? 'copied' : ''}`}
                                   style={{
-                                    background: 'transparent',
-                                    border: 'none',
                                     color: copiedId === rot.id ? '#4ade80' : '#64748b',
-                                    cursor: 'pointer',
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    padding: 2,
                                   }}
                                   onClick={(e) => handleCopy(e, rot.path, rot.id)}
                                   title={`Copy path: ${rot.path}`}
@@ -502,14 +450,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
             No log files matching filter
           </div>
         )}
-      </div>
-
-      {/* Footer / Open File Button */}
-      <div className="sidebar-footer">
-        <button className="btn-open-file" onClick={onOpenModal}>
-          <Plus size={15} />
-          Open Local File...
-        </button>
       </div>
     </aside>
   );

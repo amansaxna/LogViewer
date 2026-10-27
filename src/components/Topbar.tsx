@@ -305,7 +305,7 @@ export const Topbar: React.FC<TopbarProps> = ({
       const next = [trimmed, ...prev.filter((item) => item !== trimmed)].slice(0, 3);
       try {
         localStorage.setItem('lv_search_history', JSON.stringify(next));
-      } catch {}
+      } catch { }
       return next;
     });
   }, []);
@@ -317,7 +317,7 @@ export const Topbar: React.FC<TopbarProps> = ({
       const next = [trimmed, ...prev.filter((item) => item !== trimmed)].slice(0, 3);
       try {
         localStorage.setItem('lv_marker_history', JSON.stringify(next));
-      } catch {}
+      } catch { }
       return next;
     });
   }, []);
@@ -503,6 +503,7 @@ export const Topbar: React.FC<TopbarProps> = ({
                   setIsSearchHistoryOpen((prev) => !prev);
                 }}
                 data-tooltip="Recent Searches (Last 3)"
+                data-tooltip-align="left"
                 title="Recent Searches (Last 3)"
               >
                 <History size={13} />
@@ -582,7 +583,7 @@ export const Topbar: React.FC<TopbarProps> = ({
                       setSearchHistory([]);
                       try {
                         localStorage.removeItem('lv_search_history');
-                      } catch {}
+                      } catch { }
                       setIsSearchHistoryOpen(false);
                     }}
                     style={{ background: 'none', border: 'none', color: 'var(--text-muted)', fontSize: '0.65rem', cursor: 'pointer', padding: 0 }}
@@ -686,6 +687,7 @@ export const Topbar: React.FC<TopbarProps> = ({
                   setIsMarkerHistoryOpen((prev) => !prev);
                 }}
                 data-tooltip="Recent Markers (Last 3)"
+                data-tooltip-align="left"
                 title="Recent Markers (Last 3)"
               >
                 <History size={13} />
@@ -750,7 +752,7 @@ export const Topbar: React.FC<TopbarProps> = ({
                       setMarkerHistory([]);
                       try {
                         localStorage.removeItem('lv_marker_history');
-                      } catch {}
+                      } catch { }
                       setIsMarkerHistoryOpen(false);
                     }}
                     style={{ background: 'none', border: 'none', color: 'var(--text-muted)', fontSize: '0.65rem', cursor: 'pointer', padding: 0 }}
@@ -1769,6 +1771,7 @@ export const Topbar: React.FC<TopbarProps> = ({
               className={`view-mode-btn ${viewMode === 'compact' ? 'active' : ''}`}
               onClick={() => onChangeViewMode('compact')}
               data-tooltip="Compact View (Dense rows)"
+              data-tooltip-align="left"
             >
               <List size={13} />
             </button>
@@ -1776,6 +1779,7 @@ export const Topbar: React.FC<TopbarProps> = ({
               className={`view-mode-btn ${viewMode === 'standard' ? 'active' : ''}`}
               onClick={() => onChangeViewMode('standard')}
               data-tooltip="Cards View (Detailed cards)"
+              data-tooltip-align="left"
             >
               <LayoutList size={13} />
             </button>

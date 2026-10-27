@@ -60,6 +60,13 @@ export const LogTable: React.FC<LogTableProps> = ({
   const parentRef = useRef<HTMLDivElement>(null);
   const [isAutoScrollPaused, setIsAutoScrollPaused] = React.useState(false);
 
+  // Dynamic line number gutter width based on maximum visible line number
+  const maxLineNumber = entries.length > 0
+    ? Math.max(entries[0]?.lineNumber || 0, entries[entries.length - 1]?.lineNumber || 0)
+    : 0;
+  const digitCount = Math.max(2, String(maxLineNumber).length);
+  const dynamicGutterWidth = Math.max(30, digitCount * 8 + 14);
+
   const isTailAtTop = Boolean(sortOption && sortOption.endsWith('desc'));
 
   const virtualizer = useVirtualizer({
@@ -265,6 +272,7 @@ export const LogTable: React.FC<LogTableProps> = ({
                   isDeltaAnchor={isDeltaAnchor}
                   isDeltaTarget={isDeltaTarget}
                   isDeltaInRange={isDeltaInRange}
+                  gutterWidth={dynamicGutterWidth}
                 />
               ) : viewMode === 'raw' ? (
                 <div
@@ -286,13 +294,13 @@ export const LogTable: React.FC<LogTableProps> = ({
                 >
                   <span
                     style={{
-                      width: 58,
-                      minWidth: 58,
+                      width: dynamicGutterWidth,
+                      minWidth: dynamicGutterWidth,
                       color: isSelected ? '#facc15' : '#64748b',
                       userSelect: 'none',
                       flexShrink: 0,
                       textAlign: 'right',
-                      paddingRight: 14,
+                      paddingRight: 6,
                       fontWeight: isSelected ? 700 : 400,
                       position: 'sticky',
                       left: 0,
