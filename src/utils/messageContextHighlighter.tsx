@@ -8,7 +8,10 @@ import { copyWithToast } from './copyNotifier.ts';
 export function renderWithSearchHighlight(text: string, queries: (string | undefined)[]): React.ReactNode {
   const validQueries = queries
     .filter((q): q is string => Boolean(q && q.trim().length > 0))
-    .map((q) => q.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+    .flatMap((q) => q.split(','))
+    .map((q) => q.trim().replace(/\.{3}$/, '').trim())
+    .filter((q) => q.length > 0)
+    .map((q) => q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
 
   if (validQueries.length === 0) return text;
 
@@ -487,11 +490,21 @@ const QUOTED_REGEX = /(?:^|[\s,;([{\\/])("([^"\r\n\\]*(?:\\.[^"\r\n\\]*)*)"|'([^
  * when hovering over wide code containers that stretch horizontally beyond the screen,
  * dragging dynamically as the user scrolls left to right.
  */
+export function calculateFloatingBarPlacement(
+  containerTop: number,
+  viewportTop: number = 0,
+  threshold: number = 36
+): 'top' | 'bottom' {
+  const spaceAbove = containerTop - viewportTop;
+  return spaceAbove < threshold ? 'bottom' : 'top';
+}
+
 function useStickyRightOffset(
   containerRef: React.RefObject<HTMLElement | null>,
   isHovered: boolean
 ) {
   const [rightOffset, setRightOffset] = useState<number>(0);
+  const [placement, setPlacement] = useState<'top' | 'bottom'>('top');
 
   const updateOffset = useCallback(() => {
     const el = containerRef.current;
@@ -499,20 +512,26 @@ function useStickyRightOffset(
 
     const containerRect = el.getBoundingClientRect();
 
-    // Find nearest horizontally scrollable ancestor or fallback to document element
+    // Find nearest scrollable ancestor or fallback to document element
     let scrollEl: HTMLElement | null = el.parentElement;
     while (scrollEl && scrollEl !== document.body) {
       const style = window.getComputedStyle(scrollEl);
-      const ox = style.overflowX;
-      if (ox === 'auto' || ox === 'scroll' || ox === 'overlay') {
+      const overflow = style.overflow + style.overflowX + style.overflowY;
+      if (/auto|scroll|overlay/.test(overflow)) {
         break;
       }
       scrollEl = scrollEl.parentElement;
     }
 
-    const viewportRight = scrollEl && scrollEl !== document.body
-      ? scrollEl.getBoundingClientRect().right
-      : window.innerWidth;
+    const scrollRect = scrollEl && scrollEl !== document.body
+      ? scrollEl.getBoundingClientRect()
+      : null;
+
+    const viewportRight = scrollRect ? scrollRect.right : window.innerWidth;
+    const viewportTop = scrollRect ? scrollRect.top : 0;
+
+    // Check vertical space above the element (bar height is ~28px + 2px offset + 6px buffer = 36px)
+    setPlacement(calculateFloatingBarPlacement(containerRect.top, viewportTop, 36));
 
     // Target right coordinate inside the viewport with 16px breathing room
     const targetRight = viewportRight - 16;
@@ -546,7 +565,7 @@ function useStickyRightOffset(
     };
   }, [isHovered, updateOffset]);
 
-  return { rightOffset, updateOffset };
+  return { rightOffset, placement, updateOffset };
 }
 
 /**
@@ -562,7 +581,7 @@ export const JsonChip: React.FC<{
   const [isHovered, setIsHovered] = useState(false);
   const hoverTimerRef = React.useRef<any>(null);
 
-  const { rightOffset, updateOffset } = useStickyRightOffset(containerRef, isHovered);
+  const { rightOffset, placement, updateOffset } = useStickyRightOffset(containerRef, isHovered);
 
   const handleMouseEnter = () => {
     if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current);
@@ -631,7 +650,7 @@ export const JsonChip: React.FC<{
     >
       {/* Floating Action Pill: HOVERS ON TOP OF TEXT ONLY, KEEPING DIV SIZE CONSTANT! */}
       <span
-        className="msg-chip-floating-bar"
+        className={`msg-chip-floating-bar ${placement === 'bottom' ? 'placement-bottom' : 'placement-top'}`}
         style={{ right: rightOffset > 0 ? `${rightOffset}px` : undefined }}
         onMouseEnter={handleMouseEnter}
         onMouseLeave={handleMouseLeave}
@@ -699,7 +718,7 @@ export const XmlChip: React.FC<{
   const [isHovered, setIsHovered] = useState(false);
   const hoverTimerRef = React.useRef<any>(null);
 
-  const { rightOffset, updateOffset } = useStickyRightOffset(containerRef, isHovered);
+  const { rightOffset, placement, updateOffset } = useStickyRightOffset(containerRef, isHovered);
 
   const handleMouseEnter = () => {
     if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current);
@@ -764,7 +783,7 @@ export const XmlChip: React.FC<{
     >
       {/* Floating Action Pill: HOVERS ON TOP OF TEXT ONLY, KEEPING DIV SIZE CONSTANT! */}
       <span
-        className="msg-chip-floating-bar"
+        className={`msg-chip-floating-bar ${placement === 'bottom' ? 'placement-bottom' : 'placement-top'}`}
         style={{ right: rightOffset > 0 ? `${rightOffset}px` : undefined }}
         onMouseEnter={handleMouseEnter}
         onMouseLeave={handleMouseLeave}

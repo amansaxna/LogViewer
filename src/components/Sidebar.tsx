@@ -117,7 +117,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
             <Terminal size={18} />
           </div>
           <div style={{ display: 'flex', flexDirection: 'column' }}>
-            <span className="sidebar-title">EconViewer</span>
+            <span className="sidebar-title">LogViewer</span>
             <span style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>Modern log analyzer</span>
           </div>
         </div>

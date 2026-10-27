@@ -36,6 +36,86 @@ export class LogService {
   private initBuiltInPresets() {
     this.presets = [
       {
+        id: 'minimal-set',
+        name: 'Minimal Set',
+        description: 'Removes brackets, hides correlation IDs, excludes noise words, and filters markers',
+        isBuiltIn: true,
+        rules: {
+          hideBrackets: true,
+          showCorrelation: false,
+          showDatetime: true,
+          showPid: false,
+          showTid: false,
+          excludeKeywords: ['x', 'y', 'ping', 'heartbeat'],
+          excludeMarkers: ['Deregister unavailable', 'Heartbeat'],
+          includeMarkers: ['Register'],
+          levels: [],
+          excludeLevels: ['debug'],
+          viewMode: 'compact',
+          wrapLines: false,
+        },
+      },
+      {
+        id: 'clean-messages',
+        name: 'Clean Human Messages',
+        description: 'Hides technical PID, TID, Correlation ID, and bracket noise for readable narrative logs',
+        isBuiltIn: true,
+        rules: {
+          hideBrackets: true,
+          showCorrelation: false,
+          showDatetime: true,
+          showPid: false,
+          showTid: false,
+          excludeKeywords: [],
+          excludeMarkers: [],
+          includeMarkers: [],
+          levels: [],
+          excludeLevels: [],
+          viewMode: 'compact',
+          wrapLines: true,
+        },
+      },
+      {
+        id: 'errors-critical',
+        name: 'Errors & Critical Only',
+        description: 'Focuses strictly on errors, warnings, alerts, and system exceptions',
+        isBuiltIn: true,
+        rules: {
+          hideBrackets: false,
+          showCorrelation: true,
+          showDatetime: true,
+          showPid: true,
+          showTid: true,
+          excludeKeywords: [],
+          excludeMarkers: [],
+          includeMarkers: [],
+          levels: ['error', 'warning', 'critical', 'alert', 'emergency'],
+          excludeLevels: ['debug', 'info', 'notice'],
+          viewMode: 'standard',
+          wrapLines: true,
+        },
+      },
+      {
+        id: 'audit-security',
+        name: 'Security & Audit Trail',
+        description: 'Emphasizes authorization, settlements, and audit entries with full correlation tracking',
+        isBuiltIn: true,
+        rules: {
+          hideBrackets: false,
+          showCorrelation: true,
+          showDatetime: true,
+          showPid: false,
+          showTid: false,
+          excludeKeywords: [],
+          excludeMarkers: [],
+          includeMarkers: ['Payment', 'OrderCheckout', 'ReserveInventory'],
+          levels: ['audit', 'notice', 'info'],
+          excludeLevels: ['debug'],
+          viewMode: 'compact',
+          wrapLines: false,
+        },
+      },
+      {
         id: 'errors-and-crashes',
         name: 'Errors & Crashes',
         description: 'Instant isolation of all critical, error, and emergency logs with active stack traces.',
@@ -60,18 +140,6 @@ export class LogService {
         },
       },
       {
-        id: 'security-audit',
-        name: 'Security & Auth',
-        description: 'Audit trails, permission checks, authentication tokens, and access evaluations.',
-        isBuiltIn: true,
-        rules: {
-          levels: ['audit', 'warning', 'error'],
-          workflow: 'auth',
-          sortOption: 'time-desc',
-          showCorrelation: true,
-        },
-      },
-      {
         id: 'warnings-and-retries',
         name: 'Warnings & Retries',
         description: 'Transient failures, network retries, timeouts, and degradation warnings.',
@@ -84,48 +152,307 @@ export class LogService {
     ];
   }
 
+  public getWorkspaceRoots(): string[] {
+    const folders = vscode.workspace.workspaceFolders;
+    if (folders && folders.length > 0) {
+      return folders.map((f) => f.uri.fsPath);
+    }
+    return [process.cwd()];
+  }
+
   /**
-   * Scans workspace folders for log files and registers them.
+   * Resolves the presets JSON configuration file path.
    */
-  public async scanWorkspace(): Promise<LogSource[]> {
-    const logFiles = await vscode.workspace.findFiles('**/*.{log,txt}', '**/node_modules/**', 100);
+  public getPresetsConfigPath(forWriting = false): string | null {
+    try {
+      const customSetting = vscode.workspace.getConfiguration?.('logviewer')?.get<string>('presetsConfigFile');
+      if (customSetting) {
+        for (const root of this.getWorkspaceRoots()) {
+          const resolved = path.isAbsolute(customSetting) ? customSetting : path.resolve(root, customSetting);
+          if (fs.existsSync(resolved) || forWriting) return resolved;
+        }
+      }
+    } catch {}
 
-    for (const fileUri of logFiles) {
-      const fsPath = fileUri.fsPath;
-      try {
-        if (!fs.existsSync(fsPath)) continue;
-        const stats = fs.statSync(fsPath);
-        if (stats.isDirectory()) continue;
-
-        const fileName = path.basename(fsPath);
-        const folderName = path.dirname(fsPath);
-        const workspaceFolder = vscode.workspace.getWorkspaceFolder(fileUri);
-        const relDir = workspaceFolder
-          ? path.relative(workspaceFolder.uri.fsPath, folderName) || 'Root Workspace'
-          : path.basename(folderName);
-
-        const id = crypto.createHash('md5').update(fsPath).digest('hex').slice(0, 10);
-        const rot = detectRotation(fileName);
-
-        const source: LogSource = {
-          id,
-          name: fileName,
-          category: `Workspace: ${relDir}`,
-          path: fsPath,
-          size: stats.size,
-          modifiedAt: stats.mtime.toISOString(),
-          exists: true,
-          isRotated: rot.isRotated,
-          rotationSuffix: rot.isRotated ? rot.suffix : undefined,
-        };
-
-        this.sources.set(id, source);
-      } catch (err) {
-        console.warn('Error reading file stat in scanWorkspace:', fsPath, err);
+    for (const root of this.getWorkspaceRoots()) {
+      const candidates = [
+        path.join(root, '.vscode', 'logviewer-presets.json'),
+        path.join(root, '.vscode', 'presets.json'),
+        path.join(root, 'config', 'presets.json'),
+      ];
+      for (const candidate of candidates) {
+        if (fs.existsSync(candidate)) {
+          return candidate;
+        }
       }
     }
 
+    if (forWriting) {
+      const firstRoot = this.getWorkspaceRoots()[0];
+      if (firstRoot) {
+        if (fs.existsSync(path.join(firstRoot, 'config', 'presets.json'))) {
+          return path.join(firstRoot, 'config', 'presets.json');
+        }
+        if (fs.existsSync(path.join(firstRoot, 'config'))) {
+          return path.join(firstRoot, 'config', 'presets.json');
+        }
+        return path.join(firstRoot, '.vscode', 'logviewer-presets.json');
+      }
+      return path.join(this.context.globalStorageUri.fsPath, 'presets.json');
+    }
+
+    return null;
+  }
+
+  /**
+   * Resolves the log sources JSON configuration file path.
+   */
+  public getSourcesConfigPath(forWriting = false): string | null {
+    try {
+      const customSetting = vscode.workspace.getConfiguration?.('logviewer')?.get<string>('sourcesConfigFile');
+      if (customSetting) {
+        for (const root of this.getWorkspaceRoots()) {
+          const resolved = path.isAbsolute(customSetting) ? customSetting : path.resolve(root, customSetting);
+          if (fs.existsSync(resolved) || forWriting) return resolved;
+        }
+      }
+    } catch {}
+
+    for (const root of this.getWorkspaceRoots()) {
+      const candidates = [
+        path.join(root, '.vscode', 'logviewer-sources.json'),
+        path.join(root, '.vscode', 'log_sources.json'),
+        path.join(root, 'config', 'log_sources.json'),
+      ];
+      for (const candidate of candidates) {
+        if (fs.existsSync(candidate)) {
+          return candidate;
+        }
+      }
+    }
+
+    if (forWriting) {
+      const firstRoot = this.getWorkspaceRoots()[0];
+      if (firstRoot) {
+        if (fs.existsSync(path.join(firstRoot, 'config', 'log_sources.json'))) {
+          return path.join(firstRoot, 'config', 'log_sources.json');
+        }
+        if (fs.existsSync(path.join(firstRoot, 'config'))) {
+          return path.join(firstRoot, 'config', 'log_sources.json');
+        }
+        return path.join(firstRoot, '.vscode', 'logviewer-sources.json');
+      }
+    }
+
+    return null;
+  }
+
+  /**
+   * Scans a specific folder recursively for log and rotated files.
+   */
+  private scanFolder(
+    folderPath: string,
+    category: string,
+    recursive: boolean,
+    knownPaths: Set<string>,
+    visited: Set<string> = new Set()
+  ): void {
+    if (!fs.existsSync(folderPath) || visited.has(folderPath)) return;
+    visited.add(folderPath);
+
+    try {
+      const entries = fs.readdirSync(folderPath, { withFileTypes: true });
+      for (const entry of entries) {
+        const fullPath = path.join(folderPath, entry.name);
+        if (entry.name.startsWith('.') || entry.name.startsWith('pasted_')) continue;
+
+        if (entry.isDirectory() && recursive) {
+          if (
+            entry.name !== 'node_modules' &&
+            entry.name !== '.git' &&
+            entry.name !== 'dist' &&
+            entry.name !== '.gemini'
+          ) {
+            this.scanFolder(fullPath, category, recursive, knownPaths, visited);
+          }
+        } else if (entry.isFile()) {
+          const rot = detectRotation(entry.name);
+          const isLog =
+            entry.name.endsWith('.log') ||
+            entry.name.endsWith('.txt') ||
+            entry.name.endsWith('.json') ||
+            entry.name.endsWith('.jsonl') ||
+            entry.name.endsWith('.xml') ||
+            entry.name.endsWith('.out') ||
+            rot.isRotated;
+
+          if (isLog && !knownPaths.has(fullPath)) {
+            const stats = fs.statSync(fullPath);
+            const id = crypto.createHash('md5').update(fullPath).digest('hex').slice(0, 10);
+            const src: LogSource = {
+              id,
+              name: entry.name,
+              category,
+              path: fullPath,
+              format: entry.name.endsWith('.xml') ? 'xml' : 'flat_file',
+              exists: true,
+              size: stats.size,
+              modifiedAt: stats.mtime.toISOString(),
+              isRotated: rot.isRotated,
+              rotationSuffix: rot.isRotated ? rot.suffix : undefined,
+            };
+            this.sources.set(id, src);
+            knownPaths.add(fullPath);
+          }
+        }
+      }
+    } catch (err) {
+      console.warn('Error scanning folder:', folderPath, err);
+    }
+  }
+
+  /**
+   * Scans workspace folders and loads configured JSON sources & folders.
+   */
+  public async scanWorkspace(): Promise<LogSource[]> {
+    const sourcesConfigPath = this.getSourcesConfigPath();
+    const knownPaths = new Set<string>();
+
+    let defaultLogFileSetting = '';
+    try {
+      defaultLogFileSetting = vscode.workspace.getConfiguration?.('logviewer')?.get<string>('defaultLogFile') || '';
+    } catch {}
+
+    // 1. Process sources configuration JSON if available
+    if (sourcesConfigPath && fs.existsSync(sourcesConfigPath)) {
+      try {
+        const raw = fs.readFileSync(sourcesConfigPath, 'utf-8');
+        const config = JSON.parse(raw);
+        const configDir = path.dirname(sourcesConfigPath);
+        const wsRoot = this.getWorkspaceRoots()[0] || configDir;
+
+        // Process explicit sources
+        if (Array.isArray(config.sources)) {
+          for (const s of config.sources) {
+            const resolvedPath = path.isAbsolute(s.path)
+              ? s.path
+              : path.resolve(wsRoot, s.path);
+
+            const rot = detectRotation(path.basename(resolvedPath));
+            let exists = false;
+            let size = 0;
+            let modifiedAt: string | undefined;
+
+            if (fs.existsSync(resolvedPath)) {
+              exists = true;
+              const stats = fs.statSync(resolvedPath);
+              size = stats.size;
+              modifiedAt = stats.mtime.toISOString();
+            }
+
+            const isDefault =
+              s.isDefault === true ||
+              Boolean(
+                defaultLogFileSetting &&
+                  (resolvedPath === path.resolve(wsRoot, defaultLogFileSetting) ||
+                    path.basename(resolvedPath) === path.basename(defaultLogFileSetting))
+              );
+
+            const src: LogSource = {
+              id: s.id || crypto.createHash('md5').update(resolvedPath).digest('hex').slice(0, 10),
+              name: s.name || path.basename(resolvedPath),
+              category: s.category || 'Configured Logs',
+              path: resolvedPath,
+              format: s.format || (resolvedPath.endsWith('.xml') ? 'xml' : 'flat_file'),
+              description: s.description,
+              isDefault,
+              exists,
+              size,
+              modifiedAt,
+              isRotated: rot.isRotated,
+              rotationSuffix: rot.isRotated ? rot.suffix : undefined,
+            };
+
+            this.sources.set(src.id, src);
+            knownPaths.add(resolvedPath);
+          }
+        }
+
+        // Process configured folders
+        if (Array.isArray(config.folders)) {
+          for (const f of config.folders) {
+            const folderPath = path.isAbsolute(f.path)
+              ? f.path
+              : path.resolve(wsRoot, f.path);
+
+            if (fs.existsSync(folderPath)) {
+              this.scanFolder(folderPath, f.category || 'Discovered Logs', f.recursive !== false, knownPaths);
+            }
+          }
+        }
+      } catch (err) {
+        console.warn('Failed to parse sources config from', sourcesConfigPath, err);
+      }
+    }
+
+    // 2. Discover additional workspace log files
+    try {
+      const logFiles = await vscode.workspace.findFiles('**/*.{log,txt}', '**/node_modules/**', 100);
+      for (const fileUri of logFiles) {
+        const fsPath = fileUri.fsPath;
+        if (knownPaths.has(fsPath)) continue;
+
+        try {
+          if (!fs.existsSync(fsPath)) continue;
+          const stats = fs.statSync(fsPath);
+          if (stats.isDirectory()) continue;
+
+          const fileName = path.basename(fsPath);
+          const folderName = path.dirname(fsPath);
+          const workspaceFolder = vscode.workspace.getWorkspaceFolder?.(fileUri);
+          const relDir = workspaceFolder
+            ? path.relative(workspaceFolder.uri.fsPath, folderName) || 'Root Workspace'
+            : path.basename(folderName);
+
+          const id = crypto.createHash('md5').update(fsPath).digest('hex').slice(0, 10);
+          const rot = detectRotation(fileName);
+          const isDefault = Boolean(
+            defaultLogFileSetting &&
+              (fsPath.endsWith(defaultLogFileSetting) || fileName === path.basename(defaultLogFileSetting))
+          );
+
+          const source: LogSource = {
+            id,
+            name: fileName,
+            category: `Workspace: ${relDir}`,
+            path: fsPath,
+            size: stats.size,
+            modifiedAt: stats.mtime.toISOString(),
+            exists: true,
+            isDefault,
+            isRotated: rot.isRotated,
+            rotationSuffix: rot.isRotated ? rot.suffix : undefined,
+          };
+
+          this.sources.set(id, source);
+          knownPaths.add(fsPath);
+        } catch (err) {
+          console.warn('Error reading file stat in scanWorkspace:', fsPath, err);
+        }
+      }
+    } catch (err) {
+      console.warn('Error finding workspace files:', err);
+    }
+
     return this.getAllSources();
+  }
+
+  /**
+   * Retrieves the configured default source or the first available source.
+   */
+  public getDefaultSource(): LogSource | undefined {
+    const all = this.getAllSources();
+    return all.find((s) => s.isDefault) || all[0];
   }
 
   /**
@@ -507,23 +834,66 @@ export class LogService {
   }
 
   public getPresets(): LogPreset[] {
+    const configPath = this.getPresetsConfigPath();
+    if (configPath && fs.existsSync(configPath)) {
+      try {
+        const raw = fs.readFileSync(configPath, 'utf-8');
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed.presets)) {
+          this.presets = parsed.presets;
+          return this.presets;
+        }
+        if (Array.isArray(parsed)) {
+          this.presets = parsed;
+          return this.presets;
+        }
+      } catch (err) {
+        console.warn('Failed to read presets from', configPath, err);
+      }
+    }
     return this.presets;
   }
 
   public savePreset(preset: LogPreset): LogPreset {
-    const existingIdx = this.presets.findIndex((p) => p.id === preset.id);
+    const current = [...this.getPresets()];
+    const existingIdx = current.findIndex((p) => p.id === preset.id);
     if (existingIdx >= 0) {
-      this.presets[existingIdx] = preset;
+      current[existingIdx] = preset;
     } else {
-      this.presets.push(preset);
+      current.push(preset);
+    }
+    this.presets = current;
+
+    const targetPath = this.getPresetsConfigPath(true);
+    if (targetPath) {
+      try {
+        fs.mkdirSync(path.dirname(targetPath), { recursive: true });
+        fs.writeFileSync(targetPath, JSON.stringify({ presets: current }, null, 2), 'utf-8');
+      } catch (err) {
+        console.warn('Failed to save presets to', targetPath, err);
+      }
     }
     return preset;
   }
 
   public deletePreset(id: string): boolean {
-    const prevLen = this.presets.length;
-    this.presets = this.presets.filter((p) => p.id !== id);
-    return this.presets.length < prevLen;
+    const current = this.getPresets();
+    const filtered = current.filter((p) => p.id !== id);
+    if (filtered.length === current.length) {
+      return false;
+    }
+    this.presets = filtered;
+
+    const targetPath = this.getPresetsConfigPath(true);
+    if (targetPath) {
+      try {
+        fs.mkdirSync(path.dirname(targetPath), { recursive: true });
+        fs.writeFileSync(targetPath, JSON.stringify({ presets: filtered }, null, 2), 'utf-8');
+      } catch (err) {
+        console.warn('Failed to update presets after delete in', targetPath, err);
+      }
+    }
+    return true;
   }
 
   /**

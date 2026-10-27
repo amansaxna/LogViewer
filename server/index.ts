@@ -146,6 +146,7 @@ app.get('/api/logs/entries', (req: Request, res: Response) => {
       workflow: req.query.workflow as string | undefined,
       operation: req.query.operation as string | undefined,
       marker: req.query.marker as string | undefined,
+      isMarkerRegex: req.query.isMarkerRegex === 'true',
       correlationId: req.query.correlationId as string | undefined,
       sortBy: (req.query.sortBy as any) || 'time',
       direction: (req.query.direction as 'desc' | 'asc') || 'desc',

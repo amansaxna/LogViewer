@@ -157,6 +157,7 @@ const AVAILABLE_LEVELS: { key: LogLevel; label: string }[] = [
   { key: 'info', label: 'INFO' },
   { key: 'audit', label: 'AUDIT' },
   { key: 'debug', label: 'DEBUG' },
+  { key: 'trace', label: 'TRACE' },
 ];
 
 const SORT_CONFIG: { key: SortOption; short: string; label: string }[] = [
@@ -273,6 +274,71 @@ export const Topbar: React.FC<TopbarProps> = ({
 
   const [isSortDropdownOpen, setIsSortDropdownOpen] = useState(false);
 
+  // Search & Marker Search History (Last 3 Cached Items)
+  const [searchHistory, setSearchHistory] = useState<string[]>(() => {
+    try {
+      const raw = localStorage.getItem('lv_search_history');
+      return raw ? JSON.parse(raw) : [];
+    } catch {
+      return [];
+    }
+  });
+  const [markerHistory, setMarkerHistory] = useState<string[]>(() => {
+    try {
+      const raw = localStorage.getItem('lv_marker_history');
+      return raw ? JSON.parse(raw) : [];
+    } catch {
+      return [];
+    }
+  });
+
+  const [isSearchHistoryOpen, setIsSearchHistoryOpen] = useState(false);
+  const [isMarkerHistoryOpen, setIsMarkerHistoryOpen] = useState(false);
+
+  const searchContainerRef = React.useRef<HTMLDivElement>(null);
+  const markerContainerRef = React.useRef<HTMLDivElement>(null);
+
+  const saveSearchToHistory = React.useCallback((term: string) => {
+    const trimmed = term.trim();
+    if (!trimmed) return;
+    setSearchHistory((prev) => {
+      const next = [trimmed, ...prev.filter((item) => item !== trimmed)].slice(0, 3);
+      try {
+        localStorage.setItem('lv_search_history', JSON.stringify(next));
+      } catch {}
+      return next;
+    });
+  }, []);
+
+  const saveMarkerToHistory = React.useCallback((term: string) => {
+    const trimmed = term.trim();
+    if (!trimmed) return;
+    setMarkerHistory((prev) => {
+      const next = [trimmed, ...prev.filter((item) => item !== trimmed)].slice(0, 3);
+      try {
+        localStorage.setItem('lv_marker_history', JSON.stringify(next));
+      } catch {}
+      return next;
+    });
+  }, []);
+
+  // Debounced auto-save to history when user stops typing
+  React.useEffect(() => {
+    if (!search || !search.trim()) return;
+    const timer = setTimeout(() => {
+      saveSearchToHistory(search);
+    }, 1500);
+    return () => clearTimeout(timer);
+  }, [search, saveSearchToHistory]);
+
+  React.useEffect(() => {
+    if (!markerFilter || !markerFilter.trim()) return;
+    const timer = setTimeout(() => {
+      saveMarkerToHistory(markerFilter);
+    }, 1500);
+    return () => clearTimeout(timer);
+  }, [markerFilter, saveMarkerToHistory]);
+
   const wfLeaveTimer = React.useRef<any>(null);
   const opLeaveTimer = React.useRef<any>(null);
   const corrLeaveTimer = React.useRef<any>(null);
@@ -312,6 +378,12 @@ export const Topbar: React.FC<TopbarProps> = ({
       }
       if (sortDropdownRef.current && !sortDropdownRef.current.contains(target)) {
         setIsSortDropdownOpen(false);
+      }
+      if (searchContainerRef.current && !searchContainerRef.current.contains(target)) {
+        setIsSearchHistoryOpen(false);
+      }
+      if (markerContainerRef.current && !markerContainerRef.current.contains(target)) {
+        setIsMarkerHistoryOpen(false);
       }
     };
     document.addEventListener('mousedown', handleDocumentClick);
@@ -383,105 +455,352 @@ export const Topbar: React.FC<TopbarProps> = ({
 
         {/* Primary Full-Text Search Box (Hero Input) */}
         <div
-          className="search-container"
+          ref={searchContainerRef}
           style={{
+            position: 'relative',
             flex: '1 1 240px',
             maxWidth: '380px',
-            background: 'var(--bg-surface)',
-            borderRadius: 6,
-            height: 34,
-            padding: '2px 8px',
           }}
         >
-          <Search size={14} style={{ color: '#38bdf8', flexShrink: 0 }} />
-          <input
-            type="text"
-            className="search-input"
-            placeholder="e.g. timeout, status=504, user_id..."
-            value={search}
-            onChange={(e) => onSearchChange(e.target.value)}
-            style={{ fontSize: '0.82rem' }}
-          />
+          <div
+            className="search-container"
+            style={{
+              width: '100%',
+              background: 'var(--bg-surface)',
+              borderRadius: 6,
+              height: 34,
+              padding: '2px 8px',
+            }}
+          >
+            <Search size={14} style={{ color: '#38bdf8', flexShrink: 0 }} />
+            <input
+              type="text"
+              className="search-input"
+              placeholder="e.g. timeout, status=504, user_id..."
+              value={search}
+              onFocus={() => {
+                setIsSearchHistoryOpen(true);
+              }}
+              onBlur={() => {
+                if (search.trim()) saveSearchToHistory(search);
+              }}
+              onChange={(e) => onSearchChange(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  saveSearchToHistory(search);
+                  setIsSearchHistoryOpen(false);
+                }
+              }}
+              style={{ fontSize: '0.82rem' }}
+            />
 
-          <div className="search-modifiers" style={{ gap: 2 }}>
-            <button
-              className={`search-modifier-btn ${isRegex ? 'active' : ''}`}
-              onClick={onToggleRegex}
-              data-tooltip="Toggle Regex (.*)"
-            >
-              <Regex size={13} />
-            </button>
-            <button
-              className={`search-modifier-btn ${caseSensitive ? 'active' : ''}`}
-              onClick={onToggleCaseSensitive}
-              title="Match Case"
-              style={{ padding: '2px 5px', fontSize: '0.7rem' }}
-            >
-              Aa
-            </button>
-            <button
-              className={`search-modifier-btn ${invert ? 'active' : ''}`}
-              onClick={onToggleInvert}
-              title="Invert Match"
-              style={{ padding: '2px 5px', fontSize: '0.7rem' }}
-            >
-              !
-            </button>
-            {search && (
+            <div className="search-modifiers" style={{ gap: 2 }}>
               <button
-                style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', display: 'flex' }}
-                onClick={() => onSearchChange('')}
-                title="Clear search"
+                type="button"
+                className={`search-modifier-btn ${isSearchHistoryOpen ? 'active' : ''}`}
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  setIsSearchHistoryOpen((prev) => !prev);
+                }}
+                data-tooltip="Recent Searches (Last 3)"
+                title="Recent Searches (Last 3)"
               >
-                <X size={12} />
+                <History size={13} />
               </button>
-            )}
+              <button
+                className={`search-modifier-btn ${isRegex ? 'active' : ''}`}
+                onClick={onToggleRegex}
+                data-tooltip="Toggle Regex (.*)"
+              >
+                <Regex size={13} />
+              </button>
+              <button
+                className={`search-modifier-btn ${caseSensitive ? 'active' : ''}`}
+                onClick={onToggleCaseSensitive}
+                title="Match Case"
+                style={{ padding: '2px 5px', fontSize: '0.7rem' }}
+              >
+                Aa
+              </button>
+              <button
+                className={`search-modifier-btn ${invert ? 'active' : ''}`}
+                onClick={onToggleInvert}
+                title="Invert Match"
+                style={{ padding: '2px 5px', fontSize: '0.7rem' }}
+              >
+                !
+              </button>
+              {search && (
+                <button
+                  style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', display: 'flex' }}
+                  onClick={() => onSearchChange('')}
+                  title="Clear search"
+                >
+                  <X size={12} />
+                </button>
+              )}
+            </div>
           </div>
+
+          {/* Search History Dropdown (Last 3 Cached Searches) */}
+          {isSearchHistoryOpen && (
+            <div
+              style={{
+                position: 'absolute',
+                top: 'calc(100% + 4px)',
+                left: 0,
+                right: 0,
+                background: 'var(--bg-card)',
+                border: '1px solid var(--border-subtle)',
+                borderRadius: 6,
+                boxShadow: '0 10px 25px rgba(0, 0, 0, 0.45)',
+                zIndex: 9999,
+                padding: '4px',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 2,
+              }}
+            >
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  padding: '4px 8px',
+                  borderBottom: '1px solid var(--border-subtle)',
+                  marginBottom: 2,
+                }}
+              >
+                <span style={{ fontSize: '0.68rem', color: 'var(--text-muted)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 4 }}>
+                  <History size={11} /> RECENT SEARCHES
+                </span>
+                {searchHistory.length > 0 && (
+                  <button
+                    type="button"
+                    onMouseDown={(e) => {
+                      e.preventDefault();
+                      setSearchHistory([]);
+                      try {
+                        localStorage.removeItem('lv_search_history');
+                      } catch {}
+                      setIsSearchHistoryOpen(false);
+                    }}
+                    style={{ background: 'none', border: 'none', color: 'var(--text-muted)', fontSize: '0.65rem', cursor: 'pointer', padding: 0 }}
+                  >
+                    Clear
+                  </button>
+                )}
+              </div>
+              {searchHistory.length === 0 ? (
+                <div style={{ padding: '8px 10px', fontSize: '0.74rem', color: 'var(--text-muted)', textAlign: 'center' }}>
+                  No recent searches yet
+                </div>
+              ) : (
+                searchHistory.map((item, idx) => (
+                  <button
+                    key={idx}
+                    type="button"
+                    onMouseDown={(e) => {
+                      e.preventDefault();
+                      onSearchChange(item);
+                      saveSearchToHistory(item);
+                      setIsSearchHistoryOpen(false);
+                    }}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 6,
+                      padding: '5px 8px',
+                      background: 'transparent',
+                      border: 'none',
+                      borderRadius: 4,
+                      color: 'var(--text-primary)',
+                      fontSize: '0.78rem',
+                      fontFamily: 'var(--font-mono)',
+                      textAlign: 'left',
+                      cursor: 'pointer',
+                      width: '100%',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      whiteSpace: 'nowrap',
+                    }}
+                    className="search-history-item"
+                  >
+                    <Search size={11} style={{ color: '#38bdf8', flexShrink: 0 }} />
+                    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item}</span>
+                  </button>
+                ))
+              )}
+            </div>
+          )}
         </div>
 
         {/* Filter Box 2: Scoped Marker / Workflow Filter */}
         <div
-          className="search-container"
+          ref={markerContainerRef}
           style={{
+            position: 'relative',
             flex: '0 0 190px',
             maxWidth: '220px',
-            background: 'var(--bg-surface)',
-            borderRadius: 6,
-            height: 34,
-            padding: '2px 8px',
-            position: 'relative',
           }}
         >
-          <Filter size={13} style={{ color: '#c084fc', flexShrink: 0 }} />
-          <input
-            type="text"
-            className="search-input"
-            placeholder="Marker / WF..."
-            value={markerFilter}
-            onChange={(e) => onMarkerFilterChange(e.target.value)}
-            style={{ fontSize: '0.82rem' }}
-            title="Filter by Workflow Marker regex or plain text"
-          />
+          <div
+            className="search-container"
+            style={{
+              width: '100%',
+              background: 'var(--bg-surface)',
+              borderRadius: 6,
+              height: 34,
+              padding: '2px 8px',
+            }}
+          >
+            <Filter size={13} style={{ color: '#c084fc', flexShrink: 0 }} />
+            <input
+              type="text"
+              className="search-input"
+              placeholder="Marker / WF..."
+              value={markerFilter}
+              onFocus={() => {
+                setIsMarkerHistoryOpen(true);
+              }}
+              onBlur={() => {
+                if (markerFilter.trim()) saveMarkerToHistory(markerFilter);
+              }}
+              onChange={(e) => onMarkerFilterChange(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  saveMarkerToHistory(markerFilter);
+                  setIsMarkerHistoryOpen(false);
+                }
+              }}
+              style={{ fontSize: '0.82rem' }}
+              title="Filter by Workflow Marker regex or plain text"
+            />
 
-          <div className="search-modifiers" style={{ gap: 2 }}>
-            <button
-              className={`search-modifier-btn ${isMarkerRegex ? 'active' : ''}`}
-              onClick={onToggleMarkerRegex}
-              data-tooltip="Toggle Marker Regex (.*)"
-            >
-              <Regex size={13} />
-            </button>
-
-            {markerFilter && (
+            <div className="search-modifiers" style={{ gap: 2 }}>
               <button
-                style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', display: 'flex' }}
-                onClick={() => onMarkerFilterChange('')}
-                title="Clear marker filter"
+                type="button"
+                className={`search-modifier-btn ${isMarkerHistoryOpen ? 'active' : ''}`}
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  setIsMarkerHistoryOpen((prev) => !prev);
+                }}
+                data-tooltip="Recent Markers (Last 3)"
+                title="Recent Markers (Last 3)"
               >
-                <X size={12} />
+                <History size={13} />
               </button>
-            )}
+              <button
+                className={`search-modifier-btn ${isMarkerRegex ? 'active' : ''}`}
+                onClick={onToggleMarkerRegex}
+                data-tooltip="Toggle Marker Regex (.*)"
+              >
+                <Regex size={13} />
+              </button>
+
+              {markerFilter && (
+                <button
+                  style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', display: 'flex' }}
+                  onClick={() => onMarkerFilterChange('')}
+                  title="Clear marker filter"
+                >
+                  <X size={12} />
+                </button>
+              )}
+            </div>
           </div>
+
+          {/* Marker History Dropdown (Last 3 Cached Markers) */}
+          {isMarkerHistoryOpen && (
+            <div
+              style={{
+                position: 'absolute',
+                top: 'calc(100% + 4px)',
+                left: 0,
+                right: 0,
+                background: 'var(--bg-card)',
+                border: '1px solid var(--border-subtle)',
+                borderRadius: 6,
+                boxShadow: '0 10px 25px rgba(0, 0, 0, 0.45)',
+                zIndex: 9999,
+                padding: '4px',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 2,
+              }}
+            >
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  padding: '4px 8px',
+                  borderBottom: '1px solid var(--border-subtle)',
+                  marginBottom: 2,
+                }}
+              >
+                <span style={{ fontSize: '0.68rem', color: 'var(--text-muted)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 4 }}>
+                  <History size={11} /> RECENT MARKERS
+                </span>
+                {markerHistory.length > 0 && (
+                  <button
+                    type="button"
+                    onMouseDown={(e) => {
+                      e.preventDefault();
+                      setMarkerHistory([]);
+                      try {
+                        localStorage.removeItem('lv_marker_history');
+                      } catch {}
+                      setIsMarkerHistoryOpen(false);
+                    }}
+                    style={{ background: 'none', border: 'none', color: 'var(--text-muted)', fontSize: '0.65rem', cursor: 'pointer', padding: 0 }}
+                  >
+                    Clear
+                  </button>
+                )}
+              </div>
+              {markerHistory.length === 0 ? (
+                <div style={{ padding: '8px 10px', fontSize: '0.74rem', color: 'var(--text-muted)', textAlign: 'center' }}>
+                  No recent markers yet
+                </div>
+              ) : (
+                markerHistory.map((item, idx) => (
+                  <button
+                    key={idx}
+                    type="button"
+                    onMouseDown={(e) => {
+                      e.preventDefault();
+                      onMarkerFilterChange(item);
+                      saveMarkerToHistory(item);
+                      setIsMarkerHistoryOpen(false);
+                    }}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 6,
+                      padding: '5px 8px',
+                      background: 'transparent',
+                      border: 'none',
+                      borderRadius: 4,
+                      color: 'var(--text-primary)',
+                      fontSize: '0.78rem',
+                      fontFamily: 'var(--font-mono)',
+                      textAlign: 'left',
+                      cursor: 'pointer',
+                      width: '100%',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      whiteSpace: 'nowrap',
+                    }}
+                    className="search-history-item"
+                  >
+                    <Filter size={11} style={{ color: '#c084fc', flexShrink: 0 }} />
+                    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item}</span>
+                  </button>
+                ))
+              )}
+            </div>
+          )}
         </div>
 
         {/* Datetime Picker Trigger Button (Dedicated Toolbar Control) */}

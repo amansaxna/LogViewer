@@ -50,7 +50,10 @@ export const CompactLogRow: React.FC<CompactLogRowProps> = ({
   const highlightMatches = (text: string, queries: (string | undefined)[]) => {
     const validQueries = queries
       .filter((q): q is string => Boolean(q && q.trim().length > 0))
-      .map((q) => q.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+      .flatMap((q) => q.split(','))
+      .map((q) => q.trim().replace(/\.{3}$/, '').trim())
+      .filter((q) => q.length > 0)
+      .map((q) => q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
 
     if (validQueries.length === 0) return text;
 

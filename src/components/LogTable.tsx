@@ -237,6 +237,7 @@ export const LogTable: React.FC<LogTableProps> = ({
               key={virtualRow.index}
               data-index={virtualRow.index}
               ref={virtualizer.measureElement}
+              className="virtual-row"
               style={{
                 position: 'absolute',
                 top: 0,

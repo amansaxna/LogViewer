@@ -285,7 +285,7 @@ This document captures the architectural decisions made during the design and im
      - Typography: `#1c1917` (Stone-900: warm deep charcoal espresso ink).
      - Accent: `#d97706` (warm amber-600) with warm honey glow.
      - Size badges: `#ece5d9` with `#ddd5c7` border and `#292524` text.
-     - EconViewer title gradient: `#d97706` to `#c2410c` (warm amber to terracotta).
+     - LogViewer title gradient: `#d97706` to `#c2410c` (warm amber to terracotta).
   2. Preserved high-contrast syntax highlighting for all flat log tokens (cyan datetime, emerald correlation ID, royal violet workflow, warm orange/amber operations).
 - **Consequences**: A cozy, natural, eye-friendly warm light mode with no cold glare, no muddy yellow tint, and razor-sharp readability.
 
@@ -673,3 +673,21 @@ This document captures the architectural decisions made during the design and im
      - All 21 API tests, 16 highlighter tests, 6 parser tests, and 5 settings/toast tests pass (`make test`).
      - Production build compiles cleanly in 809ms (`npm run build`).
 - **Consequences**: Users receive instant, visually striking feedback on every copy action, knowing precisely what was copied to the clipboard.
+
+---
+
+## ADR-037: Smart Flip Placement for JSON and XML Floating Action Bars
+- **Status**: Accepted
+- **Context**: The floating action bar (`Format`, `Copy`, `Inspect`) was positioned above the code chip (`bottom: calc(100% + 2px)`). In the virtualized log feed (`.log-feed-container` with `overflow: auto`), the first log row (or any row scrolled near the top edge) has only 2–6px of space above it. The ~28px tall floating bar extended past `top: 0` and was clipped by the container boundary.
+- **Decision**:
+  1. **Dynamic Space Calculation (`calculateFloatingBarPlacement`)**:
+     - Measured `containerRect.top - viewportTop` against a 36px threshold (bar height + margins + buffer).
+     - If space above is `< 36px`, flips `placement` to `'bottom'`. Otherwise defaults to `'top'`.
+  2. **Bi-directional CSS Styling & Hover Bridge**:
+     - `.msg-chip-floating-bar.placement-bottom` positions at `top: calc(100% + 2px); bottom: auto;`.
+     - Inverted the invisible hover bridge (`::before`) from `top: 100%` to `bottom: 100%`, bridging the upward gap when moving the mouse from text down to the bar.
+     - Added `.virtual-row:hover, .virtual-row:focus-within { z-index: 50; }` and `.msg-chip-code-container:hover { z-index: 60; }` ensuring row 1 never paints over row 0's downward-flipped bar.
+  3. **Verification**:
+     - Added Test 19 in `test/highlighter.test.ts` verifying flip logic for row 0, scrolled top edges, and standard rows.
+     - All test suites pass 100%.
+- **Consequences**: Floating action bars are completely visible on row 0 and top-boundary scrolled rows with zero clipping.

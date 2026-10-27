@@ -45,6 +45,8 @@ assert.ok(hasTxtSelector, 'Editor must select *.txt files');
 const commands = manifest.contributes?.commands;
 assert.ok(commands.some((c: any) => c.command === 'logviewer.open'), 'Command logviewer.open must be registered');
 assert.ok(commands.some((c: any) => c.command === 'logviewer.openCurrentFile'), 'Command logviewer.openCurrentFile must be registered');
+assert.ok(commands.some((c: any) => c.command === 'logviewer.openSourcesConfig'), 'Command logviewer.openSourcesConfig must be registered');
+assert.ok(commands.some((c: any) => c.command === 'logviewer.openPresetsConfig'), 'Command logviewer.openPresetsConfig must be registered');
 
 // Verify built artifacts
 const bundlePath = path.resolve('vscode-extension/dist/extension.js');
@@ -105,7 +107,16 @@ const matchedParent = allSources.find((s) => s.id === parentSource.id);
 assert.ok(matchedParent, 'Parent source must be present in source list');
 assert.ok(matchedParent.rotations && matchedParent.rotations.length > 0, 'Parent source must have rotations attached');
 assert.strictEqual(matchedParent.rotations[0].id, rotatedSource.id, 'Rotated source must be grouped under parent');
-console.log('✓ Test 3 Passed: Source registration, stat calculation, and rotation hierarchy verified.');
+
+// Test workspace scanning from config/log_sources.json
+const scannedSources = await logService.scanWorkspace();
+assert.ok(scannedSources.length > 0, 'Workspace scan must discover log sources');
+const defaultSource = logService.getDefaultSource();
+assert.ok(defaultSource, 'A default log source must be identified');
+assert.strictEqual(defaultSource.isDefault, true, 'Default log source must have isDefault: true');
+assert.ok(defaultSource.name.includes('Workflow') || defaultSource.path.includes('app_workflow.log'), 'Default source must be app_workflow.log');
+
+console.log('✓ Test 3 Passed: Source registration, stat calculation, JSON config discovery, default source, and rotation hierarchy verified.');
 
 // ---------------------------------------------------------------------------
 // TEST 4: Query Engine & API Router (/api/logs/entries)
@@ -200,7 +211,10 @@ console.log('✓ Test 5 Passed: Surrounding lines context retrieval and target p
 console.log('\n[Suite 6] Testing Presets CRUD via API Router (/api/presets)...');
 const presetsGet = await logService.handleApiRequest('/api/presets', 'GET');
 assert.ok(Array.isArray(presetsGet.presets), 'Presets list must be an array');
-assert.ok(presetsGet.presets.length >= 4, 'Must include 4 built-in presets');
+assert.ok(presetsGet.presets.length >= 4, 'Must include presets');
+assert.ok(presetsGet.presets.some((p: any) => p.id === 'minimal-set'), 'Must include "minimal-set" from presets.json');
+assert.ok(presetsGet.presets.some((p: any) => p.id === 'clean-messages'), 'Must include "clean-messages" from presets.json');
+assert.ok(presetsGet.presets.some((p: any) => p.id === 'errors-critical'), 'Must include "errors-critical" from presets.json');
 
 const testPreset = {
   id: 'test-custom-preset-101',

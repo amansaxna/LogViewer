@@ -30,9 +30,31 @@
   "activationEvents": [
     "onCustomEditor:logviewer.editor",
     "onCommand:logviewer.open",
-    "onCommand:logviewer.openCurrentFile"
+    "onCommand:logviewer.openCurrentFile",
+    "onCommand:logviewer.openSourcesConfig",
+    "onCommand:logviewer.openPresetsConfig"
   ],
   "contributes": {
+    "configuration": {
+      "title": "LogViewer",
+      "properties": {
+        "logviewer.defaultLogFile": {
+          "type": "string",
+          "default": "",
+          "description": "Path to the default log file to open on launch (e.g. 'logs/app_workflow.log'). If empty, uses the source marked isDefault: true in config/log_sources.json."
+        },
+        "logviewer.sourcesConfigFile": {
+          "type": "string",
+          "default": "",
+          "description": "Path to custom sources configuration JSON file. If empty, automatically checks .vscode/logviewer-sources.json and config/log_sources.json."
+        },
+        "logviewer.presetsConfigFile": {
+          "type": "string",
+          "default": "",
+          "description": "Path to custom presets configuration JSON file. If empty, automatically checks .vscode/logviewer-presets.json and config/presets.json."
+        }
+      }
+    },
     "commands": [
       {
         "command": "logviewer.open",
@@ -43,6 +65,16 @@
       {
         "command": "logviewer.openCurrentFile",
         "title": "Open Current File in LogViewer",
+        "category": "LogViewer"
+      },
+      {
+        "command": "logviewer.openSourcesConfig",
+        "title": "Open Log Sources Configuration (JSON)",
+        "category": "LogViewer"
+      },
+      {
+        "command": "logviewer.openPresetsConfig",
+        "title": "Open Log Presets Configuration (JSON)",
         "category": "LogViewer"
       }
     ],
@@ -71,6 +103,12 @@
         },
         {
           "command": "logviewer.openCurrentFile"
+        },
+        {
+          "command": "logviewer.openSourcesConfig"
+        },
+        {
+          "command": "logviewer.openPresetsConfig"
         }
       ],
       "explorer/context": [

@@ -8,6 +8,7 @@ import {
   tokenizeXml,
   findXmlBlocks,
   findEntitiesInMessage,
+  calculateFloatingBarPlacement,
 } from '../src/utils/messageContextHighlighter.tsx';
 import { renderSyntaxColoredLine, stripBracketMarkers } from '../src/utils/coloredLogRenderer.tsx';
 
@@ -176,5 +177,16 @@ assert.ok(inspectorCode.includes('xml-tok-tagname'), 'XmlTreeNode must style XML
 assert.ok(inspectorCode.includes('xml-tok-attr'), 'XmlTreeNode must style XML attributes with semantic colors');
 assert.ok(inspectorCode.includes('countLabel'), 'XmlTreeNode must display item/children summary badge when collapsed');
 console.log('✓ Test 18 Passed: XML Collapsible Tree Node, DOM Parser, and Syntax Highlighting verified');
+
+// Test 19: Verify Smart Flip Placement (top vs bottom) for floating action bar
+// Row 0 or near container top: space above is < 36px -> flips to 'bottom'
+assert.strictEqual(calculateFloatingBarPlacement(4, 0), 'bottom', 'Row 0 at top flips to bottom placement');
+assert.strictEqual(calculateFloatingBarPlacement(20, 0), 'bottom', 'Constrained space above flips to bottom placement');
+// Inside scroll container where row top is near container top:
+assert.strictEqual(calculateFloatingBarPlacement(110, 100), 'bottom', 'Space above (10px) < 36px flips to bottom placement');
+// Normal row down in feed: space above is >= 36px -> renders above ('top')
+assert.strictEqual(calculateFloatingBarPlacement(200, 0), 'top', 'Plenty of space above defaults to top placement');
+assert.strictEqual(calculateFloatingBarPlacement(200, 100), 'top', 'Space above (100px) >= 36px defaults to top placement');
+console.log('✓ Test 19 Passed: Smart flip placement correctly prevents clipping on first row / top boundary');
 
 console.log('\nAll Message Context Highlighter & Tokenizer Tests Passed Successfully!');

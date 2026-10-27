@@ -41,6 +41,7 @@ const AVAILABLE_LEVELS: { key: LogLevel; label: string; color: string }[] = [
   { key: 'info', label: 'INFO', color: '#38bdf8' },
   { key: 'audit', label: 'AUDIT', color: '#a855f7' },
   { key: 'debug', label: 'DEBUG', color: '#64748b' },
+  { key: 'trace', label: 'TRACE', color: '#8b5cf6' },
 ];
 
 const SORT_OPTIONS: { key: SortOption; label: string }[] = [

@@ -138,22 +138,60 @@ export function queryLogs(query: LogQuery): LogQueryResult {
     }
   }
 
-  // 2. Prepare search regular expression if any
-  let searchRegex: RegExp | null = null;
+  // 2. Prepare search matchers if any (supports multi-term / comma-separated queries)
+  const searchMatchers: { test: (raw: string, traceRaw?: string) => boolean }[] = [];
   if (query.search && query.search.trim().length > 0) {
     const rawPattern = query.search.trim();
     const flags = query.caseSensitive ? '' : 'i';
-    try {
-      if (query.isRegex) {
-        searchRegex = new RegExp(rawPattern, flags);
-      } else {
-        // Escape special regex chars
-        const escaped = rawPattern.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-        searchRegex = new RegExp(escaped, flags);
+
+    // Split comma-separated search terms if any
+    const rawTerms = rawPattern.split(',').map((t) => t.trim()).filter(Boolean);
+
+    for (const rawTerm of rawTerms) {
+      let termToMatch = rawTerm;
+      const hasWildcardEllipsis = termToMatch.endsWith('...');
+      if (hasWildcardEllipsis) {
+        termToMatch = termToMatch.slice(0, -3).trim();
       }
-    } catch {
-      // Fallback to literal search if regex is invalid
-      searchRegex = new RegExp(rawPattern.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), flags);
+
+      if (!termToMatch) continue;
+
+      let regex: RegExp;
+      try {
+        if (query.isRegex) {
+          const regexStr = hasWildcardEllipsis ? `${termToMatch}.*` : termToMatch;
+          regex = new RegExp(regexStr, flags);
+        } else {
+          const escaped = termToMatch.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+          const regexStr = hasWildcardEllipsis ? `${escaped}.*` : escaped;
+          regex = new RegExp(regexStr, flags);
+        }
+      } catch {
+        const escaped = termToMatch.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        regex = new RegExp(escaped, flags);
+      }
+
+      searchMatchers.push({
+        test: (raw: string, traceRaw?: string) => {
+          return regex.test(raw) || Boolean(traceRaw && regex.test(traceRaw));
+        },
+      });
+    }
+  }
+
+  // 2b. Prepare marker matcher if any
+  let markerRegex: RegExp | null = null;
+  let markerLower: string | null = null;
+  if (query.marker && query.marker.trim().length > 0) {
+    const rawMarker = query.marker.trim();
+    if (query.isMarkerRegex) {
+      try {
+        markerRegex = new RegExp(rawMarker, query.caseSensitive ? '' : 'i');
+      } catch {
+        markerLower = rawMarker.toLowerCase();
+      }
+    } else {
+      markerLower = rawMarker.toLowerCase();
     }
   }
 
@@ -210,11 +248,18 @@ export function queryLogs(query: LogQuery): LogQueryResult {
     }
 
     // Marker filter
-    if (query.marker && query.marker.trim().length > 0) {
-      const mQuery = query.marker.trim().toLowerCase();
-      if (!entry.workflow || !entry.workflow.toLowerCase().includes(mQuery)) {
-        return false;
-      }
+    if (markerRegex) {
+      const match =
+        Boolean(entry.workflow && markerRegex.test(entry.workflow)) ||
+        Boolean(entry.operation && markerRegex.test(entry.operation)) ||
+        Boolean(entry.raw && markerRegex.test(entry.raw));
+      if (!match) return false;
+    } else if (markerLower) {
+      const match =
+        Boolean(entry.workflow && entry.workflow.toLowerCase().includes(markerLower)) ||
+        Boolean(entry.operation && entry.operation.toLowerCase().includes(markerLower)) ||
+        Boolean(entry.raw && entry.raw.toLowerCase().includes(markerLower));
+      if (!match) return false;
     }
 
     // Correlation ID filter
@@ -226,15 +271,8 @@ export function queryLogs(query: LogQuery): LogQueryResult {
     }
 
     // Search query match
-    if (searchRegex) {
-      const match = searchRegex.test(entry.raw) ||
-        Boolean(entry.message && searchRegex.test(entry.message)) ||
-        Boolean(entry.namespace && searchRegex.test(entry.namespace)) ||
-        Boolean(entry.workflow && searchRegex.test(entry.workflow)) ||
-        Boolean(entry.operation && searchRegex.test(entry.operation)) ||
-        Boolean(entry.fileLocation && searchRegex.test(entry.fileLocation)) ||
-        Boolean(entry.trace?.raw && searchRegex.test(entry.trace.raw));
-
+    if (searchMatchers.length > 0) {
+      const match = searchMatchers.every((m) => m.test(entry.raw, entry.trace?.raw));
       if (query.invert ? match : !match) {
         return false;
       }

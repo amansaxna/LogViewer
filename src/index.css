@@ -1412,6 +1412,16 @@ body {
   border-color: var(--lvl-debug);
 }
 
+.level-pill.trace.active {
+  background: var(--lvl-trace);
+  border-color: var(--lvl-trace);
+  color: #ffffff;
+}
+
+.search-history-item:hover {
+  background: var(--bg-surface-hover) !important;
+}
+
 .level-pill-count {
   font-family: var(--font-mono);
   font-size: 0.7rem;
@@ -1784,6 +1794,13 @@ body {
   white-space: nowrap;
 }
 
+/* Flipped placement when there is not enough room above (e.g. on row 1 / near top of viewport) */
+.msg-chip-floating-bar.placement-bottom {
+  bottom: auto;
+  top: calc(100% + 2px);
+  transform: translateY(-2px);
+}
+
 /* Invisible hover bridge to seamlessly bridge mouse path from text to floating bar */
 .msg-chip-floating-bar::before {
   content: '';
@@ -1796,11 +1813,30 @@ body {
   pointer-events: auto;
 }
 
+.msg-chip-floating-bar.placement-bottom::before {
+  top: auto;
+  bottom: 100%;
+}
+
 .msg-chip-code-container:hover .msg-chip-floating-bar,
 .msg-chip-code-container.is-hovered .msg-chip-floating-bar {
   opacity: 1;
   pointer-events: auto;
   transform: translateY(0);
+}
+
+.msg-chip-code-container:hover,
+.msg-chip-code-container.is-hovered {
+  z-index: 60;
+}
+
+.virtual-row {
+  transition: z-index 0.05s ease;
+}
+
+.virtual-row:hover,
+.virtual-row:focus-within {
+  z-index: 50;
 }
 
 .msg-chip-json-tag,

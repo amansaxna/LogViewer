@@ -41,6 +41,15 @@ export function activate(context: vscode.ExtensionContext) {
 
     // Initial scan of workspace
     await logService.scanWorkspace();
+    const defaultSource = logService.getDefaultSource();
+    if (defaultSource) {
+      setTimeout(() => {
+        panel.webview.postMessage({
+          type: 'set-active-source',
+          sourceId: defaultSource.id,
+        });
+      }, 300);
+    }
 
     // Wire message bus
     const unsubscribes: (() => void)[] = [];
@@ -111,7 +120,69 @@ export function activate(context: vscode.ExtensionContext) {
     await vscode.commands.executeCommand('vscode.openWith', targetUri, LogViewerEditorProvider.viewType);
   });
 
-  context.subscriptions.push(openWorkspaceLogsCommand, openCurrentFileCommand);
+  // 4. Command: Open Sources JSON Configuration
+  const openSourcesConfigCommand = vscode.commands.registerCommand('logviewer.openSourcesConfig', async () => {
+    const configPath = logService.getSourcesConfigPath(true);
+    if (!configPath) {
+      vscode.window.showInformationMessage('No active workspace folder to create log sources configuration.');
+      return;
+    }
+
+    if (!fs.existsSync(configPath)) {
+      fs.mkdirSync(path.dirname(configPath), { recursive: true });
+      const initialConfig = {
+        folders: [
+          {
+            path: './logs',
+            category: 'Discovered Logs',
+            recursive: true,
+          },
+        ],
+        sources: [
+          {
+            id: 'default-app-log',
+            name: 'Default Application Log',
+            category: 'Application Logs',
+            path: './logs/app_workflow.log',
+            isDefault: true,
+            description: 'Default primary log source loaded on workspace launch',
+          },
+        ],
+      };
+      fs.writeFileSync(configPath, JSON.stringify(initialConfig, null, 2), 'utf-8');
+    }
+
+    const doc = await vscode.workspace.openTextDocument(vscode.Uri.file(configPath));
+    await vscode.window.showTextDocument(doc);
+  });
+
+  // 5. Command: Open Presets JSON Configuration
+  const openPresetsConfigCommand = vscode.commands.registerCommand('logviewer.openPresetsConfig', async () => {
+    const configPath = logService.getPresetsConfigPath(true);
+    if (!configPath) {
+      vscode.window.showInformationMessage('No active workspace folder to create presets configuration.');
+      return;
+    }
+
+    if (!fs.existsSync(configPath)) {
+      fs.mkdirSync(path.dirname(configPath), { recursive: true });
+      fs.writeFileSync(
+        configPath,
+        JSON.stringify({ presets: logService.getPresets() }, null, 2),
+        'utf-8'
+      );
+    }
+
+    const doc = await vscode.workspace.openTextDocument(vscode.Uri.file(configPath));
+    await vscode.window.showTextDocument(doc);
+  });
+
+  context.subscriptions.push(
+    openWorkspaceLogsCommand,
+    openCurrentFileCommand,
+    openSourcesConfigCommand,
+    openPresetsConfigCommand
+  );
 }
 
 export function deactivate() {}

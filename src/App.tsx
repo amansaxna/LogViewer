@@ -778,6 +778,9 @@ export const App: React.FC = () => {
 
     if (markerFilter.trim()) {
       params.append('marker', markerFilter.trim());
+      if (isMarkerRegex) {
+        params.append('isMarkerRegex', 'true');
+      }
     }
     if (search.trim()) {
       params.append('search', search.trim());
