@@ -136,23 +136,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
         <div style={{ display: 'flex', gap: 4 }}>
           <button
             onClick={onOpenModal}
-            style={{
-              flex: 1,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: 5,
-              padding: '5px 8px',
-              backgroundColor: 'var(--accent-primary)',
-              color: '#ffffff',
-              border: 'none',
-              borderRadius: 5,
-              fontWeight: 600,
-              fontSize: '0.76rem',
-              cursor: 'pointer',
-              boxShadow: '0 1px 4px var(--accent-bg)',
-              transition: 'all 0.15s ease',
-            }}
             className="btn-load-files"
             title="Open local log files or folders (Ctrl+O)"
           >
@@ -162,22 +145,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
           <button
             onClick={onOpenPasteModal}
-            style={{
-              flex: 1,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: 5,
-              padding: '5px 8px',
-              backgroundColor: 'var(--bg-surface)',
-              color: 'var(--text-primary)',
-              border: '1px solid var(--border-subtle)',
-              borderRadius: 5,
-              fontWeight: 500,
-              fontSize: '0.76rem',
-              cursor: 'pointer',
-              transition: 'all 0.15s ease',
-            }}
+            className="btn-paste-logs"
             title="Paste raw log lines directly into session"
           >
             <ClipboardList size={13} />
@@ -195,25 +163,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 onSelectAllSources?.();
               }
             }}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: 5,
-              width: '100%',
-              padding: '4px 8px',
-              backgroundColor: selectedSourceIds && selectedSourceIds.length > 1 ? 'rgba(56, 189, 248, 0.12)' : 'var(--bg-surface)',
-              color: selectedSourceIds && selectedSourceIds.length > 1 ? '#38bdf8' : 'var(--text-secondary)',
-              border: `1px solid ${selectedSourceIds && selectedSourceIds.length > 1 ? '#38bdf8' : 'var(--border-subtle)'}`,
-              borderRadius: 5,
-              fontWeight: 600,
-              fontSize: '0.74rem',
-              cursor: 'pointer',
-              transition: 'all 0.15s ease',
-            }}
+            className={`btn-merge-all ${selectedSourceIds && selectedSourceIds.length > 1 ? 'active' : ''}`}
             title="Toggle Unified Multi-Source Stream"
           >
-            <GitMerge size={12} color="#38bdf8" />
+            <GitMerge size={12} />
             <span>
               {selectedSourceIds && selectedSourceIds.length > 1
                 ? `Unified Stream (${selectedSourceIds.length}/${sources.length})`

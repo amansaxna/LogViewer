@@ -17,8 +17,9 @@ LogViewer adheres to four foundational design principles:
 2. **Intentional Semantic Hierarchy**:
    - High-frequency structural metadata (timestamps, process IDs, thread IDs) is intentionally subdued (`#8b949e`, `#64748b`) so it does not compete for attention.
    - Low-frequency, high-importance signals (errors, warnings, search query matches) command immediate visual prominence.
-3. **Restrained Engineering Brand System**:
-   - Solid, confident color fills with crisp 1px borders (`rgba(255, 255, 255, 0.07)`). No gradient text clippings or glowing drop shadows.
+3. **Restrained Engineering Brand & Outline Architecture**:
+   - Zero solid-filled colored blocks/cells in dark mode. Primary action cells (e.g. `Load Files`, `.sidebar-logo`, `.btn-open-file`) use transparent or neutral backgrounds with marked 1px accent borders (`border: 1px solid var(--accent-primary)`).
+   - No gradient text clippings or glowing drop shadows. Solid typography and crisp structural lines.
 4. **Spatial Efficiency & Zero-Waste Layout**:
    - Dynamic gutters scale to file magnitude (e.g. 30px for 1–2 digit logs).
    - Fast-action buttons consume 0px layout footprint when idle via hover transitions (`position: absolute` / `display: none`).
@@ -155,9 +156,9 @@ graph TD
 
 ### 5.1 Sidebar Navigation
 - **Width**: `300px` (provides adequate clearance for deep file paths and rotation badges).
-- **Header**: High-density header (`10px 12px`) with 2-row quick-action grid:
-  - Row 1: `Load Files` + `Paste Logs`
-  - Row 2: `Merge All Sources` (when multi-source is active)
+- **Header**: High-density header (`10px 12px`) with outline branding (`.sidebar-logo`: transparent background, marked 1px accent border) and a 2-row quick-action grid:
+  - Row 1: `Load Files` (`.btn-load-files`: transparent background, marked 1px cobalt border, hover accent) + `Paste Logs` (`.btn-paste-logs`: transparent background, subtle border)
+  - Row 2: `Merge All Sources` (`.btn-merge-all`: outline multi-source toggle)
 - **Item Rows**:
   - Height: `28px` with `padding: 3px 6px`.
   - Copy button: Zero layout reservation when idle (`display: none`), appears seamlessly on row hover (`display: inline-flex`).

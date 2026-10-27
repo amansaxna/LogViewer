@@ -757,10 +757,10 @@ This document captures the architectural decisions made during the design and im
      - Subdued timestamp token `--tok-datetime: #8b949e` (muted slate) so timestamps provide structural context without dominating the screen.
      - Preserved punchy, urgent reds (`#f87171`) for errors, warm amber (`#fbbf24`) for warnings, and sage green (`#4ade80`) for success.
      - Calibrated correlation IDs (`#34d399`), namespaces (`#60a5fa`), workflows (`#a78bfa`), and HTTP verbs (`#f59e0b`).
-  3. **Purge Gradients and Artificial Glow**:
+  3. **Purge Gradients, Solid Fills, and Artificial Glow**:
      - Replaced gradient text clips with solid `#f1f5f9` headers.
-     - Replaced gradient logo box with a solid precision cobalt badge (`#2563eb`, 1px border, subtle 1px shadow).
-     - Normalized `.btn-open-file` to clean `var(--accent-bg)` with crisp border and smooth hover transition.
+     - Removed solid-filled colored cell backgrounds in dark mode for primary actions (`.sidebar-logo`, `.btn-load-files`, `.btn-open-file`), replacing them with transparent backgrounds and marked 1px accent borders (`border: 1px solid var(--accent-primary)`).
+     - Normalized `.btn-load-files`, `.btn-paste-logs`, and `.btn-merge-all` into dedicated CSS classes with outline borders and smooth hover transitions.
   4. **Tokenize Interactive Control States**:
      - Converted active states for `.source-item.active`, `.meta-toggle-btn.active`, `.preset-trigger-btn.active`, `.toolbar-toggle-btn.active`, and `.rate-badge.average` to reference `var(--accent-primary)`, `var(--accent-bg)`, and `var(--tok-namespace)`.
 - **Consequences**: Delivers a fatigue-free, professional engineering tool aesthetic aligned with Datadog, Sentry, and Linear. Errors and anomalies command immediate visual focus. All interactive components adapt dynamically across theme switches.
