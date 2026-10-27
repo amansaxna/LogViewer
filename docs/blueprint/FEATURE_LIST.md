@@ -252,3 +252,19 @@ LogViewer includes native instrumentation to ensure zero lag even when processin
   - Trailing wildcard ellipsis support (`...`) matching prefixes across raw log entries.
   - Caches the last 3 searched items for both main search and marker search in `localStorage` with quick-access dropdown popovers.
   - Full `TRACE` severity level filter parity with positive inclusion, negative exclusion (`-`), and real-time counts.
+
+---
+
+### 2.13 Obsidian Studio Dark Theme & Anti-Slop Design Architecture
+
+- **Neutral Graphite Obsidian Studio Canvas**:
+  - Replaced high-saturation blue/navy background (`#080c14`) with grounded neutral charcoals (`#0b0c10` app base, `#101216` sidebar, `#17191e` surface/table) for fatigue-free extended triage sessions.
+- **Calibrated Semantic Syntax Tokens**:
+  - Muted structural metadata (`--tok-datetime: #8b949e`, `--tok-pid: #64748b`) prevents retinal overload across high-throughput thousands-of-lines streams.
+  - Prioritizes critical incident signals: vibrant crimson red (`#f87171`) for exceptions/errors, warm amber (`#fbbf24`) for warnings, and crisp mint (`#34d399`) for correlation IDs.
+  - Calibrated tokens for namespaces (`#60a5fa`), workflows (`#a78bfa`), HTTP verbs (`#f59e0b`), and JSON/XML primitives.
+- **Restrained Engineering Brand System**:
+  - Eliminated gradient text clippings and glowing dropshadows in favor of crisp typography and solid precision cobalt badges (`#2563eb`).
+  - Structured, flat action buttons with 1px architectural borders and smooth transitions.
+- **Normalized Theme Token Bindings**:
+  - Replaced hardcoded `#38bdf8` hex values across active pill states, rate metrics, search markers, and selection indicators with dynamic CSS custom property variables (`var(--accent-primary)`, `var(--accent-bg)`, `var(--tok-namespace)`).

@@ -739,3 +739,28 @@ This document captures the architectural decisions made during the design and im
      - Added `position: relative; z-index: 20;` to `.main-content`, lowered `.sidebar` to `z-index: 10;`, raised `.topbar` to `z-index: 90;`, and tooltips to `z-index: 100000;`.
      - Added `data-tooltip-align="left"` to leftmost buttons to anchor tooltips inwards.
 - **Consequences**: Eliminates wasted whitespace across all views, ensures zero multiline wrapping in Tier 2, and prevents tooltip clipping.
+
+---
+
+## ADR-040: Obsidian Studio Dark Theme & Semantic Token Normalization
+- **Status**: Accepted
+- **Context**: The original dark palette suffered from common "AI slop" anti-patterns:
+  1. Over-saturated navy blue background canvas (`#080c14`, `#0d121f`) with 218° chromatic hue causing optical vibration and eye fatigue over extended debugging sessions.
+  2. Neon cyan timestamp (`#00e5ff`) rendered on every single log row, competing visually with critical error messages and stack traces.
+  3. Cheesy gradients (gradient text fill on `.sidebar-title`, cyan-to-indigo gradient on `.sidebar-logo`, and diagonal gradient on the "Open File" button) with blurry glowing drop shadows.
+  4. Saturated syntax rainbow soup with no optical hierarchy between timestamps, operations, and error statuses.
+  5. Hardcoded hex colors (`#38bdf8`) scattered throughout button active states, search matches, and delta borders rather than referencing theme tokens.
+- **Decision**:
+  1. **Adopt "Obsidian Studio" Neutral Graphite Canvas**:
+     - Grounded base palette on neutral blacks and charcoals: `--bg-app: #0b0c10`, `--bg-sidebar: #101216`, `--bg-surface: #17191e`, `--bg-surface-hover: #20232a`. Zero chromatic blue tinting.
+  2. **Calibrate Semantic Syntax Tokens**:
+     - Subdued timestamp token `--tok-datetime: #8b949e` (muted slate) so timestamps provide structural context without dominating the screen.
+     - Preserved punchy, urgent reds (`#f87171`) for errors, warm amber (`#fbbf24`) for warnings, and sage green (`#4ade80`) for success.
+     - Calibrated correlation IDs (`#34d399`), namespaces (`#60a5fa`), workflows (`#a78bfa`), and HTTP verbs (`#f59e0b`).
+  3. **Purge Gradients and Artificial Glow**:
+     - Replaced gradient text clips with solid `#f1f5f9` headers.
+     - Replaced gradient logo box with a solid precision cobalt badge (`#2563eb`, 1px border, subtle 1px shadow).
+     - Normalized `.btn-open-file` to clean `var(--accent-bg)` with crisp border and smooth hover transition.
+  4. **Tokenize Interactive Control States**:
+     - Converted active states for `.source-item.active`, `.meta-toggle-btn.active`, `.preset-trigger-btn.active`, `.toolbar-toggle-btn.active`, and `.rate-badge.average` to reference `var(--accent-primary)`, `var(--accent-bg)`, and `var(--tok-namespace)`.
+- **Consequences**: Delivers a fatigue-free, professional engineering tool aesthetic aligned with Datadog, Sentry, and Linear. Errors and anomalies command immediate visual focus. All interactive components adapt dynamically across theme switches.
