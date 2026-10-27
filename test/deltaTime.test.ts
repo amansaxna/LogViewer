@@ -86,4 +86,33 @@ assert.ok(contextResult !== null);
 assert.ok(Array.isArray(contextResult.lines));
 console.log('✓ Test 6 Passed: getContextLines robust multi-source resolution verified');
 
+// Test 7: Automatic Delta Time on Selected Line Range (e.g. Lines 1 to 10)
+const sampleList: LogEntry[] = Array.from({ length: 10 }, (_, i) => ({
+  id: `e-${i + 1}`,
+  lineNumber: i + 1,
+  raw: `log line ${i + 1}`,
+  datetime: `2026-09-02 00:05:0${i}.000`,
+  level: 'info',
+  message: `Step ${i + 1}`,
+}));
+
+const selectedLines = new Set([1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
+const selectedEntries = sampleList.filter((e) => selectedLines.has(e.lineNumber));
+assert.strictEqual(selectedEntries.length, 10);
+
+const rangeDelta = calculateDeltaTime(selectedEntries[0], selectedEntries[selectedEntries.length - 1], sampleList);
+assert.ok(rangeDelta !== null);
+assert.strictEqual(rangeDelta.anchorLine, 1);
+assert.strictEqual(rangeDelta.targetLine, 10);
+assert.strictEqual(rangeDelta.deltaMs, 9000);
+assert.strictEqual(rangeDelta.formattedDelta, '+9.000s');
+assert.strictEqual(rangeDelta.stepCount, 9);
+assert.strictEqual(rangeDelta.direction, 'forward');
+
+const appSource = fs.readFileSync(path.resolve(process.cwd(), 'src/App.tsx'), 'utf-8');
+assert.ok(appSource.includes('effectiveAnchorLine'), 'App.tsx must use effectiveAnchorLine');
+assert.ok(appSource.includes('effectiveTargetLine'), 'App.tsx must use effectiveTargetLine');
+assert.ok(appSource.includes('rangeSelectedEntries'), 'App.tsx must support rangeSelectedEntries');
+console.log('✓ Test 7 Passed: Automatic Range Selection Delta Time (Line 1 to 10) verified');
+
 console.log('\nAll Delta Time Latency & Stability Tests Passed Successfully!\n');

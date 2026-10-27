@@ -322,17 +322,42 @@ export const App: React.FC = () => {
   const [deltaAnchorLine, setDeltaAnchorLine] = useState<number | null>(null);
   const [deltaTargetLine, setDeltaTargetLine] = useState<number | null>(null);
 
-  const deltaMeasurement = useMemo(() => {
-    if (deltaAnchorLine === null || deltaTargetLine === null) return null;
-    const anchorEntry = entries.find((e) => e.lineNumber === deltaAnchorLine);
-    const targetEntry = entries.find((e) => e.lineNumber === deltaTargetLine);
-    if (!anchorEntry || !targetEntry) return null;
-    return calculateDeltaTime(anchorEntry, targetEntry, entries);
-  }, [deltaAnchorLine, deltaTargetLine, entries]);
-
   // Multi-line range selection (Shift + Click / Shift + Down / Shift + Up)
   const [selectedLineNumbers, setSelectedLineNumbers] = useState<Set<number>>(new Set());
   const selectionAnchorIndexRef = useRef<number | null>(null);
+
+  // Range-selected first & last entries for automatic delta measurement across selection
+  const rangeSelectedEntries = useMemo(() => {
+    if (selectedLineNumbers.size < 2) return null;
+    const selected = displayEntries.filter((e) => selectedLineNumbers.has(e.lineNumber));
+    if (selected.length < 2) return null;
+    return {
+      first: selected[0],
+      last: selected[selected.length - 1],
+    };
+  }, [selectedLineNumbers, displayEntries]);
+
+  // Effective anchor and target line numbers (manual anchor mode takes precedence, else multi-selection range)
+  const effectiveAnchorLine = deltaAnchorLine ?? (rangeSelectedEntries ? rangeSelectedEntries.first.lineNumber : null);
+  const effectiveTargetLine = deltaTargetLine ?? (rangeSelectedEntries ? rangeSelectedEntries.last.lineNumber : null);
+
+  const deltaMeasurement = useMemo(() => {
+    // 1. Explicit anchor & target set manually via 'd' shortcut or button
+    if (deltaAnchorLine !== null && deltaTargetLine !== null) {
+      const anchorEntry = entries.find((e) => e.lineNumber === deltaAnchorLine);
+      const targetEntry = entries.find((e) => e.lineNumber === deltaTargetLine);
+      if (anchorEntry && targetEntry) {
+        return calculateDeltaTime(anchorEntry, targetEntry, entries);
+      }
+    }
+
+    // 2. Automatic delta time across selected line range (e.g. lines 1 to 10)
+    if (rangeSelectedEntries) {
+      return calculateDeltaTime(rangeSelectedEntries.first, rangeSelectedEntries.last, displayEntries);
+    }
+
+    return null;
+  }, [deltaAnchorLine, deltaTargetLine, entries, rangeSelectedEntries, displayEntries]);
 
   const handleSelectLine = useCallback((line: number, isShift = false) => {
     setSelectedLineNumber(line);
@@ -367,14 +392,26 @@ export const App: React.FC = () => {
   }, []);
 
   const handleSwapDelta = useCallback(() => {
-    setDeltaAnchorLine(deltaTargetLine);
-    setDeltaTargetLine(deltaAnchorLine);
-  }, [deltaAnchorLine, deltaTargetLine]);
+    if (deltaAnchorLine !== null && deltaTargetLine !== null) {
+      setDeltaAnchorLine(deltaTargetLine);
+      setDeltaTargetLine(deltaAnchorLine);
+    } else if (rangeSelectedEntries) {
+      setDeltaAnchorLine(rangeSelectedEntries.last.lineNumber);
+      setDeltaTargetLine(rangeSelectedEntries.first.lineNumber);
+    }
+  }, [deltaAnchorLine, deltaTargetLine, rangeSelectedEntries]);
 
   const handleClearDelta = useCallback(() => {
     setDeltaAnchorLine(null);
     setDeltaTargetLine(null);
-  }, []);
+    if (selectedLineNumbers.size > 1) {
+      if (selectedLineNumber !== null) {
+        setSelectedLineNumbers(new Set([selectedLineNumber]));
+      } else {
+        setSelectedLineNumbers(new Set());
+      }
+    }
+  }, [selectedLineNumbers.size, selectedLineNumber]);
 
   // Apply theme to document
   useEffect(() => {
@@ -1707,8 +1744,8 @@ export const App: React.FC = () => {
           showCorrelation={showCorrelation}
           sortOption={sortOption}
           isUnifiedStream={selectedSourceIds.length > 1}
-          deltaAnchorLine={deltaAnchorLine}
-          deltaTargetLine={deltaTargetLine}
+          deltaAnchorLine={effectiveAnchorLine}
+          deltaTargetLine={effectiveTargetLine}
           onSetDeltaAnchor={handleSetDeltaAnchor}
         />
       </main>
@@ -1813,8 +1850,8 @@ export const App: React.FC = () => {
       {/* Delta Time / Latency Measurement Floating HUD */}
       <DeltaTimeToolbar
         measurement={deltaMeasurement}
-        anchorLine={deltaAnchorLine}
-        targetLine={deltaTargetLine}
+        anchorLine={effectiveAnchorLine}
+        targetLine={effectiveTargetLine}
         onSwap={handleSwapDelta}
         onClear={handleClearDelta}
         onJumpToLine={(line) => {
