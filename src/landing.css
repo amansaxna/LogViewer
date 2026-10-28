@@ -1,7 +1,7 @@
 /* ============================================================================
-   LOGVIEWER — OBSIDIAN STUDIO KINETIC STORYTELLING (VISUAL-FIRST EDITION)
-   Minimal text, maximum continuous hardware animation, 3D isometric stack,
-   and 1px marked outline cells matching LogViewer main.
+   LOGVIEWER — OBSIDIAN STUDIO KINETIC STORYTELLING
+   Mouse-reactive multi-plane parallax background, 7-layer kinetic theater,
+   interactive JSON/XML Inspector stage, and 1px marked outline cells.
    ============================================================================ */
 
 .lv-relay-page {
@@ -39,6 +39,12 @@
   --lv-tok-duration: #eab308;
   --lv-tok-file: #64748b;
 
+  /* Dynamic Mouse Pointer Coordinates & Normalized Parallax (-1..1) */
+  --mx: 50vw;
+  --my: 40vh;
+  --px: 0;
+  --py: 0;
+
   --lv-font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   --lv-font-mono: 'Fira Code', 'JetBrains Mono', 'SF Mono', Menlo, Monaco, Consolas, monospace;
 
@@ -54,28 +60,119 @@
   -webkit-font-smoothing: antialiased;
 }
 
-/* Animated perspective engineering grid */
-.lv-relay-backdrop {
+/* ============================================================================
+   ROBUST MOUSE-REACTIVE MULTI-PLANE PARALLAX BACKGROUND
+   Moves dynamically with the mouse pointer at 60 FPS via CSS variables.
+   ============================================================================ */
+.lv-interactive-bg {
   position: fixed;
   inset: 0;
   pointer-events: none;
   z-index: 0;
-  background-image:
-    linear-gradient(to right, rgba(255, 255, 255, 0.025) 1px, transparent 1px),
-    linear-gradient(to bottom, rgba(255, 255, 255, 0.025) 1px, transparent 1px);
-  background-size: 52px 52px;
-  mask-image: radial-gradient(ellipse 92% 80% at 50% 25%, #000 45%, transparent 100%);
-  -webkit-mask-image: radial-gradient(ellipse 92% 80% at 50% 25%, #000 45%, transparent 100%);
-  animation: lvGridDrift 24s linear infinite;
+  overflow: hidden;
 }
 
-@keyframes lvGridDrift {
-  0% {
-    background-position: 0 0;
-  }
-  100% {
-    background-position: 52px 52px;
-  }
+/* Plane 1: Deep Structural Grid (shifts opposite to mouse) */
+.lv-bg-grid-base {
+  position: absolute;
+  inset: -80px;
+  background-image:
+    linear-gradient(to right, rgba(255, 255, 255, 0.026) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(255, 255, 255, 0.026) 1px, transparent 1px);
+  background-size: 56px 56px;
+  transform: translate3d(calc(var(--px) * -22px), calc(var(--py) * -22px), 0);
+  transition: transform 110ms cubic-bezier(0.22, 1, 0.36, 1);
+  will-change: transform;
+}
+
+/* Plane 2: High-Intensity Cursor-Illuminated Precision Micro-Grid */
+.lv-bg-grid-spotlight {
+  position: absolute;
+  inset: -80px;
+  background-image:
+    linear-gradient(to right, rgba(96, 165, 250, 0.22) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(96, 165, 250, 0.22) 1px, transparent 1px),
+    radial-gradient(circle, rgba(96, 165, 250, 0.45) 1px, transparent 1.5px);
+  background-size: 28px 28px, 28px 28px, 56px 56px;
+  transform: translate3d(calc(var(--px) * -38px), calc(var(--py) * -38px), 0);
+  transition: transform 90ms cubic-bezier(0.22, 1, 0.36, 1);
+  mask-image: radial-gradient(
+    420px circle at calc(var(--mx) + 80px) calc(var(--my) + 80px),
+    #000 0%,
+    rgba(0, 0, 0, 0.35) 50%,
+    transparent 100%
+  );
+  -webkit-mask-image: radial-gradient(
+    420px circle at calc(var(--mx) + 80px) calc(var(--my) + 80px),
+    #000 0%,
+    rgba(0, 0, 0, 0.35) 50%,
+    transparent 100%
+  );
+  will-change: transform;
+}
+
+/* Plane 3: Cursor-Following Dual Telemetry Aura */
+.lv-bg-aura {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(
+      650px circle at var(--mx) var(--my),
+      rgba(59, 130, 246, 0.13),
+      rgba(52, 211, 153, 0.045) 42%,
+      transparent 72%
+    ),
+    radial-gradient(
+      480px circle at calc(100vw - var(--mx)) calc(100vh - var(--my)),
+      rgba(167, 139, 250, 0.06),
+      transparent 65%
+    );
+}
+
+/* Plane 4: Foreground Parallax Vector Field & Reticles */
+.lv-bg-vector-field {
+  position: absolute;
+  inset: -60px;
+  transform: translate3d(calc(var(--px) * 32px), calc(var(--py) * 32px), 0);
+  transition: transform 140ms cubic-bezier(0.22, 1, 0.36, 1);
+  will-change: transform;
+  opacity: 0.65;
+}
+
+/* Plane 5: Cursor Crosshair Reticle Follower */
+.lv-cursor-reticle {
+  position: fixed;
+  left: var(--mx);
+  top: var(--my);
+  width: 36px;
+  height: 36px;
+  transform: translate(-50%, -50%);
+  border: 1px solid rgba(96, 165, 250, 0.28);
+  border-radius: 50%;
+  pointer-events: none;
+  z-index: 2;
+  transition: width 150ms ease, height 150ms ease;
+}
+
+.lv-cursor-reticle::before,
+.lv-cursor-reticle::after {
+  content: '';
+  position: absolute;
+  background: rgba(96, 165, 250, 0.45);
+}
+
+.lv-cursor-reticle::before {
+  top: 50%;
+  left: -6px;
+  right: -6px;
+  height: 1px;
+}
+
+.lv-cursor-reticle::after {
+  left: 50%;
+  top: -6px;
+  bottom: -6px;
+  width: 1px;
 }
 
 /* ============================================================================
@@ -83,7 +180,7 @@
    ============================================================================ */
 .lv-conduit-spine {
   position: fixed;
-  top: 64px;
+  top: 60px;
   bottom: 0;
   left: 28px;
   width: 1px;
@@ -131,7 +228,7 @@
   gap: 8px;
   background: transparent;
   border: none;
-  padding: 2px;
+  padding: 0;
   cursor: pointer;
   color: var(--lv-text-muted);
   font-family: var(--lv-font-mono);
@@ -139,15 +236,19 @@
 }
 
 .lv-conduit-node-dot {
-  width: 24px;
-  height: 24px;
-  border-radius: 5px;
-  background: var(--lv-bg-panel);
-  border: 1px solid var(--lv-border-subtle);
+  position: relative;
+  z-index: 2;
+  width: 25px;
+  height: 25px;
+  border-radius: 6px;
+  background: #101216;
+  border: 1px solid var(--lv-border-mid);
+  box-shadow: 0 0 0 4px var(--lv-bg-void);
   display: inline-flex;
   align-items: center;
   justify-content: center;
   font-size: 9.5px;
+  font-weight: 600;
   color: var(--lv-text-muted);
   transition: all 180ms ease;
 }
@@ -156,8 +257,10 @@
 .lv-conduit-node-btn.active .lv-conduit-node-dot {
   border-color: var(--lv-accent);
   color: var(--lv-accent-bright);
-  background: rgba(59, 130, 246, 0.14);
-  box-shadow: 0 0 14px rgba(59, 130, 246, 0.3);
+  background: #101b30;
+  box-shadow:
+    0 0 0 4px var(--lv-bg-void),
+    0 0 14px rgba(59, 130, 246, 0.35);
 }
 
 .lv-conduit-node-label {
@@ -180,7 +283,8 @@
 
 @media (max-width: 1220px) {
   .lv-conduit-spine,
-  .lv-conduit-nodes {
+  .lv-conduit-nodes,
+  .lv-cursor-reticle {
     display: none;
   }
 }
@@ -207,23 +311,6 @@
   }
   100% {
     left: 102%;
-    opacity: 0;
-  }
-}
-
-@keyframes lvVerticalScan {
-  0% {
-    top: -10%;
-    opacity: 0;
-  }
-  20% {
-    opacity: 1;
-  }
-  80% {
-    opacity: 1;
-  }
-  100% {
-    top: 105%;
     opacity: 0;
   }
 }
@@ -280,25 +367,6 @@
   }
 }
 
-@keyframes lvFloatNode {
-  0%, 100% {
-    transform: translateY(0px);
-  }
-  50% {
-    transform: translateY(-4px);
-  }
-}
-
-@keyframes lvWaveScroll {
-  0% {
-    transform: translateX(0);
-  }
-  100% {
-    transform: translateX(-50%);
-  }
-}
-
-/* Scroll-triggered section reveal */
 .lv-reveal-block {
   opacity: 0;
   transform: perspective(1200px) rotateX(6deg) translateY(32px);
@@ -324,7 +392,7 @@
   top: 0;
   z-index: 100;
   height: 60px;
-  background: rgba(11, 12, 16, 0.88);
+  background: rgba(11, 12, 16, 0.86);
   backdrop-filter: blur(14px);
   -webkit-backdrop-filter: blur(14px);
   border-bottom: 1px solid var(--lv-border-subtle);
@@ -600,7 +668,6 @@
   flex-wrap: wrap;
 }
 
-/* Compact 3-pill stream switcher */
 .lv-stream-pills {
   display: flex;
   gap: 6px;
@@ -637,7 +704,8 @@
 
 .lv-workbench-frame {
   border-radius: 8px;
-  background: var(--lv-bg-panel);
+  background: rgba(16, 18, 22, 0.94);
+  backdrop-filter: blur(12px);
   border: 1px solid var(--lv-border-mid);
   box-shadow:
     0 32px 64px -16px rgba(0, 0, 0, 0.85),
@@ -922,7 +990,7 @@
 }
 
 /* ============================================================================
-   STAGE 02: FULL-WIDTH 7-LAYER KINETIC THEATER (Zero Text Wall, Pure Motion)
+   STAGE 02: FULL-WIDTH 7-LAYER KINETIC THEATER
    ============================================================================ */
 .lv-layers-section {
   padding: 64px 0;
@@ -947,7 +1015,6 @@
   margin: 0;
 }
 
-/* 7-Node Horizontal Layer Selector Track */
 .lv-layer-ribbon {
   display: grid;
   grid-template-columns: repeat(7, 1fr);
@@ -972,7 +1039,7 @@
   overflow: hidden;
   padding: 10px 12px;
   border-radius: 6px;
-  background: var(--lv-bg-panel);
+  background: rgba(16, 18, 22, 0.9);
   border: 1px solid var(--lv-border-subtle);
   color: var(--lv-text-secondary);
   cursor: pointer;
@@ -1021,10 +1088,10 @@
   animation: lvProgressFill 4.8s linear forwards;
 }
 
-/* Full-Width Kinetic Stage Frame */
 .lv-kinetic-stage {
   border-radius: 8px;
-  background: var(--lv-bg-panel);
+  background: rgba(16, 18, 22, 0.92);
+  backdrop-filter: blur(12px);
   border: 1px solid var(--lv-border-mid);
   box-shadow: 0 28px 60px rgba(0, 0, 0, 0.72);
   overflow: hidden;
@@ -1056,7 +1123,6 @@
   position: relative;
 }
 
-/* Laser Scanner Beam for Tokenizer Layer */
 .lv-laser-box {
   position: relative;
   overflow: hidden;
@@ -1132,7 +1198,125 @@
 }
 
 /* ============================================================================
-   STAGE 03: 3D ISOMETRIC EXPLODED STACK WITH LASER CORE BEAM
+   STAGE 03: INTERACTIVE JSON & XML PAYLOAD INSPECTOR STAGE
+   ============================================================================ */
+.lv-json-section {
+  padding: 64px 0;
+  border-bottom: 1px solid var(--lv-border-subtle);
+}
+
+.lv-json-workbench {
+  border-radius: 8px;
+  background: rgba(16, 18, 22, 0.94);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(56, 189, 248, 0.35);
+  box-shadow: 0 28px 60px rgba(0, 0, 0, 0.78);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.lv-json-source-bar {
+  padding: 10px 16px;
+  background: var(--lv-bg-void);
+  border-bottom: 1px solid var(--lv-border-subtle);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  font-family: var(--lv-font-mono);
+  font-size: 11.5px;
+  overflow-x: auto;
+}
+
+.lv-json-sticky-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding-left: 12px;
+  background: var(--lv-bg-void);
+  flex-shrink: 0;
+}
+
+.lv-json-modal-toolbar {
+  padding: 10px 16px;
+  background: var(--lv-bg-panel);
+  border-bottom: 1px solid var(--lv-border-subtle);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.lv-json-body-split {
+  display: grid;
+  grid-template-columns: minmax(0, 7.5fr) minmax(0, 4.5fr);
+  min-height: 310px;
+  background: var(--lv-bg-void);
+}
+
+@media (max-width: 960px) {
+  .lv-json-body-split {
+    grid-template-columns: 1fr;
+  }
+}
+
+.lv-json-code-pane {
+  border-right: 1px solid var(--lv-border-subtle);
+  display: flex;
+  font-family: var(--lv-font-mono);
+  font-size: 12px;
+  line-height: 1.65;
+  overflow-x: auto;
+}
+
+.lv-json-gutter {
+  padding: 14px 10px 14px 14px;
+  background: rgba(16, 18, 22, 0.85);
+  border-right: 1px solid var(--lv-border-subtle);
+  color: var(--lv-text-muted);
+  text-align: right;
+  user-select: none;
+}
+
+.lv-json-lines {
+  padding: 14px 16px;
+  flex: 1;
+}
+
+.lv-json-capabilities-pane {
+  padding: 16px;
+  background: var(--lv-bg-panel);
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.lv-json-cap-card {
+  padding: 10px 12px;
+  border-radius: 6px;
+  background: var(--lv-bg-void);
+  border: 1px solid var(--lv-border-subtle);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  font-family: var(--lv-font-mono);
+  font-size: 11px;
+  cursor: pointer;
+  transition: all 150ms ease;
+}
+
+.lv-json-cap-card:hover,
+.lv-json-cap-card.active {
+  border-color: #38bdf8;
+  background: rgba(56, 189, 248, 0.08);
+}
+
+/* ============================================================================
+   STAGE 04: 3D ISOMETRIC EXPLODED STACK WITH LASER CORE BEAM
    ============================================================================ */
 .lv-exploded-section {
   padding: 64px 0;
@@ -1158,7 +1342,6 @@
   padding: 20px 12px;
 }
 
-/* Vertical glowing laser core piercing all 7 isometric plates */
 .lv-iso-core-beam {
   position: absolute;
   top: 0;
@@ -1188,8 +1371,7 @@
 
 .lv-iso-plate {
   border-radius: 8px;
-  background: rgba(16, 18, 22, 0.92);
-  backdrop-filter: blur(8px);
+  background: #101216;
   border: 1px solid var(--lv-border-mid);
   padding: 11px 16px;
   display: flex;
@@ -1203,16 +1385,16 @@
     border-color 200ms ease,
     background 200ms ease,
     box-shadow 280ms ease;
-  box-shadow: -8px 12px 24px rgba(0, 0, 0, 0.6);
+  box-shadow: -8px 12px 24px rgba(0, 0, 0, 0.65);
 }
 
 .lv-iso-plate:hover,
 .lv-iso-plate.active {
   transform: rotateX(6deg) rotateZ(0deg) translateY(-4px) scale(1.025);
   border-color: var(--lv-accent-bright);
-  background: rgba(23, 25, 30, 0.96);
+  background: #151922;
   box-shadow:
-    -10px 18px 34px rgba(0, 0, 0, 0.8),
+    -10px 18px 34px rgba(0, 0, 0, 0.85),
     0 0 24px rgba(59, 130, 246, 0.25);
 }
 
@@ -1222,12 +1404,82 @@
   color: var(--lv-accent-bright);
   padding: 2px 7px;
   border-radius: 4px;
-  border: 1px solid rgba(59, 130, 246, 0.38);
-  background: rgba(59, 130, 246, 0.1);
+  border: 1px solid rgba(59, 130, 246, 0.45);
+  background: #111a2e;
+}
+
+@keyframes lvWindowSlide {
+  0%, 100% {
+    transform: translateY(0px);
+  }
+  50% {
+    transform: translateY(26px);
+  }
+}
+
+.lv-arch-schematic {
+  border-radius: 6px;
+  background: var(--lv-bg-void);
+  border: 1px solid var(--lv-border-subtle);
+  padding: 16px;
+  position: relative;
+  overflow: hidden;
+  min-height: 245px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.lv-vdom-diagram {
+  display: grid;
+  grid-template-columns: 1.15fr 0.85fr 1.2fr;
+  gap: 12px;
+  align-items: stretch;
+  font-family: var(--lv-font-mono);
+  font-size: 10.5px;
+}
+
+@media (max-width: 680px) {
+  .lv-vdom-diagram {
+    grid-template-columns: 1fr;
+  }
+}
+
+.lv-vdom-buffer-col {
+  border: 1px solid var(--lv-border-subtle);
+  border-radius: 6px;
+  background: #0d0f14;
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  position: relative;
+  overflow: hidden;
+}
+
+.lv-vdom-spacer-box {
+  padding: 5px 6px;
+  border: 1px dashed rgba(148, 163, 184, 0.2);
+  border-radius: 4px;
+  color: var(--lv-text-muted);
+  font-size: 9.5px;
+  text-align: center;
+  background: rgba(255, 255, 255, 0.015);
+}
+
+.lv-vdom-active-window {
+  margin: 6px 0;
+  padding: 7px 8px;
+  border-radius: 5px;
+  border: 1.5px solid var(--lv-accent-bright);
+  background: rgba(59, 130, 246, 0.12);
+  box-shadow: 0 0 18px rgba(59, 130, 246, 0.22);
+  animation: lvWindowSlide 3.2s ease-in-out infinite;
 }
 
 /* ============================================================================
-   STAGE 04: AUTO-ANIMATING VIM DECK & VIRTUAL DOM SCRUBBER
+   STAGE 05: AUTO-ANIMATING VIM DECK & VIRTUAL DOM SCRUBBER
    ============================================================================ */
 .lv-engine-section {
   padding: 64px 0;
@@ -1248,7 +1500,8 @@
 
 .lv-hardware-plate {
   border-radius: 8px;
-  background: var(--lv-bg-panel);
+  background: rgba(16, 18, 22, 0.92);
+  backdrop-filter: blur(10px);
   border: 1px solid var(--lv-border-mid);
   overflow: hidden;
   display: flex;
@@ -1343,7 +1596,8 @@
 
 .lv-runtime-banner {
   border-radius: 8px;
-  background: var(--lv-bg-panel);
+  background: rgba(16, 18, 22, 0.92);
+  backdrop-filter: blur(10px);
   border: 1px solid var(--lv-border-mid);
   padding: 28px 32px;
   display: grid;

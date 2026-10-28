@@ -13,7 +13,11 @@ import {
   Copy,
   Check,
   ChevronDown,
+  ChevronRight,
   Code2,
+  ListTree,
+  Palette,
+  WrapText,
   Sparkles
 } from 'lucide-react';
 import '../landing.css';
@@ -321,13 +325,90 @@ const TOKEN_ANATOMY = [
 ];
 
 const SEVEN_STORY_LAYERS = [
-  { idx: '01', short: 'K-Way Merge', file: 'server/fileReader.ts', metric: '2,840/s MERGED', color: '#34d399' },
-  { idx: '02', short: 'Bracket Tokenizer', file: 'server/parser.ts', metric: '10 TOKENS · 0 SCHEMA', color: '#60a5fa' },
-  { idx: '03', short: '3-Tier Facets', file: 'src/components/Topbar.tsx', metric: '10 LEVELS + (-) NOT', color: '#a78bfa' },
-  { idx: '04', short: 'AST Inspector', file: 'JsonXmlInspectorModal.tsx', metric: 'JSON · XML · URI', color: '#38bdf8' },
-  { idx: '05', short: 'Range Delta Δt', file: 'DeltaTimeToolbar.tsx', metric: 'AUTO T1 → T2 MS', color: '#f59e0b' },
-  { idx: '06', short: 'Presets & Compact', file: 'CompactLogRow.tsx', metric: '1-LINE · 0px IDLE', color: '#4ade80' },
-  { idx: '07', short: '60 FPS Virtual DOM', file: 'LogTable.tsx · bridge.ts', metric: '28 DOM NODES MAX', color: '#3b82f6' },
+  {
+    idx: '01',
+    short: 'K-Way Merge',
+    file: 'server/fileReader.ts',
+    metric: '2,840/s MERGED',
+    color: '#34d399',
+    stats: [
+      { label: 'STREAM BUFFER', val: '64 KB CHUNKS', color: '#34d399' },
+      { label: 'COMPLEXITY', val: 'O(N log K)', color: '#60a5fa' },
+      { label: 'DRIFT TOLERANCE', val: '0.0 ms', color: '#ededef' },
+    ],
+  },
+  {
+    idx: '02',
+    short: 'Bracket Tokenizer',
+    file: 'server/parser.ts',
+    metric: '10 TOKENS · 0 SCHEMA',
+    color: '#60a5fa',
+    stats: [
+      { label: 'PARSE PASSES', val: '1-PASS REGEX', color: '#60a5fa' },
+      { label: 'EXTRACTED FIELDS', val: '10 TYPED COLS', color: '#34d399' },
+      { label: 'SCHEMA CONFIG', val: 'ZERO SETUP', color: '#ededef' },
+    ],
+  },
+  {
+    idx: '03',
+    short: '3-Tier Facets',
+    file: 'src/components/Topbar.tsx',
+    metric: '10 LEVELS + (-) NOT',
+    color: '#a78bfa',
+    stats: [
+      { label: 'SEVERITY UNION', val: '10 BITMASKS', color: '#a78bfa' },
+      { label: 'EXCLUSION GATE', val: '(-) NOT FILTER', color: '#f87171' },
+      { label: 'FILTER LATENCY', val: '< 1.8 ms', color: '#34d399' },
+    ],
+  },
+  {
+    idx: '04',
+    short: 'AST Inspector',
+    file: 'JsonXmlInspectorModal.tsx',
+    metric: 'JSON · XML · URI',
+    color: '#38bdf8',
+    stats: [
+      { label: 'PAYLOAD PARSERS', val: 'JSON + W3C XML', color: '#38bdf8' },
+      { label: 'VIEW MODES', val: 'CODE ↔ AST TREE', color: '#34d399' },
+      { label: 'DEEP SEARCH', val: 'AUTO-EXPAND', color: '#fde047' },
+    ],
+  },
+  {
+    idx: '05',
+    short: 'Range Delta Δt',
+    file: 'DeltaTimeToolbar.tsx',
+    metric: 'AUTO T1 → T2 MS',
+    color: '#f59e0b',
+    stats: [
+      { label: 'ANCHOR SELECTION', val: 'SHIFT + CLICK', color: '#f59e0b' },
+      { label: 'PRECISION', val: '±1 ms EPOCH', color: '#34d399' },
+      { label: 'SPAN METRICS', val: 'MS · SEC · HOPS', color: '#ededef' },
+    ],
+  },
+  {
+    idx: '06',
+    short: 'Presets & Compact',
+    file: 'CompactLogRow.tsx',
+    metric: '1-LINE · 0px IDLE',
+    color: '#4ade80',
+    stats: [
+      { label: 'ROW DENSITY', val: '24px 1-LINE', color: '#4ade80' },
+      { label: 'STICKY OVERLAY', val: '0px IDLE WIDTH', color: '#60a5fa' },
+      { label: 'STORAGE SYNC', val: 'LOCAL PRESETS', color: '#ededef' },
+    ],
+  },
+  {
+    idx: '07',
+    short: '60 FPS Virtual DOM',
+    file: 'LogTable.tsx · bridge.ts',
+    metric: '28 DOM NODES MAX',
+    color: '#3b82f6',
+    stats: [
+      { label: 'FRAME BUDGET', val: '4.2 / 16.6 ms', color: '#34d399' },
+      { label: 'MOUNTED NODES', val: '28 CONST <tr>', color: '#60a5fa' },
+      { label: 'DOM REDUCTION', val: '99.98% SAVED', color: '#ededef' },
+    ],
+  },
 ];
 
 const VIM_KEYS = [
@@ -358,8 +439,32 @@ const SEARCH_TYPING_FRAMES = [
   'timeout, corr-992...',
 ];
 
+const JSON_DEMO_LINES = [
+  { ln: '01', indent: 0, k: '', v: '{', type: 'punct' },
+  { ln: '02', indent: 1, k: '"tx_id"', v: '"tx_99214_ax"', type: 'string' },
+  { ln: '03', indent: 1, k: '"code"', v: '"ERR_UPSTREAM_TIMEOUT"', type: 'error' },
+  { ln: '04', indent: 1, k: '"retryable"', v: 'true', type: 'bool' },
+  { ln: '05', indent: 1, k: '"settlement"', v: '{', type: 'punct' },
+  { ln: '06', indent: 2, k: '"gateway"', v: '"stripe_eu_2"', type: 'string' },
+  { ln: '07', indent: 2, k: '"latency_ms"', v: '4890', type: 'num' },
+  { ln: '08', indent: 2, k: '"endpoints"', v: '["10.24.8.12:8443", "10.24.8.19:8443"]', type: 'array' },
+  { ln: '09', indent: 1, k: '', v: '}', type: 'punct' },
+  { ln: '10', indent: 0, k: '', v: '}', type: 'punct' },
+];
+
+const XML_DEMO_LINES = [
+  { ln: '01', indent: 0, tag: '<Assertion', attr: ' ID="_8f92a" Version="2.0"', close: '>' },
+  { ln: '02', indent: 1, tag: '<Issuer>', attr: 'idp.corp.internal', close: '</Issuer>' },
+  { ln: '03', indent: 1, tag: '<Subject', attr: ' Format="SAML:2.0"', close: '>' },
+  { ln: '04', indent: 2, tag: '<NameID>', attr: 'sre-oncall@corp.internal', close: '</NameID>' },
+  { ln: '05', indent: 1, tag: '</Subject>', attr: '', close: '' },
+  { ln: '06', indent: 1, tag: '<Status', attr: ' Value="Success" LatencyMs="31"', close: ' />' },
+  { ln: '07', indent: 0, tag: '</Assertion>', attr: '', close: '' },
+];
+
 export const LandingPage: React.FC<LandingPageProps> = ({ onLaunchApp }) => {
   const pageRef = useRef<HTMLDivElement>(null);
+  const rafRef = useRef<number | null>(null);
   const [scrollProgress, setScrollProgress] = useState(0);
   const [activeNavStage, setActiveNavStage] = useState(0);
 
@@ -393,6 +498,19 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLaunchApp }) => {
     'service_audit.xml': true,
   });
 
+  // Dedicated JSON & XML Payload Inspector Stage State
+  const [jsonPayloadKind, setJsonPayloadKind] = useState<'json' | 'xml'>('json');
+  const [jsonViewMode, setJsonViewMode] = useState<'code' | 'tree'>('tree');
+  const [jsonFormatted, setJsonFormatted] = useState<boolean>(true);
+  const [jsonShowColors, setJsonShowColors] = useState<boolean>(true);
+  const [jsonWrap, setJsonWrap] = useState<boolean>(true);
+  const [jsonSearch, setJsonSearch] = useState<string>('stripe_eu_2');
+  const [jsonSettlementOpen, setJsonSettlementOpen] = useState<boolean>(true);
+  const [jsonEndpointsOpen, setJsonEndpointsOpen] = useState<boolean>(true);
+  const [jsonActiveCap, setJsonActiveCap] = useState<number>(1);
+  const [jsonAutoDemo, setJsonAutoDemo] = useState<boolean>(true);
+  const [jsonCopied, setJsonCopied] = useState<boolean>(false);
+
   // 3D Isometric Exploded Stack Active Layer
   const [isoLayerIdx, setIsoLayerIdx] = useState<number>(0);
   const [isoAutoPlay, setIsoAutoPlay] = useState<boolean>(true);
@@ -404,6 +522,32 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLaunchApp }) => {
 
   const currentScenario = SCENARIOS[scenarioIdx];
 
+  // 60 FPS Mouse Pointer Tracker updating CSS variables (--mx, --my, --px, --py) without React re-renders
+  const handlePageMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    const clientX = e.clientX;
+    const clientY = e.clientY;
+    if (rafRef.current !== null) return;
+    rafRef.current = requestAnimationFrame(() => {
+      rafRef.current = null;
+      const el = pageRef.current;
+      if (!el) return;
+      const w = window.innerWidth || 1;
+      const h = window.innerHeight || 1;
+      const px = ((clientX / w) - 0.5) * 2; // -1 to +1
+      const py = ((clientY / h) - 0.5) * 2; // -1 to +1
+      el.style.setProperty('--mx', `${clientX}px`);
+      el.style.setProperty('--my', `${clientY}px`);
+      el.style.setProperty('--px', px.toFixed(3));
+      el.style.setProperty('--py', py.toFixed(3));
+    });
+  };
+
+  useEffect(() => {
+    return () => {
+      if (rafRef.current !== null) cancelAnimationFrame(rafRef.current);
+    };
+  }, []);
+
   // Scroll progress + Section reveal IntersectionObserver
   useEffect(() => {
     const el = pageRef.current;
@@ -414,10 +558,11 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLaunchApp }) => {
       const pct = maxScroll > 0 ? Math.min(100, Math.max(0, (el.scrollTop / maxScroll) * 100)) : 0;
       setScrollProgress(pct);
 
-      if (pct < 20) setActiveNavStage(0);
-      else if (pct < 50) setActiveNavStage(1);
-      else if (pct < 76) setActiveNavStage(2);
-      else setActiveNavStage(3);
+      if (pct < 16) setActiveNavStage(0);
+      else if (pct < 38) setActiveNavStage(1);
+      else if (pct < 60) setActiveNavStage(2);
+      else if (pct < 80) setActiveNavStage(3);
+      else setActiveNavStage(4);
     };
 
     el.addEventListener('scroll', handleScroll, { passive: true });
@@ -483,22 +628,56 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLaunchApp }) => {
     return () => clearInterval(timer);
   }, [autoCycleLayers]);
 
-  // Continuous sub-animations inside Stage 02 & Stage 03 & Stage 04
+  // Auto-cycle JSON/XML Inspector Capabilities
+  useEffect(() => {
+    if (!jsonAutoDemo) return;
+    const timer = setInterval(() => {
+      setJsonActiveCap((prev) => {
+        const next = (prev + 1) % 5;
+        if (next === 0) {
+          setJsonPayloadKind('json');
+          setJsonViewMode('code');
+          setJsonFormatted(true);
+          setJsonShowColors(true);
+          setJsonSearch('ERR_UPSTREAM');
+        } else if (next === 1) {
+          setJsonPayloadKind('json');
+          setJsonViewMode('tree');
+          setJsonSettlementOpen(true);
+          setJsonEndpointsOpen(true);
+          setJsonSearch('stripe_eu_2');
+        } else if (next === 2) {
+          setJsonPayloadKind('json');
+          setJsonViewMode('tree');
+          setJsonSearch('4890');
+        } else if (next === 3) {
+          setJsonPayloadKind('json');
+          setJsonViewMode('code');
+          setJsonFormatted(false);
+          setJsonSearch('');
+        } else if (next === 4) {
+          setJsonPayloadKind('xml');
+          setJsonViewMode('code');
+          setJsonFormatted(true);
+          setJsonSearch('Success');
+        }
+        return next;
+      });
+    }, 3100);
+    return () => clearInterval(timer);
+  }, [jsonAutoDemo]);
+
+  // Continuous sub-animations inside Stage 02
   useEffect(() => {
     const fastTicker = setInterval(() => {
-      // Token spotlight & bracket toggle
       setActiveTokenIdx((prev) => {
         const next = (prev + 1) % TOKEN_ANATOMY.length;
         if (next === 0) setStripBracketsDemo((b) => !b);
         return next;
       });
-      // Search typing frame
       setTypingFrameIdx((prev) => (prev + 1) % SEARCH_TYPING_FRAMES.length);
-      // AST line scanner
       setAstHighlightLine((prev) => (prev + 1) % 6);
-      // Negative mode pulse
       setFacetNegativeMode((prev) => !prev);
-      // Delta selection sweep
       setDeltaSelection((prev) => {
         const nextEnd = prev[1] >= 4 ? 1 : prev[1] + 1;
         return [0, nextEnd];
@@ -611,10 +790,64 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLaunchApp }) => {
     setToastSnippet(snippet);
   };
 
+  const isJsonMatch = (text: string) => {
+    if (!jsonSearch.trim()) return false;
+    return text.toLowerCase().includes(jsonSearch.trim().toLowerCase());
+  };
+
   return (
-    <div ref={pageRef} className="lv-relay-page">
-      {/* Animated Engineering Grid Backdrop */}
-      <div className="lv-relay-backdrop" />
+    <div ref={pageRef} className="lv-relay-page" onMouseMove={handlePageMouseMove}>
+      {/* ====================================================================
+          ROBUST MOUSE-REACTIVE MULTI-PLANE PARALLAX BACKGROUND
+         ==================================================================== */}
+      <div className="lv-interactive-bg" aria-hidden="true">
+        {/* Plane 1: Counter-shifting structural grid */}
+        <div className="lv-bg-grid-base" />
+        {/* Plane 2: Cursor-illuminated cobalt micro-grid */}
+        <div className="lv-bg-grid-spotlight" />
+        {/* Plane 3: Dual radial telemetry aura */}
+        <div className="lv-bg-aura" />
+        {/* Plane 4: Parallax SVG Vector Constellation & Circuit Field */}
+        <svg className="lv-bg-vector-field" viewBox="0 0 1600 1000" preserveAspectRatio="xMidYMid slice">
+          <g stroke="rgba(96, 165, 250, 0.16)" strokeWidth="1" fill="none">
+            <path
+              d="M 120 180 L 340 180 L 420 260 L 780 260"
+              strokeDasharray="6 6"
+              style={{ animation: 'lvPacketFlow 6s linear infinite' }}
+            />
+            <path
+              d="M 1420 220 L 1180 220 L 1090 310 L 860 310"
+              strokeDasharray="6 6"
+              style={{ animation: 'lvPacketFlow 5s linear infinite' }}
+            />
+            <path
+              d="M 220 740 L 480 740 L 560 660 L 920 660"
+              strokeDasharray="8 8"
+              style={{ animation: 'lvPacketFlow 7s linear infinite' }}
+            />
+            <circle cx="340" cy="180" r="3.5" fill="rgba(96, 165, 250, 0.45)" />
+            <circle cx="1180" cy="220" r="3.5" fill="rgba(52, 211, 153, 0.45)" />
+            <circle cx="480" cy="740" r="3.5" fill="rgba(167, 139, 250, 0.45)" />
+          </g>
+          {/* Precision Crosshair Markers */}
+          {[
+            { x: 260, y: 140 },
+            { x: 1310, y: 160 },
+            { x: 180, y: 520 },
+            { x: 1380, y: 580 },
+            { x: 320, y: 860 },
+            { x: 1240, y: 840 },
+          ].map((pt, i) => (
+            <g key={i} transform={`translate(${pt.x}, ${pt.y})`} stroke="rgba(255,255,255,0.14)" strokeWidth="1">
+              <line x1="-7" y1="0" x2="7" y2="0" />
+              <line x1="0" y1="-7" x2="0" y2="7" />
+              <circle cx="0" cy="0" r="12" fill="none" stroke="rgba(96, 165, 250, 0.08)" />
+            </g>
+          ))}
+        </svg>
+        {/* Plane 5: Subtle cursor reticle follower */}
+        <div className="lv-cursor-reticle" />
+      </div>
 
       {/* Continuous Vertical Signal Conduit Spine */}
       <div className="lv-conduit-spine" aria-hidden="true">
@@ -627,8 +860,9 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLaunchApp }) => {
         {[
           { idx: '01', label: 'Live Instrument', id: 'stage-hero' },
           { idx: '02', label: '7-Layer Theater', id: 'stage-layers' },
-          { idx: '03', label: '3D Isometric Core', id: 'stage-exploded' },
-          { idx: '04', label: '60 FPS Engine', id: 'stage-engine' },
+          { idx: '03', label: 'JSON & XML Inspector', id: 'stage-json' },
+          { idx: '04', label: '3D Isometric Core', id: 'stage-exploded' },
+          { idx: '05', label: '60 FPS Engine', id: 'stage-engine' },
         ].map((node, i) => (
           <button
             key={node.id}
@@ -650,29 +884,16 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLaunchApp }) => {
               <span className="lv-brand-ring" />
               <Terminal size={15} strokeWidth={1.8} />
             </span>
-            <span className="lv-brand-name">
-              LogViewer
-              <span
-                style={{
-                  fontFamily: 'var(--lv-font-mono)',
-                  fontSize: '10px',
-                  padding: '1px 6px',
-                  borderRadius: '4px',
-                  border: '1px solid var(--lv-border-mid)',
-                  color: 'var(--lv-accent-bright)',
-                }}
-              >
-                OBSIDIAN STUDIO
-              </span>
-            </span>
+            <span className="lv-brand-name">LogViewer</span>
           </button>
 
           <nav className="lv-nav-stages" aria-label="Product Storytelling Chapters">
             {[
               { idx: '01', label: 'Instrument', id: 'stage-hero' },
               { idx: '02', label: '7 Layers', id: 'stage-layers' },
-              { idx: '03', label: '3D Stack', id: 'stage-exploded' },
-              { idx: '04', label: '60 FPS Engine', id: 'stage-engine' },
+              { idx: '03', label: 'JSON / XML Viewer', id: 'stage-json' },
+              { idx: '04', label: '3D Stack', id: 'stage-exploded' },
+              { idx: '05', label: '60 FPS Engine', id: 'stage-engine' },
             ].map((item, i) => (
               <button
                 key={item.id}
@@ -728,10 +949,10 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLaunchApp }) => {
               <button
                 type="button"
                 className="lv-btn-secondary"
-                onClick={() => scrollToSection('stage-layers')}
+                onClick={() => scrollToSection('stage-json')}
               >
-                <Layers size={15} strokeWidth={1.8} />
-                <span>7-Layer Pipeline</span>
+                <Code2 size={15} strokeWidth={1.8} />
+                <span>JSON / XML Viewer</span>
               </button>
             </div>
 
@@ -764,7 +985,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLaunchApp }) => {
             </div>
           </div>
 
-          {/* Right Column: Self-Animating 3D Tilting Obsidian Studio Instrument */}
+          {/* Right Column: Self-Animating 3D Tilting Instrument */}
           <div
             className="lv-hero-stage-wrap"
             onMouseMove={handleWorkbenchMouseMove}
@@ -783,7 +1004,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLaunchApp }) => {
                 }}
               />
 
-              {/* Tier 1: Source Breadcrumb, Animated Waveform, Dual Velocity Badges */}
+              {/* Tier 1: Source Breadcrumb, Dual Velocity Badges */}
               <div className="lv-mini-tier1">
                 <div className="lv-mini-breadcrumb">
                   <Terminal size={13} color="#60a5fa" />
@@ -1022,7 +1243,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLaunchApp }) => {
                 <div style={{ background: 'var(--lv-bg-void)', padding: '12px' }}>
                   <img
                     src="/Viewer.png"
-                    alt="LogViewer Obsidian Studio Workbench"
+                    alt="LogViewer Workbench"
                     style={{
                       width: '100%',
                       height: '335px',
@@ -1154,7 +1375,6 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLaunchApp }) => {
                     })}
                   </div>
 
-                  {/* Animated SVG Packet Merger */}
                   <svg
                     viewBox="0 0 800 72"
                     style={{ width: '100%', height: '72px', display: 'block' }}
@@ -1347,7 +1567,6 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLaunchApp }) => {
                     ))}
                   </div>
 
-                  {/* Animated Self-Typing Tier 3 Search Bar */}
                   <div
                     style={{
                       padding: '14px 16px',
@@ -1440,7 +1659,14 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLaunchApp }) => {
                         {'{"code":"ERR_UPSTREAM_TIMEOUT"}'}
                       </span>
                     </span>
-                    <span className="lv-delta-badge">Format · Copy · Inspect</span>
+                    <button
+                      type="button"
+                      className="lv-delta-badge"
+                      style={{ cursor: 'pointer' }}
+                      onClick={() => scrollToSection('stage-json')}
+                    >
+                      Open Full JSON / XML Stage ↓
+                    </button>
                   </div>
 
                   <div
@@ -1755,7 +1981,589 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLaunchApp }) => {
         </section>
 
         {/* ====================================================================
-            STAGE 03: 3D ISOMETRIC EXPLODED LAYER STACK WITH LASER CORE
+            STAGE 03: DEDICATED JSON & XML PAYLOAD INSPECTOR SHOWCASE
+           ==================================================================== */}
+        <section id="stage-json" className="lv-json-section lv-reveal-block">
+          <div className="lv-compact-head">
+            <div>
+              <div className="lv-eyebrow" style={{ marginBottom: '8px' }}>
+                <Code2 size={12} strokeWidth={1.8} />
+                <span>STAGE 03 // JSON &amp; XML PAYLOAD INSPECTOR</span>
+              </div>
+              <h2 className="lv-section-title">Inline payload detection &amp; live AST tree viewer.</h2>
+            </div>
+
+            <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+              <button
+                type="button"
+                className={`lv-sev-pill ${jsonPayloadKind === 'json' ? 'active-all' : ''}`}
+                onClick={() => {
+                  setJsonAutoDemo(false);
+                  setJsonPayloadKind('json');
+                }}
+              >
+                JSON Payload
+              </button>
+              <button
+                type="button"
+                className={`lv-sev-pill ${jsonPayloadKind === 'xml' ? 'active-audit' : ''}`}
+                onClick={() => {
+                  setJsonAutoDemo(false);
+                  setJsonPayloadKind('xml');
+                }}
+              >
+                XML Document
+              </button>
+              <button
+                type="button"
+                className="lv-sev-pill"
+                onClick={() => setJsonAutoDemo((v) => !v)}
+                style={{
+                  borderColor: jsonAutoDemo ? 'var(--lv-tok-corr)' : 'var(--lv-border-mid)',
+                  color: jsonAutoDemo ? 'var(--lv-tok-corr)' : 'var(--lv-text-secondary)',
+                }}
+              >
+                {jsonAutoDemo ? <Pause size={10} /> : <Play size={10} />}
+                <span>{jsonAutoDemo ? 'AUTO-TOUR ON' : 'MANUAL'}</span>
+              </button>
+            </div>
+          </div>
+
+          <div className="lv-json-workbench">
+            {/* Step 1: Inline Log Row + Sticky Viewport Action Bar */}
+            <div className="lv-json-source-bar">
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', whiteSpace: 'nowrap' }}>
+                <span style={{ color: 'var(--lv-text-muted)' }}>L104</span>
+                <span style={{ color: 'var(--lv-tok-datetime)' }}>[18:10:09.000Z]</span>
+                <span style={{ color: 'var(--lv-tok-corr)' }}>[corr-99214-ax]</span>
+                <span style={{ color: 'var(--lv-tok-status-error)', fontWeight: 600 }}>[ERROR]</span>
+                <span style={{ color: 'var(--lv-text-primary)' }}>Upstream settlement timeout</span>
+                <span
+                  style={{
+                    color: jsonPayloadKind === 'json' ? '#38bdf8' : '#c084fc',
+                    border: `1px solid ${
+                      jsonPayloadKind === 'json'
+                        ? 'rgba(56, 189, 248, 0.45)'
+                        : 'rgba(192, 132, 252, 0.45)'
+                    }`,
+                    background:
+                      jsonPayloadKind === 'json'
+                        ? 'rgba(56, 189, 248, 0.1)'
+                        : 'rgba(192, 132, 252, 0.1)',
+                    padding: '1px 7px',
+                    borderRadius: '4px',
+                  }}
+                >
+                  {jsonPayloadKind === 'json'
+                    ? '{"tx_id":"tx_99214_ax","code":"ERR_UPSTREAM_TIMEOUT", ...}'
+                    : '<Assertion ID="_8f92a" Version="2.0"><Issuer>idp.corp...</Assertion>'}
+                </span>
+              </div>
+
+              {/* Sticky Right Action Bar replica from messageContextHighlighter.tsx */}
+              <div className="lv-json-sticky-actions">
+                <span style={{ fontSize: '10px', color: 'var(--lv-text-muted)' }}>STICKY BAR:</span>
+                <button
+                  type="button"
+                  className="lv-sev-pill active-all"
+                  onClick={() => {
+                    setJsonAutoDemo(false);
+                    setJsonFormatted((v) => !v);
+                  }}
+                >
+                  {jsonFormatted ? 'Compact' : 'Format'}
+                </button>
+                <button
+                  type="button"
+                  className="lv-sev-pill"
+                  onClick={() => {
+                    setJsonCopied(true);
+                    setTimeout(() => setJsonCopied(false), 1600);
+                  }}
+                >
+                  {jsonCopied ? <Check size={10} color="#4ade80" /> : <Copy size={10} />}
+                  <span>{jsonCopied ? 'Copied' : 'Copy'}</span>
+                </button>
+                <button
+                  type="button"
+                  className="lv-sev-pill active-info"
+                  onClick={() => {
+                    setJsonAutoDemo(false);
+                    setJsonViewMode((m) => (m === 'code' ? 'tree' : 'code'));
+                  }}
+                >
+                  <Code2 size={10} />
+                  <span>Inspect</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Step 2: Interactive JsonXmlInspectorModal Header Toolbar */}
+            <div className="lv-json-modal-toolbar">
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <Code2 size={16} color="#38bdf8" />
+                <span style={{ fontWeight: 600, fontSize: '13px', color: 'var(--lv-text-primary)' }}>
+                  {jsonPayloadKind === 'json' ? 'JSON Payload Inspector' : 'XML Document Inspector'}
+                </span>
+                <span
+                  style={{
+                    fontFamily: 'var(--lv-font-mono)',
+                    fontSize: '10px',
+                    fontWeight: 700,
+                    padding: '2px 7px',
+                    borderRadius: '4px',
+                    color: jsonPayloadKind === 'json' ? '#38bdf8' : '#c084fc',
+                    border: `1px solid ${
+                      jsonPayloadKind === 'json'
+                        ? 'rgba(56, 189, 248, 0.45)'
+                        : 'rgba(192, 132, 252, 0.45)'
+                    }`,
+                  }}
+                >
+                  {jsonPayloadKind.toUpperCase()}
+                </span>
+                <span
+                  style={{
+                    fontFamily: 'var(--lv-font-mono)',
+                    fontSize: '11px',
+                    color: 'var(--lv-text-muted)',
+                  }}
+                >
+                  {jsonPayloadKind === 'json' ? '10 lines · 248 bytes' : '7 lines · 214 bytes'}
+                </span>
+              </div>
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                {/* Find in payload search input */}
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    height: '24px',
+                    padding: '0 8px',
+                    borderRadius: '4px',
+                    background: 'var(--lv-bg-void)',
+                    border: '1px solid var(--lv-border-mid)',
+                    fontFamily: 'var(--lv-font-mono)',
+                    fontSize: '11px',
+                  }}
+                >
+                  <Search size={11} color="#38bdf8" />
+                  <input
+                    type="text"
+                    value={jsonSearch}
+                    onChange={(e) => {
+                      setJsonAutoDemo(false);
+                      setJsonSearch(e.target.value);
+                    }}
+                    placeholder="Find in payload..."
+                    aria-label="Find in JSON or XML payload"
+                    style={{
+                      background: 'transparent',
+                      border: 'none',
+                      outline: 'none',
+                      color: 'var(--lv-text-primary)',
+                      fontFamily: 'var(--lv-font-mono)',
+                      fontSize: '11px',
+                      width: '125px',
+                    }}
+                  />
+                </div>
+
+                {/* Code vs Collapsible Tree Segmented Switch */}
+                <div className="lv-mini-mode-switch">
+                  <button
+                    type="button"
+                    className={`lv-mini-mode-btn ${jsonViewMode === 'code' ? 'active' : ''}`}
+                    onClick={() => {
+                      setJsonAutoDemo(false);
+                      setJsonViewMode('code');
+                    }}
+                  >
+                    <Code2 size={10} style={{ marginRight: '4px', verticalAlign: 'middle' }} />
+                    Code
+                  </button>
+                  <button
+                    type="button"
+                    className={`lv-mini-mode-btn ${jsonViewMode === 'tree' ? 'active' : ''}`}
+                    onClick={() => {
+                      setJsonAutoDemo(false);
+                      setJsonViewMode('tree');
+                    }}
+                  >
+                    <ListTree size={10} style={{ marginRight: '4px', verticalAlign: 'middle' }} />
+                    Collapsible Tree
+                  </button>
+                </div>
+
+                {/* Colors Toggle */}
+                <button
+                  type="button"
+                  className={`lv-sev-pill ${jsonShowColors ? 'active-all' : ''}`}
+                  onClick={() => {
+                    setJsonAutoDemo(false);
+                    setJsonShowColors((v) => !v);
+                  }}
+                >
+                  <Palette size={10} />
+                  <span>Colors</span>
+                </button>
+
+                {/* Formatted vs Compact */}
+                <button
+                  type="button"
+                  className={`lv-sev-pill ${jsonFormatted ? 'active-all' : ''}`}
+                  onClick={() => {
+                    setJsonAutoDemo(false);
+                    setJsonFormatted((v) => !v);
+                  }}
+                >
+                  <span>{jsonFormatted ? 'Formatted' : 'Compact'}</span>
+                </button>
+
+                {/* Wrap Toggle */}
+                <button
+                  type="button"
+                  className={`lv-sev-pill ${jsonWrap ? 'active-all' : ''}`}
+                  onClick={() => {
+                    setJsonAutoDemo(false);
+                    setJsonWrap((v) => !v);
+                  }}
+                >
+                  <WrapText size={10} />
+                  <span>Wrap</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Step 3: Split Code/Tree Viewport + Interactive Feature Trigger Cards */}
+            <div className="lv-json-body-split">
+              {/* Left: Live Code or Collapsible Tree View */}
+              <div className="lv-json-code-pane">
+                {jsonViewMode === 'code' ? (
+                  jsonFormatted ? (
+                    <>
+                      <div className="lv-json-gutter">
+                        {(jsonPayloadKind === 'json' ? JSON_DEMO_LINES : XML_DEMO_LINES).map((l) => (
+                          <div key={l.ln}>{l.ln}</div>
+                        ))}
+                      </div>
+                      <div
+                        className="lv-json-lines"
+                        style={{ whiteSpace: jsonWrap ? 'pre-wrap' : 'pre' }}
+                      >
+                        {jsonPayloadKind === 'json'
+                          ? JSON_DEMO_LINES.map((line) => {
+                              const matched = isJsonMatch(`${line.k} ${line.v}`);
+                              return (
+                                <div
+                                  key={line.ln}
+                                  style={{
+                                    paddingLeft: `${line.indent * 18}px`,
+                                    background: matched ? 'rgba(234, 179, 8, 0.18)' : 'transparent',
+                                    borderRadius: '3px',
+                                  }}
+                                >
+                                  {line.k && (
+                                    <>
+                                      <span
+                                        style={{
+                                          color: jsonShowColors ? '#7dd3fc' : 'var(--lv-text-primary)',
+                                        }}
+                                      >
+                                        {line.k}
+                                      </span>
+                                      <span style={{ color: 'var(--lv-text-muted)' }}>: </span>
+                                    </>
+                                  )}
+                                  <span
+                                    style={{
+                                      color: !jsonShowColors
+                                        ? 'var(--lv-text-primary)'
+                                        : line.type === 'string'
+                                        ? '#86efac'
+                                        : line.type === 'error'
+                                        ? '#f87171'
+                                        : line.type === 'bool'
+                                        ? '#c084fc'
+                                        : line.type === 'num'
+                                        ? '#fde047'
+                                        : 'var(--lv-text-secondary)',
+                                    }}
+                                  >
+                                    {line.v}
+                                  </span>
+                                </div>
+                              );
+                            })
+                          : XML_DEMO_LINES.map((line) => {
+                              const matched = isJsonMatch(`${line.tag} ${line.attr} ${line.close}`);
+                              return (
+                                <div
+                                  key={line.ln}
+                                  style={{
+                                    paddingLeft: `${line.indent * 18}px`,
+                                    background: matched ? 'rgba(234, 179, 8, 0.18)' : 'transparent',
+                                    borderRadius: '3px',
+                                  }}
+                                >
+                                  <span
+                                    style={{
+                                      color: jsonShowColors ? '#38bdf8' : 'var(--lv-text-primary)',
+                                    }}
+                                  >
+                                    {line.tag}
+                                  </span>
+                                  <span
+                                    style={{
+                                      color: jsonShowColors ? '#fde047' : 'var(--lv-text-secondary)',
+                                    }}
+                                  >
+                                    {line.attr}
+                                  </span>
+                                  <span
+                                    style={{
+                                      color: jsonShowColors ? '#38bdf8' : 'var(--lv-text-primary)',
+                                    }}
+                                  >
+                                    {line.close}
+                                  </span>
+                                </div>
+                              );
+                            })}
+                      </div>
+                    </>
+                  ) : (
+                    /* Compact Minified Single-Line Mode */
+                    <>
+                      <div className="lv-json-gutter">
+                        <div>01</div>
+                      </div>
+                      <div className="lv-json-lines" style={{ wordBreak: 'break-all' }}>
+                        <span style={{ color: jsonShowColors ? '#7dd3fc' : 'var(--lv-text-primary)' }}>
+                          {jsonPayloadKind === 'json'
+                            ? '{"tx_id":"tx_99214_ax","code":"ERR_UPSTREAM_TIMEOUT","retryable":true,"settlement":{"gateway":"stripe_eu_2","latency_ms":4890,"endpoints":["10.24.8.12:8443","10.24.8.19:8443"]}}'
+                            : '<Assertion ID="_8f92a" Version="2.0"><Issuer>idp.corp.internal</Issuer><Subject Format="SAML:2.0"><NameID>sre-oncall@corp.internal</NameID></Subject><Status Value="Success" LatencyMs="31"/></Assertion>'}
+                        </span>
+                      </div>
+                    </>
+                  )
+                ) : (
+                  /* Interactive Collapsible Tree Mode (JsonTreeNode / XmlTreeNode replica) */
+                  <div className="lv-json-lines">
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <ChevronDown size={13} color="var(--lv-text-muted)" />
+                      <span style={{ color: '#94a3b8' }}>{'{'}</span>
+                      <span style={{ fontSize: '10.5px', color: 'var(--lv-text-muted)' }}>4 items</span>
+                    </div>
+
+                    <div
+                      style={{
+                        paddingLeft: '18px',
+                        borderLeft: '1px dashed rgba(148, 163, 184, 0.2)',
+                        marginLeft: '6px',
+                      }}
+                    >
+                      <div>
+                        <span style={{ color: jsonShowColors ? '#7dd3fc' : 'var(--lv-text-primary)' }}>
+                          "tx_id"
+                        </span>
+                        : <span style={{ color: jsonShowColors ? '#86efac' : 'var(--lv-text-secondary)' }}>"tx_99214_ax"</span>,
+                      </div>
+                      <div
+                        style={{
+                          background: isJsonMatch('ERR_UPSTREAM_TIMEOUT')
+                            ? 'rgba(234, 179, 8, 0.22)'
+                            : 'transparent',
+                          borderRadius: '3px',
+                        }}
+                      >
+                        <span style={{ color: jsonShowColors ? '#7dd3fc' : 'var(--lv-text-primary)' }}>
+                          "code"
+                        </span>
+                        : <span style={{ color: jsonShowColors ? '#f87171' : 'var(--lv-text-secondary)' }}>"ERR_UPSTREAM_TIMEOUT"</span>,
+                      </div>
+                      <div>
+                        <span style={{ color: jsonShowColors ? '#7dd3fc' : 'var(--lv-text-primary)' }}>
+                          "retryable"
+                        </span>
+                        : <span style={{ color: jsonShowColors ? '#c084fc' : 'var(--lv-text-secondary)' }}>true</span>,
+                      </div>
+
+                      {/* Collapsible nested object */}
+                      <div
+                        onClick={() => setJsonSettlementOpen((v) => !v)}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '4px',
+                          cursor: 'pointer',
+                        }}
+                      >
+                        {jsonSettlementOpen ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
+                        <span style={{ color: jsonShowColors ? '#7dd3fc' : 'var(--lv-text-primary)' }}>
+                          "settlement"
+                        </span>
+                        : <span style={{ color: '#94a3b8' }}>{'{'}</span>
+                        <span style={{ fontSize: '10.5px', color: 'var(--lv-text-muted)' }}>
+                          3 items {!jsonSettlementOpen && '}'}
+                        </span>
+                      </div>
+
+                      {jsonSettlementOpen && (
+                        <div
+                          style={{
+                            paddingLeft: '18px',
+                            borderLeft: '1px dashed rgba(148, 163, 184, 0.2)',
+                            marginLeft: '6px',
+                          }}
+                        >
+                          <div
+                            style={{
+                              background: isJsonMatch('stripe_eu_2')
+                                ? 'rgba(234, 179, 8, 0.25)'
+                                : 'transparent',
+                              borderRadius: '3px',
+                            }}
+                          >
+                            <span style={{ color: jsonShowColors ? '#7dd3fc' : 'var(--lv-text-primary)' }}>
+                              "gateway"
+                            </span>
+                            : <span style={{ color: jsonShowColors ? '#86efac' : 'var(--lv-text-secondary)' }}>"stripe_eu_2"</span>,
+                          </div>
+                          <div
+                            style={{
+                              background: isJsonMatch('4890')
+                                ? 'rgba(234, 179, 8, 0.25)'
+                                : 'transparent',
+                              borderRadius: '3px',
+                            }}
+                          >
+                            <span style={{ color: jsonShowColors ? '#7dd3fc' : 'var(--lv-text-primary)' }}>
+                              "latency_ms"
+                            </span>
+                            : <span style={{ color: jsonShowColors ? '#fde047' : 'var(--lv-text-secondary)' }}>4890</span>,
+                          </div>
+
+                          {/* Collapsible nested array */}
+                          <div
+                            onClick={() => setJsonEndpointsOpen((v) => !v)}
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '4px',
+                              cursor: 'pointer',
+                            }}
+                          >
+                            {jsonEndpointsOpen ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
+                            <span style={{ color: jsonShowColors ? '#7dd3fc' : 'var(--lv-text-primary)' }}>
+                              "endpoints"
+                            </span>
+                            : <span style={{ color: '#94a3b8' }}>[</span>
+                            <span style={{ fontSize: '10.5px', color: 'var(--lv-text-muted)' }}>
+                              2 items {!jsonEndpointsOpen && ']'}
+                            </span>
+                          </div>
+                          {jsonEndpointsOpen && (
+                            <div style={{ paddingLeft: '18px', color: jsonShowColors ? '#86efac' : 'var(--lv-text-secondary)' }}>
+                              <div>"10.24.8.12:8443",</div>
+                              <div>"10.24.8.19:8443"</div>
+                              <div style={{ color: '#94a3b8' }}>]</div>
+                            </div>
+                          )}
+                          <div style={{ color: '#94a3b8' }}>{'}'}</div>
+                        </div>
+                      )}
+                    </div>
+                    <div style={{ color: '#94a3b8' }}>{'}'}</div>
+                  </div>
+                )}
+              </div>
+
+              {/* Right: Interactive 5-Capability Explainer Cards */}
+              <div className="lv-json-capabilities-pane">
+                {[
+                  {
+                    idx: '01',
+                    title: 'Inline Detection & Sticky Bar',
+                    badge: 'Format · Copy · Inspect',
+                    onSelect: () => {
+                      setJsonPayloadKind('json');
+                      setJsonViewMode('code');
+                      setJsonFormatted(true);
+                      setJsonSearch('ERR_UPSTREAM');
+                    },
+                  },
+                  {
+                    idx: '02',
+                    title: 'Collapsible AST Tree Mode',
+                    badge: '{N items} Branch Folding',
+                    onSelect: () => {
+                      setJsonPayloadKind('json');
+                      setJsonViewMode('tree');
+                      setJsonSettlementOpen(true);
+                      setJsonSearch('stripe_eu_2');
+                    },
+                  },
+                  {
+                    idx: '03',
+                    title: 'Find in Payload Search',
+                    badge: 'Auto-Expands Matches',
+                    onSelect: () => {
+                      setJsonPayloadKind('json');
+                      setJsonViewMode('tree');
+                      setJsonSearch('4890');
+                    },
+                  },
+                  {
+                    idx: '04',
+                    title: 'Formatted ↔ Compact Minify',
+                    badge: '1-Click Pretty-Print',
+                    onSelect: () => {
+                      setJsonPayloadKind('json');
+                      setJsonViewMode('code');
+                      setJsonFormatted(false);
+                      setJsonSearch('');
+                    },
+                  },
+                  {
+                    idx: '05',
+                    title: 'W3C XML & SAML DOM Parser',
+                    badge: 'Attributes & Tag Tree',
+                    onSelect: () => {
+                      setJsonPayloadKind('xml');
+                      setJsonViewMode('code');
+                      setJsonFormatted(true);
+                      setJsonSearch('Success');
+                    },
+                  },
+                ].map((cap, i) => (
+                  <div
+                    key={cap.idx}
+                    className={`lv-json-cap-card ${jsonActiveCap === i ? 'active' : ''}`}
+                    onClick={() => {
+                      setJsonAutoDemo(false);
+                      setJsonActiveCap(i);
+                      cap.onSelect();
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <span className="lv-layer-index">{cap.idx}</span>
+                      <span style={{ color: 'var(--lv-text-primary)', fontWeight: 600 }}>
+                        {cap.title}
+                      </span>
+                    </div>
+                    <span className="lv-spec-chip">{cap.badge}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* ====================================================================
+            STAGE 04: 3D ISOMETRIC EXPLODED LAYER STACK WITH LASER CORE
            ==================================================================== */}
         <section id="stage-exploded" className="lv-exploded-section lv-reveal-block">
           <div className="lv-compact-head">
@@ -1778,7 +2586,6 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLaunchApp }) => {
           </div>
 
           <div className="lv-exploded-layout">
-            {/* Left: 3D Isometric Stack with Vertical Laser Core */}
             <div className="lv-iso-stack-wrap">
               <div className="lv-iso-core-beam" />
               <div className="lv-iso-stack">
@@ -1818,7 +2625,6 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLaunchApp }) => {
               </div>
             </div>
 
-            {/* Right: Visual Telemetry Pulse Matrix (Zero Prose) */}
             <div className="lv-hardware-plate" key={isoLayerIdx}>
               <div className="lv-plate-header">
                 <h3 className="lv-plate-title">
@@ -1832,7 +2638,6 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLaunchApp }) => {
               </div>
 
               <div className="lv-plate-content lv-plate-animate">
-                {/* Animated SVG Signal Oscilloscope */}
                 <div
                   style={{
                     borderRadius: '6px',
@@ -1930,7 +2735,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLaunchApp }) => {
         </section>
 
         {/* ====================================================================
-            STAGE 04: AUTO-SEQUENCING VIM MATRIX & VIRTUAL DOM ENGINE
+            STAGE 05: AUTO-SEQUENCING VIM MATRIX & VIRTUAL DOM ENGINE
            ==================================================================== */}
         <section id="stage-engine" className="lv-engine-section lv-reveal-block">
           <div className="lv-compact-head">
@@ -1938,7 +2743,6 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLaunchApp }) => {
           </div>
 
           <div className="lv-engine-grid">
-            {/* Left Plate: Auto-Gliding Virtual DOM Window */}
             <div className="lv-hardware-plate">
               <div className="lv-plate-header">
                 <h3 className="lv-plate-title">
@@ -2008,7 +2812,6 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLaunchApp }) => {
               </div>
             </div>
 
-            {/* Right Plate: Self-Sequencing Vim Navigation Deck */}
             <div className="lv-hardware-plate">
               <div className="lv-plate-header">
                 <h3 className="lv-plate-title">
@@ -2035,7 +2838,6 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLaunchApp }) => {
                   ))}
                 </div>
 
-                {/* Live Cursor Viewport Driven by the Active Vim Key */}
                 <div
                   style={{
                     borderRadius: '6px',
@@ -2125,7 +2927,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLaunchApp }) => {
           <footer className="lv-footer">
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
               <Terminal size={13} color="#60a5fa" />
-              <span>LogViewer — Obsidian Studio</span>
+              <span>LogViewer</span>
             </div>
             <div style={{ fontFamily: 'var(--lv-font-mono)' }}>
               <span>Express + SSE · @tanstack/react-virtual · VS Code Webview</span>
