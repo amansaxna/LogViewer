@@ -512,7 +512,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLaunchApp }) => {
   const [jsonCopied, setJsonCopied] = useState<boolean>(false);
 
   // 3D Isometric Exploded Stack Active Layer
-  const [isoLayerIdx, setIsoLayerIdx] = useState<number>(0);
+  const [isoLayerIdx, setIsoLayerIdx] = useState<number>(6);
   const [isoAutoPlay, setIsoAutoPlay] = useState<boolean>(true);
 
   // Virtualization Scrubber & Keyboard Simulator State
@@ -2638,42 +2638,625 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLaunchApp }) => {
               </div>
 
               <div className="lv-plate-content lv-plate-animate">
-                <div
-                  style={{
-                    borderRadius: '6px',
-                    background: 'var(--lv-bg-void)',
-                    border: '1px solid var(--lv-border-subtle)',
-                    padding: '16px',
-                    position: 'relative',
-                    overflow: 'hidden',
-                  }}
-                >
-                  <svg
-                    viewBox="0 0 600 110"
-                    style={{ width: '100%', height: '110px', display: 'block' }}
-                  >
-                    <path
-                      d="M 0 55 Q 35 12, 70 55 T 140 55 T 210 55 T 280 55 T 350 55 T 420 55 T 490 55 T 560 55 T 630 55"
-                      fill="none"
-                      stroke={SEVEN_STORY_LAYERS[isoLayerIdx].color}
-                      strokeWidth="2"
-                      strokeDasharray="10 6"
-                      style={{ animation: 'lvPacketFlow 1.4s linear infinite' }}
-                    />
-                    <path
-                      d="M 0 75 Q 45 35, 90 75 T 180 75 T 270 75 T 360 75 T 450 75 T 540 75 T 630 75"
-                      fill="none"
-                      stroke="rgba(96, 165, 250, 0.35)"
-                      strokeWidth="1.5"
-                    />
-                  </svg>
+                <div className="lv-arch-schematic">
+                  {/* LAYER 07: 60 FPS VIRTUAL DOM WINDOWING SCHEMATIC */}
+                  {isoLayerIdx === 6 && (
+                    <div className="lv-vdom-diagram">
+                      {/* Col 1: 250,000-Row Total Log Buffer vs 28 Mounted Viewport Rows */}
+                      <div className="lv-vdom-buffer-col">
+                        <div
+                          style={{
+                            display: 'flex',
+                            justifyContent: 'space-between',
+                            color: 'var(--lv-text-muted)',
+                            fontSize: '9.5px',
+                            marginBottom: '4px',
+                          }}
+                        >
+                          <span>RAM BUFFER</span>
+                          <span style={{ color: '#ededef' }}>250,000 LINES</span>
+                        </div>
+
+                        <div className="lv-vdom-spacer-box">
+                          <div>TOP VIRTUAL SPACER</div>
+                          <div style={{ color: '#64748b' }}>Lines 1..142,799 (0 DOM)</div>
+                        </div>
+
+                        <div className="lv-vdom-active-window">
+                          <div
+                            style={{
+                              display: 'flex',
+                              justifyContent: 'space-between',
+                              color: '#60a5fa',
+                              fontWeight: 600,
+                              fontSize: '9.5px',
+                              marginBottom: '4px',
+                            }}
+                          >
+                            <span>VIEWPORT WINDOW</span>
+                            <span>28 &lt;tr&gt; NODES</span>
+                          </div>
+                          {[142800, 142801, 142802].map((ln) => (
+                            <div
+                              key={ln}
+                              style={{
+                                display: 'flex',
+                                justifyContent: 'space-between',
+                                padding: '2px 4px',
+                                borderBottom: '1px solid rgba(255,255,255,0.05)',
+                                fontSize: '9.5px',
+                                color: '#ededef',
+                              }}
+                            >
+                              <span style={{ color: '#60a5fa' }}>#{ln}</span>
+                              <span style={{ color: '#34d399' }}>[MOUNTED]</span>
+                            </div>
+                          ))}
+                        </div>
+
+                        <div className="lv-vdom-spacer-box">
+                          <div>BOTTOM VIRTUAL SPACER</div>
+                          <div style={{ color: '#64748b' }}>Lines 142,829..250k (0 DOM)</div>
+                        </div>
+                      </div>
+
+                      {/* Col 2: O(1) DOM Node Recycling Loop */}
+                      <div
+                        style={{
+                          border: '1px solid var(--lv-border-subtle)',
+                          borderRadius: '6px',
+                          background: '#0d0f14',
+                          padding: '8px',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          justifyContent: 'space-between',
+                          alignItems: 'center',
+                          textAlign: 'center',
+                        }}
+                      >
+                        <div style={{ fontSize: '9.5px', color: 'var(--lv-text-muted)' }}>
+                          NODE RECYCLING
+                        </div>
+                        <svg viewBox="0 0 120 110" style={{ width: '100%', height: '96px' }}>
+                          <rect
+                            x="14"
+                            y="8"
+                            width="92"
+                            height="22"
+                            rx="4"
+                            fill="rgba(248,113,113,0.08)"
+                            stroke="rgba(248,113,113,0.45)"
+                          />
+                          <text x="60" y="22" fill="#f87171" fontSize="8.5" textAnchor="middle">
+                            Exit Top: #142,799
+                          </text>
+
+                          <path
+                            d="M 60 32 L 60 74"
+                            stroke="#60a5fa"
+                            strokeWidth="1.8"
+                            strokeDasharray="4 4"
+                            style={{ animation: 'lvPacketFlow 1.2s linear infinite' }}
+                          />
+                          <rect
+                            x="24"
+                            y="43"
+                            width="72"
+                            height="18"
+                            rx="9"
+                            fill="#101b30"
+                            stroke="#3b82f6"
+                          />
+                          <text x="60" y="55" fill="#60a5fa" fontSize="8" textAnchor="middle">
+                            REUSE &lt;tr&gt; POOL
+                          </text>
+
+                          <rect
+                            x="14"
+                            y="78"
+                            width="92"
+                            height="22"
+                            rx="4"
+                            fill="rgba(52,211,153,0.1)"
+                            stroke="rgba(52,211,153,0.5)"
+                          />
+                          <text x="60" y="92" fill="#34d399" fontSize="8.5" textAnchor="middle">
+                            Enter Bot: #142,828
+                          </text>
+                        </svg>
+                        <div style={{ fontSize: '9px', color: '#34d399' }}>0 GC ALLOCATIONS</div>
+                      </div>
+
+                      {/* Col 3: Naive DOM vs Virtual DOM Benchmark */}
+                      <div
+                        style={{
+                          border: '1px solid var(--lv-border-subtle)',
+                          borderRadius: '6px',
+                          background: '#0d0f14',
+                          padding: '10px',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          justifyContent: 'space-between',
+                          gap: '8px',
+                        }}
+                      >
+                        <div style={{ fontSize: '9.5px', color: 'var(--lv-text-muted)' }}>
+                          DOM FOOTPRINT @ 250K LOGS
+                        </div>
+
+                        <div>
+                          <div
+                            style={{
+                              display: 'flex',
+                              justifyContent: 'space-between',
+                              fontSize: '9.5px',
+                              marginBottom: '3px',
+                            }}
+                          >
+                            <span style={{ color: '#f87171' }}>Naive Table (250k nodes)</span>
+                            <span style={{ color: '#f87171' }}>480ms (FREEZE)</span>
+                          </div>
+                          <div
+                            style={{
+                              height: '7px',
+                              borderRadius: '4px',
+                              background: 'rgba(248,113,113,0.15)',
+                              border: '1px solid rgba(248,113,113,0.4)',
+                              overflow: 'hidden',
+                            }}
+                          >
+                            <div style={{ width: '100%', height: '100%', background: '#f87171' }} />
+                          </div>
+                        </div>
+
+                        <div>
+                          <div
+                            style={{
+                              display: 'flex',
+                              justifyContent: 'space-between',
+                              fontSize: '9.5px',
+                              marginBottom: '3px',
+                            }}
+                          >
+                            <span style={{ color: '#34d399' }}>Virtual DOM (28 nodes)</span>
+                            <span style={{ color: '#34d399' }}>4.2ms (60 FPS)</span>
+                          </div>
+                          <div
+                            style={{
+                              height: '7px',
+                              borderRadius: '4px',
+                              background: 'rgba(52,211,153,0.12)',
+                              border: '1px solid rgba(52,211,153,0.45)',
+                              overflow: 'hidden',
+                            }}
+                          >
+                            <div style={{ width: '14%', height: '100%', background: '#34d399' }} />
+                          </div>
+                        </div>
+
+                        <div
+                          style={{
+                            padding: '6px 8px',
+                            borderRadius: '4px',
+                            background: 'rgba(59,130,246,0.08)',
+                            border: '1px solid rgba(59,130,246,0.3)',
+                            fontSize: '9.5px',
+                            color: 'var(--lv-text-secondary)',
+                            lineHeight: 1.4,
+                          }}
+                        >
+                          Scrolls <strong style={{ color: '#ededef' }}>250,000+ rows</strong> at{' '}
+                          <strong style={{ color: '#60a5fa' }}>60 FPS</strong> by rendering only the{' '}
+                          <strong style={{ color: '#34d399' }}>28 visible rows</strong> in the browser DOM.
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* LAYER 01: K-WAY STREAM MERGE SCHEMATIC */}
+                  {isoLayerIdx === 0 && (
+                    <div
+                      style={{
+                        display: 'grid',
+                        gridTemplateColumns: '1.1fr 0.9fr 1.2fr',
+                        gap: '10px',
+                        alignItems: 'center',
+                        fontFamily: 'var(--lv-font-mono)',
+                        fontSize: '10.5px',
+                      }}
+                    >
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                        {[
+                          { name: 'app_workflow.log', ts: '18:10:08.112Z', col: '#60a5fa' },
+                          { name: 'payments_gw.json', ts: '18:10:08.119Z', col: '#34d399' },
+                          { name: 'service_audit.xml', ts: '18:10:08.124Z', col: '#a78bfa' },
+                        ].map((src) => (
+                          <div
+                            key={src.name}
+                            style={{
+                              padding: '7px 8px',
+                              borderRadius: '5px',
+                              background: '#0d0f14',
+                              border: `1px solid ${src.col}55`,
+                              display: 'flex',
+                              justifyContent: 'space-between',
+                            }}
+                          >
+                            <span style={{ color: src.col }}>{src.name}</span>
+                            <span style={{ color: 'var(--lv-text-muted)' }}>{src.ts}</span>
+                          </div>
+                        ))}
+                      </div>
+
+                      <div
+                        style={{
+                          padding: '12px 8px',
+                          borderRadius: '6px',
+                          background: '#101826',
+                          border: '1px solid #34d399',
+                          textAlign: 'center',
+                        }}
+                      >
+                        <div style={{ color: '#34d399', fontWeight: 600, marginBottom: '4px' }}>
+                          MIN-HEAP MERGER
+                        </div>
+                        <div style={{ fontSize: '9.5px', color: 'var(--lv-text-secondary)' }}>
+                          Compare Epoch ms
+                        </div>
+                        <div style={{ fontSize: '10px', color: '#60a5fa', marginTop: '4px' }}>
+                          T₁ ≤ T₂ ≤ T₃
+                        </div>
+                      </div>
+
+                      <div
+                        style={{
+                          padding: '10px',
+                          borderRadius: '6px',
+                          background: '#0d0f14',
+                          border: '1px solid var(--lv-border-subtle)',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: '5px',
+                        }}
+                      >
+                        <div style={{ fontSize: '9.5px', color: '#34d399' }}>
+                          UNIFIED CHRONOLOGICAL STREAM
+                        </div>
+                        <div style={{ fontSize: '10px', color: '#60a5fa' }}>
+                          1. [08.112Z] [app_workflow] Auth OK
+                        </div>
+                        <div style={{ fontSize: '10px', color: '#34d399' }}>
+                          2. [08.119Z] [payments_gw] Charge
+                        </div>
+                        <div style={{ fontSize: '10px', color: '#a78bfa' }}>
+                          3. [08.124Z] [service_audit] Commit
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* LAYER 02: SINGLE-PASS BRACKET TOKENIZER SCHEMATIC */}
+                  {isoLayerIdx === 1 && (
+                    <div
+                      style={{
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '10px',
+                        fontFamily: 'var(--lv-font-mono)',
+                        fontSize: '10.5px',
+                      }}
+                    >
+                      <div
+                        style={{
+                          padding: '8px 10px',
+                          borderRadius: '5px',
+                          background: '#0d0f14',
+                          border: '1px solid var(--lv-border-subtle)',
+                        }}
+                      >
+                        <span style={{ color: 'var(--lv-text-muted)', marginRight: '8px' }}>
+                          RAW LINE:
+                        </span>
+                        <span style={{ color: '#8b949e' }}>[18:10:09Z]</span>{' '}
+                        <span style={{ color: '#34d399' }}>[corr-99214]</span>{' '}
+                        <span style={{ color: '#60a5fa' }}>[PaymentGW]</span>{' '}
+                        <span style={{ color: '#a78bfa' }}>[WF:Checkout]</span>{' '}
+                        <span style={{ color: '#f87171' }}>[ERROR]</span>{' '}
+                        <span style={{ color: '#eab308' }}>[4890ms]</span>
+                      </div>
+
+                      <div
+                        style={{
+                          display: 'grid',
+                          gridTemplateColumns: 'repeat(3, 1fr)',
+                          gap: '6px',
+                        }}
+                      >
+                        {TOKEN_ANATOMY.slice(0, 6).map((tok) => (
+                          <div
+                            key={tok.id}
+                            style={{
+                              padding: '7px 8px',
+                              borderRadius: '5px',
+                              background: '#0d0f14',
+                              border: `1px solid ${tok.hex}55`,
+                              display: 'flex',
+                              justifyContent: 'space-between',
+                            }}
+                          >
+                            <span style={{ color: 'var(--lv-text-muted)' }}>{tok.label}</span>
+                            <span style={{ color: tok.hex, fontWeight: 600 }}>{tok.stripped}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* LAYER 03: 3-TIER BOOLEAN FACET GATE SCHEMATIC */}
+                  {isoLayerIdx === 2 && (
+                    <div
+                      style={{
+                        display: 'grid',
+                        gridTemplateColumns: 'repeat(3, 1fr)',
+                        gap: '8px',
+                        fontFamily: 'var(--lv-font-mono)',
+                        fontSize: '10.5px',
+                      }}
+                    >
+                      <div
+                        style={{
+                          padding: '10px',
+                          borderRadius: '6px',
+                          background: '#0d0f14',
+                          border: '1px solid rgba(96,165,250,0.4)',
+                        }}
+                      >
+                        <div style={{ color: '#60a5fa', fontWeight: 600, marginBottom: '4px' }}>
+                          TIER 1 // SOURCE
+                        </div>
+                        <div style={{ color: '#ededef' }}>250,000 → 84,200</div>
+                        <div style={{ color: 'var(--lv-text-muted)', fontSize: '9.5px', marginTop: '4px' }}>
+                          Selects active log file &amp; saved filter preset
+                        </div>
+                      </div>
+
+                      <div
+                        style={{
+                          padding: '10px',
+                          borderRadius: '6px',
+                          background: '#0d0f14',
+                          border: '1px solid rgba(167,139,250,0.45)',
+                        }}
+                      >
+                        <div style={{ color: '#a78bfa', fontWeight: 600, marginBottom: '4px' }}>
+                          TIER 2 // SEVERITY + NOT
+                        </div>
+                        <div style={{ color: '#ededef' }}>84,200 → 412 rows</div>
+                        <div style={{ color: '#f87171', fontSize: '9.5px', marginTop: '4px' }}>
+                          [ERROR | AUDIT] &amp; (-) NOT WARN
+                        </div>
+                      </div>
+
+                      <div
+                        style={{
+                          padding: '10px',
+                          borderRadius: '6px',
+                          background: '#0d0f14',
+                          border: '1px solid rgba(52,211,153,0.45)',
+                        }}
+                      >
+                        <div style={{ color: '#34d399', fontWeight: 600, marginBottom: '4px' }}>
+                          TIER 3 // MULTI-AND
+                        </div>
+                        <div style={{ color: '#34d399', fontWeight: 600 }}>412 → 3 EXACT HITS</div>
+                        <div style={{ color: 'var(--lv-text-muted)', fontSize: '9.5px', marginTop: '4px' }}>
+                          "timeout, corr-99214"
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* LAYER 04: AST PAYLOAD INSPECTOR SCHEMATIC */}
+                  {isoLayerIdx === 3 && (
+                    <div
+                      style={{
+                        display: 'grid',
+                        gridTemplateColumns: '1fr 1.2fr',
+                        gap: '10px',
+                        fontFamily: 'var(--lv-font-mono)',
+                        fontSize: '10.5px',
+                      }}
+                    >
+                      <div
+                        style={{
+                          padding: '10px',
+                          borderRadius: '6px',
+                          background: '#0d0f14',
+                          border: '1px solid var(--lv-border-subtle)',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          justifyContent: 'space-between',
+                        }}
+                      >
+                        <div style={{ color: 'var(--lv-text-muted)', fontSize: '9.5px' }}>
+                          INLINE LOG SUBSTRING
+                        </div>
+                        <div style={{ color: '#38bdf8', wordBreak: 'break-all' }}>
+                          ...failed {'{"tx_id":"tx_992","settlement":{"gateway":"stripe_eu_2","latency_ms":4890}}'}
+                        </div>
+                        <div style={{ color: '#34d399', fontSize: '9.5px' }}>
+                          → Auto-detected RFC 8259 JSON &amp; W3C XML
+                        </div>
+                      </div>
+
+                      <div
+                        style={{
+                          padding: '10px',
+                          borderRadius: '6px',
+                          background: '#0d0f14',
+                          border: '1px solid rgba(56,189,248,0.45)',
+                        }}
+                      >
+                        <div style={{ color: '#38bdf8', fontWeight: 600, marginBottom: '4px' }}>
+                          COLLAPSIBLE AST TREE MODAL
+                        </div>
+                        <div style={{ color: '#94a3b8' }}>▼ {'{'} 2 items</div>
+                        <div style={{ paddingLeft: '12px', color: '#7dd3fc' }}>
+                          "tx_id": <span style={{ color: '#86efac' }}>"tx_992"</span>
+                        </div>
+                        <div style={{ paddingLeft: '12px', color: '#7dd3fc' }}>
+                          ▼ "settlement": {'{'} 2 items {'}'}
+                        </div>
+                        <div
+                          style={{
+                            paddingLeft: '24px',
+                            background: 'rgba(234,179,8,0.2)',
+                            color: '#fde047',
+                          }}
+                        >
+                          "latency_ms": 4890 (Search Match)
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* LAYER 05: RANGE DELTA Δt CALIPER SCHEMATIC */}
+                  {isoLayerIdx === 4 && (
+                    <div
+                      style={{
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '10px',
+                        fontFamily: 'var(--lv-font-mono)',
+                        fontSize: '10.5px',
+                      }}
+                    >
+                      <div
+                        style={{
+                          display: 'grid',
+                          gridTemplateColumns: '1fr auto 1fr',
+                          gap: '8px',
+                          alignItems: 'center',
+                        }}
+                      >
+                        <div
+                          style={{
+                            padding: '8px 10px',
+                            borderRadius: '5px',
+                            background: '#0d0f14',
+                            border: '1px solid rgba(96,165,250,0.45)',
+                          }}
+                        >
+                          <div style={{ color: '#60a5fa', fontSize: '9.5px' }}>CLICK ANCHOR (T₁)</div>
+                          <div style={{ color: '#ededef', fontWeight: 600 }}>L1842 · 18:10:08.112Z</div>
+                        </div>
+
+                        <div
+                          style={{
+                            padding: '6px 10px',
+                            borderRadius: '5px',
+                            background: 'rgba(245,158,11,0.14)',
+                            border: '1px solid #f59e0b',
+                            color: '#fbbf24',
+                            fontWeight: 600,
+                            textAlign: 'center',
+                          }}
+                        >
+                          Δt = +4,890 ms
+                          <div style={{ fontSize: '9px', color: '#ededef' }}>+4.890s · 3 HOPS</div>
+                        </div>
+
+                        <div
+                          style={{
+                            padding: '8px 10px',
+                            borderRadius: '5px',
+                            background: '#0d0f14',
+                            border: '1px solid rgba(248,113,113,0.45)',
+                          }}
+                        >
+                          <div style={{ color: '#f87171', fontSize: '9.5px' }}>SHIFT+CLICK (T₂)</div>
+                          <div style={{ color: '#ededef', fontWeight: 600 }}>L1845 · 18:10:13.002Z</div>
+                        </div>
+                      </div>
+
+                      <div
+                        style={{
+                          padding: '7px 10px',
+                          borderRadius: '4px',
+                          background: '#0d0f14',
+                          border: '1px solid var(--lv-border-subtle)',
+                          color: 'var(--lv-text-secondary)',
+                          fontSize: '10px',
+                        }}
+                      >
+                        Eliminates manual timestamp math: select any two log lines to compute exact
+                        elapsed milliseconds and step count.
+                      </div>
+                    </div>
+                  )}
+
+                  {/* LAYER 06: COMPACT ROW & STICKY OVERLAY SCHEMATIC */}
+                  {isoLayerIdx === 5 && (
+                    <div
+                      style={{
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '8px',
+                        fontFamily: 'var(--lv-font-mono)',
+                        fontSize: '10.5px',
+                      }}
+                    >
+                      <div
+                        style={{
+                          padding: '8px 10px',
+                          borderRadius: '5px',
+                          background: 'rgba(248,113,113,0.06)',
+                          border: '1px dashed rgba(248,113,113,0.35)',
+                          color: 'var(--lv-text-muted)',
+                        }}
+                      >
+                        <span style={{ color: '#f87171' }}>BEFORE (Multi-Line Wrap · 96px):</span>{' '}
+                        Wrapped JSON payloads push adjacent log events off-screen.
+                      </div>
+
+                      <div
+                        style={{
+                          padding: '8px 10px',
+                          borderRadius: '5px',
+                          background: '#0d0f14',
+                          border: '1px solid rgba(74,222,128,0.45)',
+                          display: 'flex',
+                          justifyContent: 'space-between',
+                          alignItems: 'center',
+                        }}
+                      >
+                        <span style={{ color: '#ededef' }}>
+                          <span style={{ color: '#4ade80' }}>AFTER (24px 1-Line):</span> #1844
+                          [PaymentGW] [ERROR] {'{"tx_id":"tx_992"...}'}
+                        </span>
+                        <span
+                          style={{
+                            padding: '2px 6px',
+                            borderRadius: '4px',
+                            border: '1px solid #38bdf8',
+                            color: '#38bdf8',
+                            fontSize: '9.5px',
+                          }}
+                        >
+                          Sticky: Format · Copy · Inspect
+                        </span>
+                      </div>
+                    </div>
+                  )}
+
                   <div
                     style={{
                       display: 'flex',
                       justifyContent: 'space-between',
                       fontFamily: 'var(--lv-font-mono)',
                       fontSize: '11px',
-                      marginTop: '8px',
+                      paddingTop: '8px',
+                      borderTop: '1px solid var(--lv-border-subtle)',
                     }}
                   >
                     <span style={{ color: 'var(--lv-text-muted)' }}>
@@ -2686,48 +3269,23 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLaunchApp }) => {
                 </div>
 
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '8px' }}>
-                  <div
-                    style={{
-                      padding: '10px',
-                      borderRadius: '6px',
-                      background: 'var(--lv-bg-void)',
-                      border: '1px solid var(--lv-border-subtle)',
-                      fontFamily: 'var(--lv-font-mono)',
-                    }}
-                  >
-                    <div style={{ fontSize: '10px', color: 'var(--lv-text-muted)' }}>FRAME BUDGET</div>
-                    <div style={{ fontSize: '15px', fontWeight: 600, color: 'var(--lv-tok-corr)' }}>
-                      16.6 ms
+                  {SEVEN_STORY_LAYERS[isoLayerIdx].stats.map((st) => (
+                    <div
+                      key={st.label}
+                      style={{
+                        padding: '10px',
+                        borderRadius: '6px',
+                        background: 'var(--lv-bg-void)',
+                        border: '1px solid var(--lv-border-subtle)',
+                        fontFamily: 'var(--lv-font-mono)',
+                      }}
+                    >
+                      <div style={{ fontSize: '10px', color: 'var(--lv-text-muted)' }}>{st.label}</div>
+                      <div style={{ fontSize: '14.5px', fontWeight: 600, color: st.color }}>
+                        {st.val}
+                      </div>
                     </div>
-                  </div>
-                  <div
-                    style={{
-                      padding: '10px',
-                      borderRadius: '6px',
-                      background: 'var(--lv-bg-void)',
-                      border: '1px solid var(--lv-border-subtle)',
-                      fontFamily: 'var(--lv-font-mono)',
-                    }}
-                  >
-                    <div style={{ fontSize: '10px', color: 'var(--lv-text-muted)' }}>DOM NODES</div>
-                    <div style={{ fontSize: '15px', fontWeight: 600, color: 'var(--lv-accent-bright)' }}>
-                      28 CONST
-                    </div>
-                  </div>
-                  <div
-                    style={{
-                      padding: '10px',
-                      borderRadius: '6px',
-                      background: 'var(--lv-bg-void)',
-                      border: '1px solid var(--lv-border-subtle)',
-                      fontFamily: 'var(--lv-font-mono)',
-                    }}
-                  >
-                    <div style={{ fontSize: '10px', color: 'var(--lv-text-muted)' }}>TEST SUITES</div>
-                    <div style={{ fontSize: '15px', fontWeight: 600, color: 'var(--lv-text-primary)' }}>
-                      10 / 10 PASS
-                    </div>
-                  </div>
+                  ))}
                 </div>
               </div>
             </div>
