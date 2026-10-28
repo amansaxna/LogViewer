@@ -470,7 +470,6 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLaunchApp }) => {
 
   // Hero Interactive Workbench State
   const [scenarioIdx, setScenarioIdx] = useState(0);
-  const [heroViewMode, setHeroViewMode] = useState<'interactive' | 'capture'>('interactive');
   const [activeSeverity, setActiveSeverity] = useState<'ALL' | 'ERROR' | 'WARN' | 'INFO' | 'AUDIT'>('ALL');
   const [excludeWarn, setExcludeWarn] = useState(false);
   const [heroSearch, setHeroSearch] = useState('');
@@ -937,7 +936,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLaunchApp }) => {
             </h1>
 
             <p className="lv-hero-sub">
-              60 FPS bracket, JSON, and XML log stream engine with live range $\Delta t$ latency.
+              60 FPS bracket, JSON, and XML log stream engine with live range Δt latency.
             </p>
 
             <div className="lv-hero-cta-row">
@@ -1030,29 +1029,10 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLaunchApp }) => {
                     {isLiveTail ? <Play size={10} /> : <Pause size={10} />}
                     <span>{isLiveTail ? 'SSE LIVE' : 'PAUSED'}</span>
                   </button>
-
-                  <div className="lv-mini-mode-switch">
-                    <button
-                      type="button"
-                      className={`lv-mini-mode-btn ${heroViewMode === 'interactive' ? 'active' : ''}`}
-                      onClick={() => setHeroViewMode('interactive')}
-                    >
-                      LIVE DOM
-                    </button>
-                    <button
-                      type="button"
-                      className={`lv-mini-mode-btn ${heroViewMode === 'capture' ? 'active' : ''}`}
-                      onClick={() => setHeroViewMode('capture')}
-                    >
-                      PNG
-                    </button>
-                  </div>
                 </div>
               </div>
 
-              {heroViewMode === 'interactive' ? (
-                <>
-                  {/* Tier 2: Single-Line Severity Pills + Negative Exclusion */}
+              {/* Tier 2: Single-Line Severity Pills + Negative Exclusion */}
                   <div className="lv-mini-tier2">
                     <div className="lv-mini-pills">
                       {(['ALL', 'ERROR', 'WARN', 'INFO', 'AUDIT'] as const).map((sev) => {
@@ -1238,27 +1218,9 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLaunchApp }) => {
                       ● AUTO-SWEEP ACTIVE
                     </span>
                   </div>
-                </>
-              ) : (
-                <div style={{ background: 'var(--lv-bg-void)', padding: '12px' }}>
-                  <img
-                    src="/Viewer.png"
-                    alt="LogViewer Workbench"
-                    style={{
-                      width: '100%',
-                      height: '335px',
-                      objectFit: 'cover',
-                      objectPosition: 'top center',
-                      borderRadius: '6px',
-                      border: '1px solid var(--lv-border-subtle)',
-                      display: 'block',
-                    }}
-                  />
                 </div>
-              )}
-            </div>
-          </div>
-        </section>
+              </div>
+            </section>
 
         {/* ====================================================================
             STAGE 02: FULL-WIDTH 7-LAYER KINETIC THEATER
