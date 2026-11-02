@@ -511,3 +511,61 @@ export function computeCallStackFrames<
 
   return result;
 }
+
+/**
+ * Traces the complete upstream caller chain and direct downstream callee/return path
+ * for a selected node, enabling Path Spotlight focus.
+ */
+export function computeActiveCallPath(
+  targetIndex: number,
+  nodes: {
+    index: number;
+    parentCallerStepIndex?: number;
+    isReturnResume?: boolean;
+    returnedFromStepIndex?: number;
+  }[]
+): Set<number> {
+  const path = new Set<number>();
+  if (targetIndex < 0 || targetIndex >= nodes.length) return path;
+
+  path.add(targetIndex);
+  const targetNode = nodes[targetIndex];
+
+  // 1. Trace upward callers
+  let current: typeof targetNode | undefined = targetNode;
+  const visitedUp = new Set<number>([targetIndex]);
+  while (current && current.parentCallerStepIndex !== undefined) {
+    const parentIdx: number = current.parentCallerStepIndex;
+    if (visitedUp.has(parentIdx)) break;
+    visitedUp.add(parentIdx);
+    path.add(parentIdx);
+    current = nodes[parentIdx];
+  }
+
+  // 2. If target is a return-resume step, trace callee it returned from
+  if (targetNode.isReturnResume && targetNode.returnedFromStepIndex !== undefined) {
+    path.add(targetNode.returnedFromStepIndex);
+    let callee = nodes[targetNode.returnedFromStepIndex];
+    const visitedCallee = new Set<number>([targetNode.returnedFromStepIndex]);
+    while (callee && callee.parentCallerStepIndex !== undefined) {
+      const pIdx: number = callee.parentCallerStepIndex;
+      if (visitedCallee.has(pIdx)) break;
+      visitedCallee.add(pIdx);
+      path.add(pIdx);
+      callee = nodes[pIdx];
+    }
+  }
+
+  // 3. Trace direct callees invoked by any node in the active path
+  for (let i = 0; i < nodes.length; i++) {
+    const n = nodes[i];
+    if (n.parentCallerStepIndex !== undefined && path.has(n.parentCallerStepIndex)) {
+      path.add(n.index);
+    }
+    if (n.isReturnResume && n.returnedFromStepIndex !== undefined && path.has(n.returnedFromStepIndex)) {
+      path.add(n.index);
+    }
+  }
+
+  return path;
+}

@@ -7,6 +7,7 @@ import {
   buildMacroGraph,
   resolveEffectiveClusterLevel,
   computeCallStackFrames,
+  computeActiveCallPath,
 } from '../src/utils/dagHierarchyEngine.ts';
 
 console.log('--- Testing DAG Hierarchy, Subsystem Clustering & Thread Swimlanes ---');
@@ -181,5 +182,56 @@ assert.strictEqual(stackFrames.get(5)?.returnedFromOperation, 'Charge');
 assert.strictEqual(stackFrames.get(5)?.parentCallerStepIndex, 1);
 
 console.log('✓ Test 11 Passed: Call Stack Activation & Return-Resume Reconstitution verified');
+
+// Test 12: Active Call-Path Spotlight
+const traceNodesWithFrames = callTraceNodes.map((n) => {
+  const f = stackFrames.get(n.index);
+  return {
+    index: n.index,
+    parentCallerStepIndex: f?.parentCallerStepIndex,
+    isReturnResume: f?.isReturnResume,
+    returnedFromStepIndex: f?.returnedFromStepIndex,
+  };
+});
+
+// Spotlight from nested Step 3 (StripeGateway)
+const pathFrom3 = computeActiveCallPath(3, traceNodesWithFrames);
+assert.ok(pathFrom3.has(3), 'Must include self');
+assert.ok(pathFrom3.has(2), 'Must include caller PaymentEngine');
+assert.ok(pathFrom3.has(1), 'Must include root caller ValidateCart');
+assert.ok(pathFrom3.has(4), 'Must include return resume step');
+console.log('✓ Test 12 Passed: Active Call-Path Spotlight verified');
+
+// Test 13: Flame-DAG 2D Coordinates & Transition Classifications
+const flameNodes = callTraceNodes.map((n) => {
+  const f = stackFrames.get(n.index);
+  return {
+    ...n,
+    callDepth: f?.callDepth ?? 0,
+    isReturnResume: f?.isReturnResume ?? false,
+    returnedFromStepIndex: f?.returnedFromStepIndex,
+  };
+});
+
+const maxDepth = Math.max(0, ...flameNodes.map((n) => n.callDepth));
+assert.strictEqual(maxDepth, 2, 'Max stack depth for 3-tier call stack must be 2');
+
+// Transition 1 -> 2: Descent into Callee
+const t12_descent = flameNodes[2].callDepth > flameNodes[1].callDepth;
+assert.strictEqual(t12_descent, true, 'Step 1 to Step 2 must be callee descent');
+
+// Transition 2 -> 3: Nested Descent
+const t23_descent = flameNodes[3].callDepth > flameNodes[2].callDepth;
+assert.strictEqual(t23_descent, true, 'Step 2 to Step 3 must be nested callee descent');
+
+// Transition 3 -> 4: Return upward to PaymentEngine
+const t34_return = flameNodes[4].isReturnResume || flameNodes[4].callDepth < flameNodes[3].callDepth;
+assert.strictEqual(t34_return, true, 'Step 3 to Step 4 must be return to caller');
+
+// Transition 4 -> 5: Return upward to OrderService root
+const t45_return = flameNodes[5].isReturnResume || flameNodes[5].callDepth < flameNodes[4].callDepth;
+assert.strictEqual(t45_return, true, 'Step 4 to Step 5 must be return to root caller');
+
+console.log('✓ Test 13 Passed: Flame-DAG 2D Stack Coordinates & Return Transitions verified');
 
 console.log('\nAll DAG Hierarchy, Subsystem & Swimlane Tests Passed Successfully!\n');
