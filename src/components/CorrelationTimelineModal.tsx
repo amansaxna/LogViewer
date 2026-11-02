@@ -2459,9 +2459,31 @@ export const CorrelationTimelineModal: React.FC<CorrelationTimelineModalProps> =
 
                 {/* Module & Origin Function Location */}
                 <div style={{ marginBottom: 16 }}>
-                  <div style={{ fontSize: '0.68rem', color: isLight ? '#78716c' : '#8b949e', marginBottom: 4, fontWeight: 600 }}>
-                    MODULE &amp; FUNCTION CALL
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
+                    <span style={{ fontSize: '0.68rem', color: isLight ? '#78716c' : '#8b949e', fontWeight: 600 }}>
+                      MODULE &amp; FUNCTION CALL
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => handleCopyRaw(selectedNode.module)}
+                      style={{
+                        background: 'transparent',
+                        border: 'none',
+                        color: isLight ? '#0284c7' : '#60a5fa',
+                        fontSize: '0.66rem',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 3,
+                        padding: 0,
+                      }}
+                      title="Copy full qualified namespace"
+                    >
+                      <Copy size={10} />
+                      <span>Copy Path</span>
+                    </button>
                   </div>
+
                   <div
                     style={{
                       backgroundColor: isLight ? '#ffffff' : '#0a0b0e',
@@ -2470,13 +2492,98 @@ export const CorrelationTimelineModal: React.FC<CorrelationTimelineModalProps> =
                       padding: 10,
                       display: 'flex',
                       flexDirection: 'column',
-                      gap: 6,
+                      gap: 8,
+                      minWidth: 0,
                     }}
                   >
-                    <div style={{ fontSize: '0.82rem', fontWeight: 700, color: isLight ? '#0284c7' : '#60a5fa' }}>
-                      {selectedNode.module}
-                    </div>
-                    <div style={{ fontSize: '0.74rem', fontFamily: 'var(--font-mono, monospace)', color: isLight ? '#1c1917' : '#cbd5e1' }}>
+                    {/* Hierarchical Namespace Breadcrumb */}
+                    {selectedNode.hierarchy.segments.length > 1 ? (
+                      (() => {
+                        const subColor = getSubsystemColor(selectedNode.hierarchy.root, isLight);
+                        return (
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                            {/* Root Subsystem Badge + Ancestor Path */}
+                            <div
+                              style={{
+                                fontSize: '0.68rem',
+                                color: isLight ? '#78716c' : '#8b949e',
+                                display: 'flex',
+                                alignItems: 'center',
+                                flexWrap: 'wrap',
+                                gap: '3px 6px',
+                                lineHeight: 1.4,
+                                wordBreak: 'break-word',
+                                overflowWrap: 'anywhere',
+                              }}
+                            >
+                              <span
+                                style={{
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  padding: '1px 6px',
+                                  borderRadius: 4,
+                                  fontSize: '0.66rem',
+                                  fontWeight: 700,
+                                  fontFamily: 'var(--font-mono, monospace)',
+                                  backgroundColor: subColor.bg,
+                                  color: subColor.text,
+                                  border: `1px solid ${subColor.border}`,
+                                }}
+                              >
+                                {selectedNode.hierarchy.root}
+                              </span>
+                              {selectedNode.hierarchy.segments.slice(1, -1).map((seg, idx) => (
+                                <React.Fragment key={idx}>
+                                  <span style={{ opacity: 0.4 }}>›</span>
+                                  <span style={{ fontFamily: 'var(--font-mono, monospace)' }}>{seg}</span>
+                                </React.Fragment>
+                              ))}
+                            </div>
+
+                            {/* Leaf Function Name */}
+                            <div
+                              style={{
+                                fontSize: '0.86rem',
+                                fontWeight: 700,
+                                fontFamily: 'var(--font-mono, monospace)',
+                                color: isLight ? '#0284c7' : '#60a5fa',
+                                wordBreak: 'break-word',
+                                overflowWrap: 'anywhere',
+                                lineHeight: 1.35,
+                              }}
+                              title={`Full Namespace: ${selectedNode.module}`}
+                            >
+                              {selectedNode.hierarchy.leaf}
+                            </div>
+                          </div>
+                        );
+                      })()
+                    ) : (
+                      <div
+                        style={{
+                          fontSize: '0.82rem',
+                          fontWeight: 700,
+                          fontFamily: 'var(--font-mono, monospace)',
+                          color: isLight ? '#0284c7' : '#60a5fa',
+                          wordBreak: 'break-word',
+                          overflowWrap: 'anywhere',
+                          lineHeight: 1.35,
+                        }}
+                      >
+                        {selectedNode.module}
+                      </div>
+                    )}
+
+                    {/* Operation / Action */}
+                    <div
+                      style={{
+                        fontSize: '0.76rem',
+                        fontFamily: 'var(--font-mono, monospace)',
+                        color: isLight ? '#1c1917' : '#cbd5e1',
+                        wordBreak: 'break-word',
+                        overflowWrap: 'anywhere',
+                      }}
+                    >
                       {selectedNode.operation}
                     </div>
 
@@ -2484,7 +2591,7 @@ export const CorrelationTimelineModal: React.FC<CorrelationTimelineModalProps> =
                       <div
                         onClick={() => openSourceLocation(selectedNode.fileLocation!)}
                         style={{
-                          marginTop: 4,
+                          marginTop: 2,
                           paddingTop: 6,
                           borderTop: isLight ? '1px solid #ded7ca' : '1px solid rgba(255,255,255,0.06)',
                           display: 'flex',
@@ -2494,12 +2601,14 @@ export const CorrelationTimelineModal: React.FC<CorrelationTimelineModalProps> =
                           fontFamily: 'var(--font-mono, monospace)',
                           color: isLight ? '#0284c7' : '#38bdf8',
                           cursor: 'pointer',
+                          wordBreak: 'break-all',
+                          overflowWrap: 'anywhere',
                         }}
                         title={isVsCode() ? 'Click to open in editor' : `Location: ${selectedNode.fileLocation}`}
                       >
-                        <Code2 size={12} color={isLight ? "#0284c7" : undefined} />
+                        <Code2 size={12} color={isLight ? "#0284c7" : undefined} style={{ flexShrink: 0 }} />
                         <span style={{ textDecoration: 'underline' }}>{selectedNode.fileLocation}</span>
-                        <ExternalLink size={10} color={isLight ? "#78716c" : "#64748b"} />
+                        <ExternalLink size={10} color={isLight ? "#78716c" : "#64748b"} style={{ flexShrink: 0 }} />
                       </div>
                     )}
                   </div>
