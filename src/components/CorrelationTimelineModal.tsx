@@ -31,7 +31,10 @@ import {
   Download,
   Keyboard,
   Cpu,
-  Layers as LayersIcon
+  Layers as LayersIcon,
+  Boxes,
+  CornerDownRight,
+  Undo2,
 } from 'lucide-react';
 import { LogEntry, LogLevel } from '../types.ts';
 import { apiFetch, openSourceLocation, isVsCode } from '../api/bridge.ts';
@@ -44,9 +47,14 @@ import {
   groupNodesIntoSubsystems,
   groupNodesIntoThreadSwimlanes,
   getSubsystemColor,
+  resolveEffectiveClusterLevel,
+  buildMacroGraph,
+  computeCallStackFrames,
+  CallStackFrameInfo,
   NamespaceHierarchy,
   SubsystemCluster,
   ThreadSwimlane,
+  ClusterGranularity,
 } from '../utils/dagHierarchyEngine.ts';
 
 interface CorrelationTimelineModalProps {
@@ -81,6 +89,13 @@ interface TimelineStepNode {
   hasTrace: boolean;
   isHotspot: boolean;
   hierarchy: NamespaceHierarchy;
+  callDepth: number;
+  parentCallerStepIndex?: number;
+  parentCallerOperation?: string;
+  parentCallerNamespace?: string;
+  isReturnResume: boolean;
+  returnedFromStepIndex?: number;
+  returnedFromOperation?: string;
 }
 
 function getLevelColors(level: string, isLight: boolean) {
@@ -169,8 +184,10 @@ export const CorrelationTimelineModal: React.FC<CorrelationTimelineModalProps> =
   const [isLoading, setIsLoading] = useState(false);
   const [selectedNodeIndex, setSelectedNodeIndex] = useState<number>(0);
   const [zoomLevel, setZoomLevel] = useState<number>(1);
-  const [viewLayout, setViewLayout] = useState<'dag' | 'waterfall' | 'swimlanes'>('dag');
-  const [isSubsystemClustered, setIsSubsystemClustered] = useState<boolean>(true);
+  const [viewLayout, setViewLayout] = useState<'dag' | 'macro' | 'waterfall' | 'swimlanes'>('dag');
+  const [clusterGranularity, setClusterGranularity] = useState<ClusterGranularity>('auto');
+  const [showGranularityMenu, setShowGranularityMenu] = useState(false);
+  const isSubsystemClustered = clusterGranularity !== 'none';
   const [isFullScreen, setIsFullScreen] = useState(false);
   const [searchFilter, setSearchFilter] = useState('');
   const [copiedSnippet, setCopiedSnippet] = useState(false);
@@ -303,7 +320,31 @@ export const CorrelationTimelineModal: React.FC<CorrelationTimelineModalProps> =
       }
     }
 
-    return rawNodes;
+    // Reconstitute Virtual Activation Call Stack (f1 -> f2 -> f3 -> return to f1)
+    const stackFrames = computeCallStackFrames(
+      rawNodes.map((n) => ({
+        index: n.index,
+        module: n.module,
+        operation: n.operation,
+        message: n.entry.message || n.entry.raw,
+        level: n.level,
+        duration: n.duration,
+      }))
+    );
+
+    return rawNodes.map((node) => {
+      const frame = stackFrames.get(node.index) || { callDepth: 0, isReturnResume: false };
+      return {
+        ...node,
+        callDepth: frame.callDepth,
+        parentCallerStepIndex: frame.parentCallerStepIndex,
+        parentCallerOperation: frame.parentCallerOperation,
+        parentCallerNamespace: frame.parentCallerNamespace,
+        isReturnResume: frame.isReturnResume,
+        returnedFromStepIndex: frame.returnedFromStepIndex,
+        returnedFromOperation: frame.returnedFromOperation,
+      };
+    });
   }, [entries, isWorkflow]);
 
   const filteredStepNodes = useMemo(() => {
@@ -343,10 +384,20 @@ export const CorrelationTimelineModal: React.FC<CorrelationTimelineModalProps> =
   const errorCount = stepNodes.filter((n) => n.level === 'error' || n.level === 'critical' || n.level === 'emergency').length;
   const warnCount = stepNodes.filter((n) => n.level === 'warning').length;
 
-  // Subsystem clusters for Phase 2
+  // Subsystem clusters and Adaptive LCP resolution (Solutions 1 & 2)
+  const clusteringMetadata = useMemo(() => {
+    const hierarchies = filteredStepNodes.map((n) => n.hierarchy);
+    return resolveEffectiveClusterLevel(hierarchies, clusterGranularity);
+  }, [filteredStepNodes, clusterGranularity]);
+
   const subsystemClusters = useMemo(() => {
-    return groupNodesIntoSubsystems(filteredStepNodes, isLight);
-  }, [filteredStepNodes, isLight]);
+    return groupNodesIntoSubsystems(filteredStepNodes, isLight, clusterGranularity);
+  }, [filteredStepNodes, isLight, clusterGranularity]);
+
+  // Macro-Graph transit view (Solution 3)
+  const macroGraph = useMemo(() => {
+    return buildMacroGraph(subsystemClusters);
+  }, [subsystemClusters]);
 
   // Thread Swimlanes for Phase 3
   const threadSwimlanes = useMemo(() => {
@@ -360,6 +411,7 @@ export const CorrelationTimelineModal: React.FC<CorrelationTimelineModalProps> =
           type,
           raw: rawPayload,
           title: `Step #${selectedNode?.index !== undefined ? selectedNode.index + 1 : ''} Payload`,
+          initialMode: 'tree',
         },
       })
     );
@@ -529,17 +581,25 @@ export const CorrelationTimelineModal: React.FC<CorrelationTimelineModalProps> =
         return;
       }
 
-      // 8. Toggle DAG ↔ Waterfall ↔ Swimlanes View ('v' or Tab)
+      // 8. Cycle DAG ↔ Macro-Graph ↔ Waterfall ↔ Swimlanes View ('v' or Tab)
       if (e.key === 'v' || e.key === 'V' || e.key === 'Tab') {
         e.preventDefault();
-        setViewLayout((prev) => (prev === 'dag' ? 'waterfall' : prev === 'waterfall' ? 'swimlanes' : 'dag'));
+        setViewLayout((prev) =>
+          prev === 'dag' ? 'macro' : prev === 'macro' ? 'waterfall' : prev === 'waterfall' ? 'swimlanes' : 'dag'
+        );
         return;
       }
 
-      // 8b. Toggle Subsystem Cluster Enclosure ('b' / 'B')
+      // 8b. Cycle Subsystem Cluster Granularity ('b' / 'B')
       if (e.key === 'b' || e.key === 'B') {
         e.preventDefault();
-        setIsSubsystemClustered((prev) => !prev);
+        setClusterGranularity((prev) => {
+          if (prev === 'auto') return 'l2';
+          if (prev === 'l2') return 'l1';
+          if (prev === 'l1') return 'l3';
+          if (prev === 'l3') return 'none';
+          return 'auto';
+        });
         return;
       }
 
@@ -925,6 +985,28 @@ export const CorrelationTimelineModal: React.FC<CorrelationTimelineModalProps> =
               </button>
               <button
                 type="button"
+                onClick={() => setViewLayout('macro')}
+                style={{
+                  border: 'none',
+                  background: viewLayout === 'macro' ? (isLight ? '#ffffff' : 'rgba(59, 130, 246, 0.18)') : 'transparent',
+                  boxShadow: viewLayout === 'macro' && isLight ? '0 1px 3px rgba(0,0,0,0.08)' : 'none',
+                  color: viewLayout === 'macro' ? (isLight ? '#0284c7' : '#60a5fa') : (isLight ? '#78716c' : '#8b949e'),
+                  fontSize: '0.72rem',
+                  fontWeight: viewLayout === 'macro' ? 600 : 400,
+                  padding: '3px 8px',
+                  borderRadius: 4,
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 4,
+                }}
+                title="Subsystem Macro Transit Graph (v)"
+              >
+                <Boxes size={12} />
+                <span>Macro</span>
+              </button>
+              <button
+                type="button"
                 onClick={() => setViewLayout('waterfall')}
                 style={{
                   border: 'none',
@@ -969,34 +1051,106 @@ export const CorrelationTimelineModal: React.FC<CorrelationTimelineModalProps> =
               </button>
             </div>
 
-            {/* Subsystem Cluster Bounding Enclosure Toggle */}
-            <button
-              type="button"
-              onClick={() => setIsSubsystemClustered((c) => !c)}
-              style={{
-                border: isSubsystemClustered
-                  ? (isLight ? '1px solid #0284c7' : '1px solid #3b82f6')
-                  : (isLight ? '1px solid #ded7ca' : '1px solid #232832'),
-                backgroundColor: isSubsystemClustered
-                  ? (isLight ? 'rgba(2, 132, 199, 0.1)' : 'rgba(59, 130, 246, 0.15)')
-                  : (isLight ? '#eae4d8' : '#090a0d'),
-                color: isSubsystemClustered
-                  ? (isLight ? '#0284c7' : '#60a5fa')
-                  : (isLight ? '#78716c' : '#8b949e'),
-                padding: '4px 8px',
-                borderRadius: 5,
-                fontSize: '0.72rem',
-                fontWeight: 600,
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                gap: 4,
-              }}
-              title="Toggle Subsystem Cluster Grouping Enclosures (Hotkey: b)"
-            >
-              <LayersIcon size={12} />
-              <span>{isSubsystemClustered ? 'Clusters ON' : 'Clusters OFF'}</span>
-            </button>
+            {/* Subsystem Granularity Dropdown (Solution 2) */}
+            <div style={{ position: 'relative' }}>
+              <button
+                type="button"
+                onClick={() => setShowGranularityMenu((p) => !p)}
+                style={{
+                  border: clusterGranularity !== 'none'
+                    ? (isLight ? '1px solid #0284c7' : '1px solid #3b82f6')
+                    : (isLight ? '1px solid #ded7ca' : '1px solid #232832'),
+                  backgroundColor: clusterGranularity !== 'none'
+                    ? (isLight ? 'rgba(2, 132, 199, 0.1)' : 'rgba(59, 130, 246, 0.15)')
+                    : (isLight ? '#eae4d8' : '#090a0d'),
+                  color: clusterGranularity !== 'none'
+                    ? (isLight ? '#0284c7' : '#60a5fa')
+                    : (isLight ? '#78716c' : '#8b949e'),
+                  padding: '4px 8px',
+                  borderRadius: 5,
+                  fontSize: '0.72rem',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 5,
+                }}
+                title="Cluster Granularity & Depth (Hotkey: b)"
+              >
+                <LayersIcon size={12} />
+                <span>
+                  Group: {clusterGranularity === 'auto' ? 'Auto (Smart)' : clusterGranularity === 'l1' ? 'L1: Domain' : clusterGranularity === 'l2' ? 'L2: Module' : clusterGranularity === 'l3' ? 'L3: Component' : 'Flat (Off)'}
+                </span>
+                <ChevronDown size={11} style={{ opacity: 0.7 }} />
+              </button>
+
+              {showGranularityMenu && (
+                <>
+                  <div
+                    style={{ position: 'fixed', inset: 0, zIndex: 1000 }}
+                    onClick={() => setShowGranularityMenu(false)}
+                  />
+                  <div
+                    style={{
+                      position: 'absolute',
+                      top: '100%',
+                      right: 0,
+                      marginTop: 4,
+                      zIndex: 1001,
+                      backgroundColor: isLight ? '#ffffff' : '#141820',
+                      border: isLight ? '1px solid #ded7ca' : '1px solid #283040',
+                      borderRadius: 6,
+                      boxShadow: '0 8px 24px rgba(0,0,0,0.4)',
+                      padding: 4,
+                      minWidth: 210,
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: 2,
+                    }}
+                  >
+                    {[
+                      { id: 'auto', label: 'Auto (Smart LCP)', desc: 'Auto-trims shared parent (e.g. CoreBanking)' },
+                      { id: 'l1', label: 'L1: Domain / Root', desc: 'Highest root prefix (e.g. CoreBanking)' },
+                      { id: 'l2', label: 'L2: Module / Service', desc: 'Secondary module (e.g. AlertSubsystem)' },
+                      { id: 'l3', label: 'L3: Component / Class', desc: 'Tertiary component (e.g. PagerDutyNotifier)' },
+                      { id: 'none', label: 'Flat (Clusters Off)', desc: 'No bounding enclosures' },
+                    ].map((opt) => (
+                      <button
+                        key={opt.id}
+                        type="button"
+                        onClick={() => {
+                          setClusterGranularity(opt.id as ClusterGranularity);
+                          setShowGranularityMenu(false);
+                        }}
+                        style={{
+                          display: 'flex',
+                          flexDirection: 'column',
+                          alignItems: 'flex-start',
+                          padding: '6px 8px',
+                          borderRadius: 4,
+                          border: 'none',
+                          background: clusterGranularity === opt.id
+                            ? (isLight ? 'rgba(2, 132, 199, 0.1)' : 'rgba(59, 130, 246, 0.18)')
+                            : 'transparent',
+                          color: clusterGranularity === opt.id
+                            ? (isLight ? '#0284c7' : '#60a5fa')
+                            : (isLight ? '#1f2937' : '#cbd5e1'),
+                          cursor: 'pointer',
+                          textAlign: 'left',
+                        }}
+                      >
+                        <span style={{ fontSize: '0.74rem', fontWeight: clusterGranularity === opt.id ? 700 : 500 }}>
+                          {opt.label}
+                        </span>
+                        <span style={{ fontSize: '0.64rem', color: isLight ? '#78716c' : '#8b949e' }}>
+                          {opt.desc}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>
 
             {/* Zoom Controls */}
             <div
@@ -1121,6 +1275,71 @@ export const CorrelationTimelineModal: React.FC<CorrelationTimelineModalProps> =
               backgroundSize: '24px 24px',
             }}
           >
+            {/* Sticky Common Ancestor Scope Banner (Solution 1) */}
+            {clusteringMetadata.commonAncestor && clusterGranularity !== 'none' && (
+              <div
+                style={{
+                  position: 'sticky',
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  zIndex: 20,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 8,
+                  padding: '6px 16px',
+                  backgroundColor: isLight ? 'rgba(244, 241, 234, 0.96)' : 'rgba(13, 15, 18, 0.96)',
+                  backdropFilter: 'blur(8px)',
+                  borderBottom: isLight ? '1px solid #ded7ca' : '1px solid #232832',
+                  fontSize: '0.72rem',
+                  fontFamily: 'var(--font-mono, monospace)',
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <span style={{ color: isLight ? '#78716c' : '#8b949e', textTransform: 'uppercase', fontSize: '0.64rem', fontWeight: 800 }}>
+                    COMMON ANCESTOR SCOPE:
+                  </span>
+                  <span
+                    style={{
+                      color: isLight ? '#0284c7' : '#38bdf8',
+                      fontWeight: 700,
+                      backgroundColor: isLight ? 'rgba(2, 132, 199, 0.08)' : 'rgba(56, 189, 248, 0.12)',
+                      padding: '1px 6px',
+                      borderRadius: 4,
+                      border: isLight ? '1px solid rgba(2, 132, 199, 0.25)' : '1px solid rgba(56, 189, 248, 0.25)',
+                    }}
+                  >
+                    {clusteringMetadata.commonAncestor}
+                  </span>
+                  <span style={{ color: isLight ? '#a8a29e' : '#64748b' }}>›</span>
+                  <span style={{ color: isLight ? '#1f2937' : '#cbd5e1', fontWeight: 600 }}>
+                    {clusteringMetadata.levelName} ({subsystemClusters.length} {subsystemClusters.length === 1 ? 'cluster' : 'clusters'})
+                  </span>
+                </div>
+
+                <div
+                  style={{
+                    marginLeft: 'auto',
+                    fontSize: '0.65rem',
+                    color: isLight ? '#78716c' : '#8b949e',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 6,
+                  }}
+                >
+                  <span
+                    style={{
+                      backgroundColor: isLight ? '#eae4d8' : '#1e2430',
+                      padding: '2px 8px',
+                      borderRadius: 4,
+                    }}
+                  >
+                    Auto-trimmed uniform root across all {filteredStepNodes.length} steps
+                  </span>
+                </div>
+              </div>
+            )}
+
             {isLoading ? (
               <div
                 style={{
@@ -1170,7 +1389,7 @@ export const CorrelationTimelineModal: React.FC<CorrelationTimelineModalProps> =
                   /* --- CLUSTERED SUBSYSTEM BOUNDARY VIEW (Phase 2) --- */
                   subsystemClusters.map((cluster, cIdx) => {
                     const isLastCluster = cIdx === subsystemClusters.length - 1;
-                    const cTheme = getSubsystemColor(cluster.root, isLight);
+                    const cTheme = getSubsystemColor(cluster.displayName || cluster.root, isLight);
 
                     return (
                       <React.Fragment key={cluster.id}>
@@ -1215,8 +1434,23 @@ export const CorrelationTimelineModal: React.FC<CorrelationTimelineModalProps> =
                                   fontFamily: 'var(--font-mono, monospace)',
                                 }}
                               >
-                                SUBSYSTEM: {cluster.root}
+                                SUBSYSTEM: {cluster.displayName || cluster.root}
                               </span>
+                              {cluster.errorCount > 0 && (
+                                <span
+                                  style={{
+                                    fontSize: '0.62rem',
+                                    backgroundColor: isLight ? 'rgba(239, 68, 68, 0.12)' : 'rgba(239, 68, 68, 0.2)',
+                                    color: isLight ? '#dc2626' : '#f87171',
+                                    border: '1px solid rgba(239, 68, 68, 0.3)',
+                                    padding: '1px 5px',
+                                    borderRadius: 3,
+                                    fontWeight: 700,
+                                  }}
+                                >
+                                  {cluster.errorCount} ERR
+                                </span>
+                              )}
                               <span style={{ fontSize: '0.68rem', color: isLight ? '#78716c' : '#8b949e' }}>
                                 {cluster.items.length} {cluster.items.length === 1 ? 'step' : 'steps'}
                               </span>
@@ -1334,6 +1568,35 @@ export const CorrelationTimelineModal: React.FC<CorrelationTimelineModalProps> =
                                         </span>
                                       </div>
                                     </div>
+
+                                    {/* Call Stack Return-to-Caller Resume Pill */}
+                                    {node.isReturnResume && (
+                                      <div
+                                        style={{
+                                          display: 'inline-flex',
+                                          alignItems: 'center',
+                                          gap: 4,
+                                          fontSize: '0.62rem',
+                                          fontWeight: 700,
+                                          fontFamily: 'var(--font-mono, monospace)',
+                                          color: isLight ? '#0369a1' : '#38bdf8',
+                                          backgroundColor: isLight ? 'rgba(2, 132, 199, 0.1)' : 'rgba(56, 189, 248, 0.16)',
+                                          border: isLight ? '1px solid rgba(2, 132, 199, 0.3)' : '1px solid rgba(56, 189, 248, 0.3)',
+                                          padding: '2px 6px',
+                                          borderRadius: 4,
+                                          marginBottom: 6,
+                                        }}
+                                        title={`Returned from ${node.returnedFromOperation || 'callee'} (Step #${(node.returnedFromStepIndex ?? 0) + 1}) back to ${node.operation}`}
+                                      >
+                                        <Undo2 size={10} />
+                                        <span>↩ Return to Caller</span>
+                                        {node.returnedFromOperation && (
+                                          <span style={{ opacity: 0.75, maxWidth: 85, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                            ({node.returnedFromOperation})
+                                          </span>
+                                        )}
+                                      </div>
+                                    )}
 
                                     {/* PHASE 1: COMPACT NAMESPACE BREADCRUMB */}
                                     {node.hierarchy.parentPath ? (
@@ -1695,6 +1958,35 @@ export const CorrelationTimelineModal: React.FC<CorrelationTimelineModalProps> =
                             </span>
                           </div>
 
+                          {/* Call Stack Return-to-Caller Resume Pill */}
+                          {node.isReturnResume && (
+                            <div
+                              style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: 4,
+                                fontSize: '0.62rem',
+                                fontWeight: 700,
+                                fontFamily: 'var(--font-mono, monospace)',
+                                color: isLight ? '#0369a1' : '#38bdf8',
+                                backgroundColor: isLight ? 'rgba(2, 132, 199, 0.1)' : 'rgba(56, 189, 248, 0.16)',
+                                border: isLight ? '1px solid rgba(2, 132, 199, 0.3)' : '1px solid rgba(56, 189, 248, 0.3)',
+                                padding: '2px 6px',
+                                borderRadius: 4,
+                                marginBottom: 6,
+                              }}
+                              title={`Returned from ${node.returnedFromOperation || 'callee'} (Step #${(node.returnedFromStepIndex ?? 0) + 1}) back to ${node.operation}`}
+                            >
+                              <Undo2 size={10} />
+                              <span>↩ Return to Caller</span>
+                              {node.returnedFromOperation && (
+                                <span style={{ opacity: 0.75, maxWidth: 85, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                  ({node.returnedFromOperation})
+                                </span>
+                              )}
+                            </div>
+                          )}
+
                           {/* Compact Breadcrumb Module Header */}
                           {node.hierarchy.parentPath ? (
                             <div style={{ marginBottom: 4 }}>
@@ -1932,6 +2224,262 @@ export const CorrelationTimelineModal: React.FC<CorrelationTimelineModalProps> =
                     );
                   })
                 )}
+              </div>
+            ) : viewLayout === 'macro' ? (
+              /* ==============================================================
+                 MODE 4: SUBSYSTEM MACRO-GRAPH (INTER-MODULE TRANSIT VIEW - Solution 3)
+                 ============================================================== */
+              <div
+                style={{
+                  padding: '36px 32px',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 0,
+                  transformOrigin: '0 0',
+                  transform: `scale(${zoomLevel})`,
+                  minWidth: 'max-content',
+                }}
+              >
+                {macroGraph.clusters.map((cluster, cIdx) => {
+                  const cTheme = getSubsystemColor(cluster.displayName || cluster.root, isLight);
+                  const isSelectedCluster = cluster.items.some((it) => it.id === selectedNode?.id);
+                  const transitEdge = macroGraph.edges[cIdx];
+
+                  return (
+                    <React.Fragment key={cluster.id}>
+                      {/* Macro Subsystem Node Card */}
+                      <div
+                        onClick={() => {
+                          if (cluster.items[0]) {
+                            setSelectedNodeIndex(cluster.items[0].index);
+                          }
+                        }}
+                        style={{
+                          width: 290,
+                          backgroundColor: isLight ? '#ffffff' : '#141820',
+                          border: isSelectedCluster
+                            ? `2px solid ${cTheme.border}`
+                            : (isLight ? '1px solid #ded7ca' : '1px solid #283040'),
+                          borderRadius: 10,
+                          padding: 14,
+                          boxShadow: isSelectedCluster
+                            ? (isLight ? '0 4px 16px rgba(0,0,0,0.1)' : `0 4px 20px ${cTheme.bg}`)
+                            : (isLight ? '0 2px 6px rgba(0,0,0,0.04)' : 'none'),
+                          cursor: 'pointer',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: 10,
+                          position: 'relative',
+                        }}
+                      >
+                        {/* Macro Header */}
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
+                            <div
+                              style={{
+                                width: 8,
+                                height: 8,
+                                borderRadius: '50%',
+                                backgroundColor: cTheme.border,
+                                flexShrink: 0,
+                              }}
+                            />
+                            <span
+                              style={{
+                                fontSize: '0.84rem',
+                                fontWeight: 700,
+                                color: cTheme.text,
+                                overflow: 'hidden',
+                                textOverflow: 'ellipsis',
+                                whiteSpace: 'nowrap',
+                              }}
+                              title={cluster.displayName}
+                            >
+                              {cluster.displayName}
+                            </span>
+                          </div>
+
+                          <span
+                            style={{
+                              fontSize: '0.68rem',
+                              fontFamily: 'var(--font-mono, monospace)',
+                              color: isLight ? '#0284c7' : '#38bdf8',
+                              fontWeight: 600,
+                              flexShrink: 0,
+                            }}
+                          >
+                            Σ Δt: {formatDurationMs(cluster.totalDeltaMs)}
+                          </span>
+                        </div>
+
+                        {/* Metrics Bar */}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                          <span
+                            style={{
+                              fontSize: '0.66rem',
+                              backgroundColor: isLight ? '#eae4d8' : '#1e2430',
+                              color: isLight ? '#57534e' : '#94a3b8',
+                              padding: '2px 6px',
+                              borderRadius: 4,
+                            }}
+                          >
+                            {cluster.items.length} {cluster.items.length === 1 ? 'step' : 'steps'}
+                          </span>
+
+                          {cluster.errorCount > 0 && (
+                            <span
+                              style={{
+                                fontSize: '0.66rem',
+                                backgroundColor: isLight ? 'rgba(239, 68, 68, 0.12)' : 'rgba(239, 68, 68, 0.2)',
+                                color: isLight ? '#dc2626' : '#f87171',
+                                border: '1px solid rgba(239, 68, 68, 0.3)',
+                                padding: '1px 6px',
+                                borderRadius: 4,
+                                fontWeight: 700,
+                              }}
+                            >
+                              {cluster.errorCount} {cluster.errorCount === 1 ? 'Error' : 'Errors'}
+                            </span>
+                          )}
+
+                          {cluster.warnCount > 0 && (
+                            <span
+                              style={{
+                                fontSize: '0.66rem',
+                                backgroundColor: isLight ? 'rgba(245, 158, 11, 0.12)' : 'rgba(245, 158, 11, 0.2)',
+                                color: isLight ? '#b45309' : '#fbbf24',
+                                border: '1px solid rgba(245, 158, 11, 0.3)',
+                                padding: '1px 6px',
+                                borderRadius: 4,
+                                fontWeight: 600,
+                              }}
+                            >
+                              {cluster.warnCount} Warn
+                            </span>
+                          )}
+                        </div>
+
+                        {/* List of operations executed inside this module */}
+                        <div
+                          style={{
+                            borderTop: isLight ? '1px solid #f0ece3' : '1px solid rgba(255,255,255,0.06)',
+                            paddingTop: 8,
+                            display: 'flex',
+                            flexDirection: 'column',
+                            gap: 4,
+                            maxHeight: 130,
+                            overflowY: 'auto',
+                          }}
+                        >
+                          {cluster.items.map((node) => {
+                            const isNodeSelected = selectedNode?.id === node.id;
+                            const isErr = node.level === 'error' || node.level === 'critical' || node.level === 'emergency';
+
+                            return (
+                              <div
+                                key={node.id}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setSelectedNodeIndex(node.index);
+                                }}
+                                style={{
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'space-between',
+                                  padding: '3px 6px',
+                                  borderRadius: 4,
+                                  backgroundColor: isNodeSelected
+                                    ? (isLight ? 'rgba(2, 132, 199, 0.12)' : 'rgba(59, 130, 246, 0.2)')
+                                    : 'transparent',
+                                  fontSize: '0.68rem',
+                                  fontFamily: 'var(--font-mono, monospace)',
+                                }}
+                              >
+                                <span
+                                  style={{
+                                    color: isErr ? '#ef4444' : (isLight ? '#1f2937' : '#cbd5e1'),
+                                    overflow: 'hidden',
+                                    textOverflow: 'ellipsis',
+                                    whiteSpace: 'nowrap',
+                                    fontWeight: isNodeSelected ? 700 : 400,
+                                  }}
+                                  title={node.operation}
+                                >
+                                  #{node.index + 1} {node.operation}
+                                </span>
+                                <span style={{ color: isLight ? '#78716c' : '#64748b', fontSize: '0.62rem', flexShrink: 0 }}>
+                                  +{formatDurationMs(node.deltaFromPrevMs)}
+                                </span>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+
+                      {/* Inter-Subsystem Transit Bridge / Latency Edge */}
+                      {transitEdge && (
+                        <div
+                          style={{
+                            display: 'flex',
+                            flexDirection: 'column',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            width: 100,
+                            position: 'relative',
+                            padding: '0 8px',
+                          }}
+                        >
+                          {/* Latency Pill */}
+                          <div
+                            style={{
+                              fontSize: '0.62rem',
+                              fontFamily: 'var(--font-mono, monospace)',
+                              fontWeight: 700,
+                              padding: '2px 6px',
+                              borderRadius: 4,
+                              marginBottom: 4,
+                              backgroundColor: transitEdge.isHotspot
+                                ? (isLight ? '#fee2e2' : 'rgba(239, 68, 68, 0.2)')
+                                : (isLight ? '#eae4d8' : '#1e2430'),
+                              color: transitEdge.isHotspot
+                                ? '#dc2626'
+                                : (isLight ? '#57534e' : '#94a3b8'),
+                              border: transitEdge.isHotspot
+                                ? '1px solid rgba(239, 68, 68, 0.4)'
+                                : (isLight ? '1px solid #ded7ca' : '1px solid #283040'),
+                              whiteSpace: 'nowrap',
+                            }}
+                            title={`Inter-subsystem dispatch latency from ${transitEdge.fromName} to ${transitEdge.toName}`}
+                          >
+                            Δ {formatDurationMs(transitEdge.transitDeltaMs)}
+                          </div>
+
+                          {/* Arrow Connector Line */}
+                          <div style={{ display: 'flex', alignItems: 'center', width: '100%' }}>
+                            <div
+                              style={{
+                                height: 2,
+                                flex: 1,
+                                backgroundColor: transitEdge.isHotspot
+                                  ? '#ef4444'
+                                  : (isLight ? '#0284c7' : '#38bdf8'),
+                              }}
+                            />
+                            <ArrowRight
+                              size={14}
+                              color={transitEdge.isHotspot ? '#ef4444' : (isLight ? '#0284c7' : '#38bdf8')}
+                              style={{ marginLeft: -3 }}
+                            />
+                          </div>
+
+                          <span style={{ fontSize: '0.58rem', color: isLight ? '#a8a29e' : '#64748b', marginTop: 2 }}>
+                            transit
+                          </span>
+                        </div>
+                      )}
+                    </React.Fragment>
+                  );
+                })}
               </div>
             ) : viewLayout === 'waterfall' ? (
               /* ==============================================================
@@ -2614,6 +3162,170 @@ export const CorrelationTimelineModal: React.FC<CorrelationTimelineModalProps> =
                   </div>
                 </div>
 
+                {/* Reconstituted Call Stack & Return Context Card */}
+                {(selectedNode.isReturnResume || selectedNode.parentCallerStepIndex !== undefined || selectedNode.callDepth > 0) && (
+                  <div
+                    style={{
+                      marginBottom: 16,
+                      backgroundColor: isLight ? '#ffffff' : '#0c0e12',
+                      border: selectedNode.isReturnResume
+                        ? (isLight ? '1.5px solid #0284c7' : '1.5px solid #38bdf8')
+                        : (isLight ? '1px solid #ded7ca' : '1px solid #1e2430'),
+                      borderRadius: 8,
+                      padding: 10,
+                      boxShadow: selectedNode.isReturnResume
+                        ? (isLight ? '0 2px 10px rgba(2, 132, 199, 0.12)' : '0 4px 16px rgba(56, 189, 248, 0.12)')
+                        : 'none',
+                    }}
+                  >
+                    <div
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        marginBottom: 8,
+                        paddingBottom: 6,
+                        borderBottom: isLight ? '1px solid #ded7ca' : '1px solid rgba(255,255,255,0.06)',
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <CornerDownRight size={13} color={selectedNode.isReturnResume ? (isLight ? '#0284c7' : '#38bdf8') : (isLight ? '#78716c' : '#8b949e')} />
+                        <span
+                          style={{
+                            fontSize: '0.68rem',
+                            fontWeight: 800,
+                            letterSpacing: '0.04em',
+                            color: selectedNode.isReturnResume ? (isLight ? '#0284c7' : '#38bdf8') : (isLight ? '#57534e' : '#94a3b8'),
+                            textTransform: 'uppercase',
+                          }}
+                        >
+                          {selectedNode.isReturnResume ? '↩ RETURNED TO CALLER CONTEXT' : 'CALL STACK ACTIVATION'}
+                        </span>
+                      </div>
+                      <span
+                        style={{
+                          fontSize: '0.62rem',
+                          fontFamily: 'var(--font-mono, monospace)',
+                          backgroundColor: isLight ? '#eae4d8' : '#1e2430',
+                          padding: '1px 6px',
+                          borderRadius: 3,
+                          color: isLight ? '#57534e' : '#94a3b8',
+                          fontWeight: 600,
+                        }}
+                      >
+                        Depth {selectedNode.callDepth} {selectedNode.callDepth === 0 ? '(Root)' : '(Callee)'}
+                      </span>
+                    </div>
+
+                    {/* Return Info */}
+                    {selectedNode.isReturnResume && selectedNode.returnedFromStepIndex !== undefined && (
+                      <div
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          padding: '6px 8px',
+                          borderRadius: 5,
+                          backgroundColor: isLight ? 'rgba(2, 132, 199, 0.08)' : 'rgba(56, 189, 248, 0.1)',
+                          marginBottom: selectedNode.parentCallerStepIndex !== undefined ? 6 : 0,
+                          fontSize: '0.7rem',
+                        }}
+                      >
+                        <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0, gap: 1 }}>
+                          <span style={{ fontSize: '0.6rem', color: isLight ? '#0369a1' : '#38bdf8', textTransform: 'uppercase', fontWeight: 700 }}>
+                            Returned from callee
+                          </span>
+                          <span
+                            style={{
+                              fontWeight: 600,
+                              color: isLight ? '#1f2937' : '#e2e8f0',
+                              fontFamily: 'var(--font-mono, monospace)',
+                              overflow: 'hidden',
+                              textOverflow: 'ellipsis',
+                              whiteSpace: 'nowrap',
+                              maxWidth: 190,
+                            }}
+                            title={selectedNode.returnedFromOperation}
+                          >
+                            Step #{selectedNode.returnedFromStepIndex + 1}: {selectedNode.returnedFromOperation || 'Subroutine'}
+                          </span>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setSelectedNodeIndex(selectedNode.returnedFromStepIndex!)}
+                          style={{
+                            background: 'none',
+                            border: isLight ? '1px solid #0284c7' : '1px solid #38bdf8',
+                            color: isLight ? '#0284c7' : '#38bdf8',
+                            borderRadius: 4,
+                            padding: '2px 7px',
+                            fontSize: '0.64rem',
+                            cursor: 'pointer',
+                            fontWeight: 600,
+                            flexShrink: 0,
+                          }}
+                          title="Jump back to the completed callee step"
+                        >
+                          Jump to Callee
+                        </button>
+                      </div>
+                    )}
+
+                    {/* Parent Caller Info */}
+                    {selectedNode.parentCallerStepIndex !== undefined && (
+                      <div
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          padding: '6px 8px',
+                          borderRadius: 5,
+                          backgroundColor: isLight ? '#f5f2eb' : '#141820',
+                          fontSize: '0.7rem',
+                        }}
+                      >
+                        <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0, gap: 1 }}>
+                          <span style={{ fontSize: '0.6rem', color: isLight ? '#78716c' : '#8b949e', textTransform: 'uppercase', fontWeight: 700 }}>
+                            Enclosing Parent Caller
+                          </span>
+                          <span
+                            style={{
+                              fontWeight: 600,
+                              color: isLight ? '#1f2937' : '#cbd5e1',
+                              fontFamily: 'var(--font-mono, monospace)',
+                              overflow: 'hidden',
+                              textOverflow: 'ellipsis',
+                              whiteSpace: 'nowrap',
+                              maxWidth: 190,
+                            }}
+                            title={selectedNode.parentCallerOperation}
+                          >
+                            Step #{selectedNode.parentCallerStepIndex + 1}: {selectedNode.parentCallerOperation || 'Caller'}
+                          </span>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setSelectedNodeIndex(selectedNode.parentCallerStepIndex!)}
+                          style={{
+                            background: 'none',
+                            border: isLight ? '1px solid #ded7ca' : '1px solid #3b82f6',
+                            color: isLight ? '#0284c7' : '#60a5fa',
+                            borderRadius: 4,
+                            padding: '2px 7px',
+                            fontSize: '0.64rem',
+                            cursor: 'pointer',
+                            fontWeight: 600,
+                            flexShrink: 0,
+                          }}
+                          title="Jump to the parent step that invoked this frame"
+                        >
+                          Jump to Caller
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )}
+
                 {/* Log Message Render */}
                 <div style={{ marginBottom: 16 }}>
                   <div
@@ -2943,7 +3655,8 @@ export const CorrelationTimelineModal: React.FC<CorrelationTimelineModalProps> =
                 <div><kbd style={kbdStyle(isLight)}>e</kbd> : Jump directly to next error step</div>
                 <div><kbd style={kbdStyle(isLight)}>w</kbd> : Jump directly to next warning step</div>
                 <div><kbd style={kbdStyle(isLight)}>h</kbd> : Jump to latency hotspot (slowest step)</div>
-                <div><kbd style={kbdStyle(isLight)}>v</kbd> / <kbd style={kbdStyle(isLight)}>Tab</kbd> : Flip DAG graph ↔ Waterfall</div>
+                <div><kbd style={kbdStyle(isLight)}>v</kbd> / <kbd style={kbdStyle(isLight)}>Tab</kbd> : Cycle DAG ↔ Macro ↔ Waterfall ↔ Swimlanes</div>
+                <div><kbd style={kbdStyle(isLight)}>b</kbd> : Cycle Granularity (Auto / L1 / L2 / L3 / Off)</div>
               </div>
             </div>
 

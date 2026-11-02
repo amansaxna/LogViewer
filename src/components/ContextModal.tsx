@@ -153,7 +153,13 @@ export const ContextModal: React.FC<ContextModalProps> = ({
   if (!isOpen || !lineNumber) return null;
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
+    <div
+      className="modal-overlay"
+      onClick={onClose}
+      style={{
+        zIndex: 100050,
+      }}
+    >
       <div
         className="modal-dialog"
         style={{

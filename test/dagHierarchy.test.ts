@@ -4,6 +4,9 @@ import {
   groupNodesIntoSubsystems,
   groupNodesIntoThreadSwimlanes,
   getSubsystemColor,
+  buildMacroGraph,
+  resolveEffectiveClusterLevel,
+  computeCallStackFrames,
 } from '../src/utils/dagHierarchyEngine.ts';
 
 console.log('--- Testing DAG Hierarchy, Subsystem Clustering & Thread Swimlanes ---');
@@ -83,5 +86,100 @@ const c1 = getSubsystemColor('PrimaryCommerce');
 const c2 = getSubsystemColor('PrimaryCommerce');
 assert.strictEqual(c1.border, c2.border, 'Color must be strictly deterministic for same subsystem');
 console.log('✓ Test 6 Passed: Deterministic Subsystem Palette assignment verified');
+
+// Test 7: Embedded Payload AST Inspector Contract
+const payloadSample = '{"tier":"enterprise_trial","locale":"en_US"}';
+const isXml = payloadSample.trim().startsWith('<');
+assert.strictEqual(isXml, false, 'JSON payload detected correctly');
+const parsed = JSON.parse(payloadSample);
+assert.strictEqual(parsed.tier, 'enterprise_trial');
+assert.strictEqual(parsed.locale, 'en_US');
+console.log('✓ Test 7 Passed: Embedded Payload AST Inspector Contract verified');
+
+// Test 8: Single-Subsystem Adaptive LCP Trimming
+const singleSubsystemNodes = [
+  { id: '1', module: 'CoreBanking::AlertSubsystem::PagerDutyNotifier::DispatchIncidentAlert', deltaFromPrevMs: 0, operation: 'DispatchIncidentAlert' },
+  { id: '2', module: 'CoreBanking::AlertSubsystem::SlackNotifier::SendMessage', deltaFromPrevMs: 25, operation: 'SendMessage' },
+  { id: '3', module: 'CoreBanking::PaymentEngine::StripeGateway::AuthorizeCard', deltaFromPrevMs: 140, operation: 'AuthorizeCard' },
+  { id: '4', module: 'CoreBanking::PaymentEngine::Ledger::PostJournalEntry', deltaFromPrevMs: 60, operation: 'PostJournalEntry' },
+  { id: '5', module: 'CoreBanking::UserAuth::JwtVerifier::VerifyToken', deltaFromPrevMs: 15, operation: 'VerifyToken' },
+];
+
+const autoClusters = groupNodesIntoSubsystems(singleSubsystemNodes, false, 'auto');
+assert.strictEqual(autoClusters.length, 3, 'Adaptive LCP must automatically split into 3 functional modules instead of 1 monolithic cluster');
+assert.strictEqual(autoClusters[0].displayName, 'AlertSubsystem', 'First cluster must be AlertSubsystem');
+assert.strictEqual(autoClusters[0].items.length, 2);
+assert.strictEqual(autoClusters[1].displayName, 'PaymentEngine', 'Second cluster must be PaymentEngine');
+assert.strictEqual(autoClusters[1].items.length, 2);
+assert.strictEqual(autoClusters[2].displayName, 'UserAuth', 'Third cluster must be UserAuth');
+assert.strictEqual(autoClusters[2].items.length, 1);
+console.log('✓ Test 8 Passed: Single-Subsystem Adaptive LCP Trimming verified');
+
+// Test 9: Explicit Granularity Overrides (L1, L2, L3, None)
+const l1Clusters = groupNodesIntoSubsystems(singleSubsystemNodes, false, 'l1');
+assert.strictEqual(l1Clusters.length, 1, 'L1 must group by root domain (CoreBanking)');
+assert.strictEqual(l1Clusters[0].displayName, 'CoreBanking');
+
+const l2Clusters = groupNodesIntoSubsystems(singleSubsystemNodes, false, 'l2');
+assert.strictEqual(l2Clusters.length, 3, 'L2 must group by module');
+
+const l3Clusters = groupNodesIntoSubsystems(singleSubsystemNodes, false, 'l3');
+assert.strictEqual(l3Clusters.length, 5, 'L3 must group by component/class (5 components)');
+
+const noneClusters = groupNodesIntoSubsystems(singleSubsystemNodes, false, 'none');
+assert.strictEqual(noneClusters.length, 0, 'none must return empty clusters array for flat mode');
+console.log('✓ Test 9 Passed: Explicit Granularity Overrides (L1, L2, L3, None) verified');
+
+// Test 10: Macro-Graph Transit Edges & Hotspot Detection
+const macroGraph = buildMacroGraph(autoClusters);
+assert.strictEqual(macroGraph.clusters.length, 3, 'Macro graph must contain 3 macro nodes');
+assert.strictEqual(macroGraph.edges.length, 2, 'Must have 2 inter-subsystem transit edges');
+assert.strictEqual(macroGraph.edges[0].fromName, 'AlertSubsystem');
+assert.strictEqual(macroGraph.edges[0].toName, 'PaymentEngine');
+assert.strictEqual(macroGraph.edges[0].transitDeltaMs, 140, 'Inter-subsystem transit latency must match step 3 delta (140ms)');
+assert.strictEqual(macroGraph.edges[0].isHotspot, true, '140ms >= 100ms must be flagged as hotspot');
+assert.strictEqual(macroGraph.edges[1].transitDeltaMs, 15, 'Second edge must have 15ms transit');
+assert.strictEqual(macroGraph.edges[1].isHotspot, false);
+console.log('✓ Test 10 Passed: Macro-Graph Transit Edges & Hotspot Detection verified');
+
+// Test 11: Call Stack Activation & Return-Resume Reconstitution (f1 -> f2 -> f3 -> return f2 -> return f1)
+const callTraceNodes = [
+  { index: 0, module: 'OrderService::ProcessOrder', operation: 'ProcessOrder', message: 'entry log: Order #1001' },
+  { index: 1, module: 'OrderService::ValidateCart', operation: 'ValidateCart', message: 'Validating cart items' },
+  { index: 2, module: 'PaymentEngine::Charge', operation: 'Charge', message: 'Calling payment gateway' },
+  { index: 3, module: 'StripeGateway::PostRequest', operation: 'PostRequest', message: 'Posting charge to Stripe' },
+  { index: 4, module: 'PaymentEngine::Charge', operation: 'Charge', message: 'Charge completed 120ms', duration: '120ms' },
+  { index: 5, module: 'OrderService::SendEmail', operation: 'SendEmail', message: 'After f2 returns, continue order: Send email' },
+  { index: 6, module: 'OrderService::ProcessOrder', operation: 'ProcessOrder', message: 'Order #1001 completed' },
+];
+
+const stackFrames = computeCallStackFrames(callTraceNodes);
+
+// Step 0: Root frame depth 0
+assert.strictEqual(stackFrames.get(0)?.callDepth, 0);
+assert.strictEqual(stackFrames.get(0)?.isReturnResume, false);
+
+// Step 2: Callee PaymentEngine (depth 1, caller Step 1 ValidateCart)
+assert.strictEqual(stackFrames.get(2)?.callDepth, 1);
+assert.strictEqual(stackFrames.get(2)?.parentCallerStepIndex, 1);
+
+// Step 3: Nested callee StripeGateway (depth 2, caller Step 2 Charge)
+assert.strictEqual(stackFrames.get(3)?.callDepth, 2);
+assert.strictEqual(stackFrames.get(3)?.parentCallerStepIndex, 2);
+
+// Step 4: PaymentEngine resumes from StripeGateway (depth 1, isReturnResume: true, returnedFrom: 3)
+assert.strictEqual(stackFrames.get(4)?.callDepth, 1);
+assert.strictEqual(stackFrames.get(4)?.isReturnResume, true);
+assert.strictEqual(stackFrames.get(4)?.returnedFromStepIndex, 3);
+assert.strictEqual(stackFrames.get(4)?.returnedFromOperation, 'PostRequest');
+
+// Step 5: OrderService resumes from PaymentEngine (depth 0, isReturnResume: true, returnedFrom: 4, caller: Step 1)
+assert.strictEqual(stackFrames.get(5)?.callDepth, 0);
+assert.strictEqual(stackFrames.get(5)?.isReturnResume, true);
+assert.strictEqual(stackFrames.get(5)?.returnedFromStepIndex, 4);
+assert.strictEqual(stackFrames.get(5)?.returnedFromOperation, 'Charge');
+assert.strictEqual(stackFrames.get(5)?.parentCallerStepIndex, 1);
+
+console.log('✓ Test 11 Passed: Call Stack Activation & Return-Resume Reconstitution verified');
 
 console.log('\nAll DAG Hierarchy, Subsystem & Swimlane Tests Passed Successfully!\n');

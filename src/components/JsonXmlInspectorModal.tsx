@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { X, Copy, Check, Code2, Search, WrapText, Palette, ChevronDown, ChevronRight, ListTree } from 'lucide-react';
 import { tokenizeJson, tokenizeXml } from '../utils/messageContextHighlighter.tsx';
 import { copyWithToast } from '../utils/copyNotifier.ts';
@@ -7,6 +7,7 @@ export interface InspectorPayload {
   type: 'json' | 'xml';
   raw: string;
   title?: string;
+  initialMode?: 'code' | 'tree';
 }
 
 interface JsonXmlInspectorModalProps {
@@ -29,9 +30,29 @@ export const JsonXmlInspectorModal: React.FC<JsonXmlInspectorModalProps> = ({
   const [wrapLines, setWrapLines] = useState(true);
   const [isFormatted, setIsFormatted] = useState(true);
   const [showColors, setShowColors] = useState(true);
-  const [viewMode, setViewMode] = useState<'code' | 'tree'>('code');
+  const [viewMode, setViewMode] = useState<'code' | 'tree'>(payload?.initialMode || 'code');
   const [searchQuery, setSearchQuery] = useState('');
   const [expandAllKey, setExpandAllKey] = useState(0);
+
+  useEffect(() => {
+    if (payload?.initialMode) {
+      setViewMode(payload.initialMode);
+    }
+  }, [payload]);
+
+  // Handle Escape key cleanly without bubbling to parent modals
+  useEffect(() => {
+    if (!payload) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        e.stopPropagation();
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown, true);
+    return () => window.removeEventListener('keydown', handleKeyDown, true);
+  }, [payload, onClose]);
 
   const formattedContent = useMemo(() => {
     if (!payload) return '';
@@ -92,7 +113,13 @@ export const JsonXmlInspectorModal: React.FC<JsonXmlInspectorModalProps> = ({
   const hasTreeMode = (payload.type === 'json' && parsedJsonObj !== null) || (payload.type === 'xml' && parsedXmlTree !== null);
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
+    <div
+      className="modal-overlay"
+      onClick={onClose}
+      style={{
+        zIndex: 100050,
+      }}
+    >
       <div
         className="modal-dialog"
         style={{
