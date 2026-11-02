@@ -125,4 +125,32 @@ assert.strictEqual(parsedDotNs.namespace, 'Auth.SessionManager', 'Dot-separated 
 
 console.log('✓ Test 8 Passed: Namespace accurately parsed for both dot-separated (.) and colon-separated (::) formats');
 
+// Test 9: Client Schema Order: [Datetime] [PID] [TID] [Correlation ID] [Status] [Namespace] [WorkflowMarkers] [Operations] Message [FileName::LineNumber]
+const clientSchemaLine = '[2026-11-02 10:15:20.100] [18492] [thread_orchestrator] [corr-pay-7491] [INFO] [CheckoutPlatform::OrderOrchestrator::SagaCoordinator] [WF:CheckoutSaga_7491] [ValidateOrderPayload] Inbound checkout saga initiated [saga_coordinator.go::58]';
+const parsedClient = parseSingleLine(clientSchemaLine, 11);
+
+assert.strictEqual(parsedClient.datetime, '2026-11-02 10:15:20.100');
+assert.strictEqual(parsedClient.pid, '18492');
+assert.strictEqual(parsedClient.tid, 'thread_orchestrator');
+assert.strictEqual(parsedClient.correlationId, 'corr-pay-7491');
+assert.strictEqual(parsedClient.status, 'INFO');
+assert.strictEqual(parsedClient.namespace, 'CheckoutPlatform::OrderOrchestrator::SagaCoordinator');
+assert.strictEqual(parsedClient.workflow, 'WF:CheckoutSaga_7491');
+assert.strictEqual(parsedClient.operation, 'ValidateOrderPayload');
+assert.strictEqual(parsedClient.message, 'Inbound checkout saga initiated');
+assert.strictEqual(parsedClient.fileLocation, 'saga_coordinator.go::58');
+
+// Verify tokenOrder preserves the client's exact schema sequence (Status before Namespace!)
+assert.deepStrictEqual(parsedClient.tokenOrder, [
+  'datetime',
+  'pid',
+  'tid',
+  'correlationId',
+  'status',
+  'namespace',
+  'workflow',
+  'operation',
+]);
+console.log('✓ Test 9 Passed: Client schema order ([Status] before [Namespace]) accurately preserved in tokenOrder');
+
 console.log('All Parser Tests Passed Successfully!');

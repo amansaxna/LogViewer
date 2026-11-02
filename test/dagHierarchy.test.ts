@@ -234,4 +234,133 @@ assert.strictEqual(t45_return, true, 'Step 4 to Step 5 must be return to root ca
 
 console.log('✓ Test 13 Passed: Flame-DAG 2D Stack Coordinates & Return Transitions verified');
 
+// Test 14: End-to-End Enterprise Complexity in workflow_dag_test.log
+import fs from 'node:fs';
+import path from 'node:path';
+import { parseLogLines } from '../server/parser.ts';
+
+const logFilePath = path.resolve(process.cwd(), 'logs/workflow_dag_test.log');
+const rawLogContent = fs.readFileSync(logFilePath, 'utf-8');
+const parsedEntries = parseLogLines(rawLogContent);
+
+assert.ok(parsedEntries.length >= 20, 'Must parse enterprise production log entries');
+
+// 1. Verify all 4 real-world workflows are present
+const workflows = Array.from(new Set(parsedEntries.map((e) => e.workflow).filter(Boolean)));
+assert.ok(workflows.includes('WF:CheckoutSaga_7491'), 'Must include WF:CheckoutSaga_7491');
+assert.ok(workflows.includes('WF:UserIdentityOnboarding_8812'), 'Must include WF:UserIdentityOnboarding_8812');
+assert.ok(workflows.includes('WF:FinancialReconciliation_9940'), 'Must include WF:FinancialReconciliation_9940');
+assert.ok(workflows.includes('WF:FxArbitrageExecution_3102'), 'Must include WF:FxArbitrageExecution_3102');
+
+// 2. Filter CheckoutSaga_7491 and test Call Stack Reconstitution
+const sagaEntries = parsedEntries.filter((e) => e.workflow === 'WF:CheckoutSaga_7491');
+const sagaNodes = sagaEntries.map((e, idx) => ({
+  index: idx,
+  module: e.namespace || e.workflow || 'Main',
+  operation: e.operation || e.message.slice(0, 32),
+  message: e.message,
+  level: e.level,
+  duration: e.duration,
+}));
+
+const sagaFrames = computeCallStackFrames(sagaNodes);
+
+// Depth 0: CheckoutPlatform (Step 0 & Step 1)
+assert.strictEqual(sagaFrames.get(0)?.callDepth, 0);
+assert.strictEqual(sagaFrames.get(1)?.callDepth, 0);
+
+// Depth 1: WarehouseCluster (Step 2)
+assert.strictEqual(sagaFrames.get(2)?.callDepth, 1);
+
+// Depth 2: DataTier Postgres (Step 3 & Step 4)
+assert.strictEqual(sagaFrames.get(3)?.callDepth, 2);
+assert.strictEqual(sagaFrames.get(4)?.callDepth, 2);
+
+// Return upward to Depth 1 (Step 5: ConfirmStockHold)
+assert.strictEqual(sagaFrames.get(5)?.callDepth, 1);
+assert.strictEqual(sagaFrames.get(5)?.isReturnResume, true);
+
+// Return upward to Root Orchestrator Depth 0 (Step 6: ResumePipeline)
+assert.strictEqual(sagaFrames.get(6)?.callDepth, 0);
+assert.strictEqual(sagaFrames.get(6)?.isReturnResume, true);
+
+// Verify latency hotspot in StripeConnector (850ms)
+const has850ms = sagaEntries.some((e) => e.duration === '850ms');
+assert.ok(has850ms, 'Must contain 850ms latency hotspot hop');
+
+// Verify SocketTimeoutException trace captured
+const errorEntry = sagaEntries.find((e) => e.level === 'error' && e.trace);
+assert.ok(errorEntry, 'Must capture PaymentGateway SocketTimeoutException trace');
+assert.ok(errorEntry?.trace?.frames.length! >= 3, 'Trace must contain call stack frames');
+
+// Verify PagerDuty SEV-2 alert
+const alertEntry = sagaEntries.find((e) => e.operation === 'DispatchIncidentAlert');
+assert.ok(alertEntry, 'Must dispatch PagerDuty alert');
+assert.strictEqual(alertEntry?.level, 'critical');
+
+console.log('✓ Test 14 Passed: End-to-End Enterprise Production Software Complexity verified in workflow_dag_test.log');
+
+// Test 15: Uniform Namespace (Single Module) Operation Clustering & Auto-Flatten
+const uniformNodes = [
+  { module: 'Stream.Live', operation: 'Connect', deltaFromPrevMs: 10 },
+  { module: 'Stream.Live', operation: 'Connect', deltaFromPrevMs: 12 },
+  { module: 'Stream.Live', operation: 'Publish', deltaFromPrevMs: 15 },
+  { module: 'Stream.Live', operation: 'Publish', deltaFromPrevMs: 18 },
+  { module: 'Stream.Live', operation: 'Acknowledge', deltaFromPrevMs: 8 },
+];
+const uniformClusters = groupNodesIntoSubsystems(uniformNodes, false, 'auto');
+assert.strictEqual(uniformClusters.length, 3, 'Uniform namespace with varying operations must group by operations into 3 clusters');
+assert.strictEqual(uniformClusters[0].displayName, 'Connect');
+assert.strictEqual(uniformClusters[1].displayName, 'Publish');
+assert.strictEqual(uniformClusters[2].displayName, 'Acknowledge');
+
+// Uniform namespace with identical operation should auto-flatten
+const identicalNodes = [
+  { module: 'Stream.Live', operation: 'Consume', deltaFromPrevMs: 10 },
+  { module: 'Stream.Live', operation: 'Consume', deltaFromPrevMs: 12 },
+];
+const flatClusters = groupNodesIntoSubsystems(identicalNodes, false, 'auto');
+assert.strictEqual(flatClusters.length, 0, 'Uniform namespace with single operation must auto-flatten to avoid useless monolithic cluster');
+console.log('✓ Test 15 Passed: Uniform Single-Module Operation Clustering & Auto-Flatten verified');
+
+// Test 16: Full Virtual Call Stack Trace Frames (Root -> Caller -> Callee)
+const stackSample = stackFrames.get(3);
+assert.ok(stackSample, 'Must have frame info for step 3');
+assert.strictEqual(stackSample?.callDepth, 2);
+assert.strictEqual(stackSample?.callStack?.length, 3, 'Depth 2 node must maintain 3 active frames (Depth 0, Depth 1, Depth 2)');
+assert.strictEqual(stackSample?.callStack?.[0].depth, 0);
+assert.strictEqual(stackSample?.callStack?.[0].index, 1);
+assert.strictEqual(stackSample?.callStack?.[1].depth, 1);
+assert.strictEqual(stackSample?.callStack?.[1].index, 2);
+assert.strictEqual(stackSample?.callStack?.[2].depth, 2);
+assert.strictEqual(stackSample?.callStack?.[2].index, 3);
+console.log('✓ Test 16 Passed: Full Virtual Call Stack Trace Frames verified');
+
+// Test 17: Large Trace Scalability & Depth Capping (> 200 up to 500 steps)
+const largeTrace = Array.from({ length: 500 }, (_, idx) => ({
+  index: idx,
+  module: `ServiceCluster_${idx % 40}::Subsystem_${idx % 15}::Worker_${idx % 5}`,
+  operation: `ExecuteOperation_${idx}`,
+  duration: '15ms',
+  message: `Dispatched step #${idx}`,
+}));
+
+const tStart = performance.now();
+const largeStackFrames = computeCallStackFrames(largeTrace);
+const largeClusters = groupNodesIntoSubsystems(
+  largeTrace.map((n) => ({ module: n.module, deltaFromPrevMs: 10, operation: n.operation }))
+);
+const tElapsed = performance.now() - tStart;
+
+assert.strictEqual(largeStackFrames.size, 500, 'All 500 steps must be analyzed');
+// Verify maximum stack depth does not exceed 12
+for (const [, frame] of largeStackFrames) {
+  assert.ok(frame.callDepth <= 11, `Depth ${frame.callDepth} must not exceed MAX_STACK_DEPTH ceiling (11)`);
+  if (frame.callStack) {
+    assert.ok(frame.callStack.length <= 12, `Stack length ${frame.callStack.length} must not exceed 12`);
+  }
+}
+assert.ok(tElapsed < 50, `500-step trace analysis must complete in <50ms (took ${tElapsed.toFixed(2)}ms)`);
+console.log(`✓ Test 17 Passed: 500-step trace processed in ${tElapsed.toFixed(2)}ms with max depth capped at 12`);
+
 console.log('\nAll DAG Hierarchy, Subsystem & Swimlane Tests Passed Successfully!\n');

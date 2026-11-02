@@ -84,6 +84,120 @@ export const LogRow: React.FC<LogRowProps> = ({
     onSetDeltaAnchor?.(entry.lineNumber);
   };
 
+  const renderToken = (tokenType: string): React.ReactNode => {
+    switch (tokenType) {
+      case 'datetime':
+        return showDatetime !== false && entry.datetime ? (
+          <span key="tok-dt" className="log-datetime">{entry.datetime}</span>
+        ) : null;
+
+      case 'pid':
+      case 'tid':
+        if ((showPid && entry.pid) || (showTid && entry.tid)) {
+          return (
+            <span key="tok-pid-tid" className="badge-pid-tid">
+              {showPid && entry.pid ? `P:${entry.pid}` : ''}
+              {showPid && entry.pid && showTid && entry.tid ? ' ' : ''}
+              {showTid && entry.tid ? `T:${entry.tid}` : ''}
+            </span>
+          );
+        }
+        return null;
+
+      case 'correlationId':
+        return showCorrelation && entry.correlationId ? (
+          <span
+            key="tok-corr"
+            className="badge-correlation"
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 4,
+              fontSize: '0.72rem',
+              padding: '1px 6px',
+              borderRadius: 4,
+              backgroundColor: 'var(--accent-bg)',
+              color: 'var(--tok-corr)',
+              border: '1px solid var(--accent-primary)',
+              fontFamily: 'var(--font-mono)',
+              cursor: onOpenCorrelationTimeline ? 'pointer' : 'default',
+              textDecoration: onOpenCorrelationTimeline ? 'underline' : 'none',
+            }}
+            onClick={(e) => {
+              if (onOpenCorrelationTimeline && entry.correlationId) {
+                e.stopPropagation();
+                onOpenCorrelationTimeline(entry.correlationId);
+              }
+            }}
+            title={
+              onOpenCorrelationTimeline
+                ? `Correlation ID: ${entry.correlationId} (Click to open Timeline Graph)`
+                : `Correlation ID: ${entry.correlationId}`
+            }
+          >
+            {entry.correlationId}
+          </span>
+        ) : null;
+
+      case 'status':
+        return entry.status ? (
+          <span
+            key="tok-status"
+            className={`badge-status ${
+              entry.status.toLowerCase().includes('success') || entry.status === '200'
+                ? 'success'
+                : entry.status.toLowerCase().includes('fail') ||
+                  entry.status.toLowerCase().includes('error') ||
+                  entry.status === '500'
+                ? 'failed'
+                : ''
+            }`}
+          >
+            {entry.status}
+          </span>
+        ) : null;
+
+      case 'namespace':
+        return entry.namespace ? <span key="tok-ns" className="badge-namespace">{entry.namespace}</span> : null;
+
+      case 'workflow':
+        return entry.workflow ? (
+          <span
+            key="tok-wf"
+            className="badge-workflow"
+            onClick={
+              onOpenWorkflowTimeline
+                ? (e) => {
+                    e.stopPropagation();
+                    onOpenWorkflowTimeline(entry.workflow!);
+                  }
+                : undefined
+            }
+            style={{
+              cursor: onOpenWorkflowTimeline ? 'pointer' : 'default',
+              textDecoration: onOpenWorkflowTimeline ? 'underline' : 'none',
+            }}
+            title={
+              onOpenWorkflowTimeline
+                ? `Workflow: ${entry.workflow} (Click to open Timeline Graph)`
+                : `Workflow: ${entry.workflow}`
+            }
+          >
+            {entry.workflow}
+          </span>
+        ) : null;
+
+      case 'operation':
+        return entry.operation ? <span key="tok-op" className="badge-operation">{entry.operation}</span> : null;
+
+      case 'duration':
+        return entry.duration ? <span key="tok-dur" className="badge-duration">{entry.duration}</span> : null;
+
+      default:
+        return null;
+    }
+  };
+
   return (
     <div
       className={`log-row-item ${expanded ? 'expanded' : ''} ${isSelected ? 'selected' : ''} ${
@@ -155,103 +269,42 @@ export const LogRow: React.FC<LogRowProps> = ({
               </span>
             )}
 
-            {/* Datetime (if present) */}
-            {showDatetime !== false && entry.datetime && <span className="log-datetime">{entry.datetime}</span>}
+            {/* Dynamic Native Schema Order from Log File */}
+            {(() => {
+              const defaultOrder = ['datetime', 'pid', 'tid', 'correlationId', 'namespace', 'workflow', 'operation', 'status', 'duration'];
+              const order = entry.tokenOrder && entry.tokenOrder.length > 0 ? entry.tokenOrder : defaultOrder;
 
-            {/* Process ID & Thread ID */}
-            {((showPid && entry.pid) || (showTid && entry.tid)) && (
-              <span className="badge-pid-tid">
-                {showPid && entry.pid ? `P:${entry.pid}` : ''}
-                {showPid && entry.pid && showTid && entry.tid ? ' ' : ''}
-                {showTid && entry.tid ? `T:${entry.tid}` : ''}
-              </span>
-            )}
+              // De-duplicate pid/tid since LogRow handles them jointly
+              const seenTokens = new Set<string>();
+              const renderedTokens: React.ReactNode[] = [];
 
-            {/* Correlation ID */}
-            {showCorrelation && entry.correlationId && (
-              <span
-                className="badge-correlation"
-                style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: 4,
-                  fontSize: '0.72rem',
-                  padding: '1px 6px',
-                  borderRadius: 4,
-                  backgroundColor: 'var(--accent-bg)',
-                  color: 'var(--tok-corr)',
-                  border: '1px solid var(--accent-primary)',
-                  fontFamily: 'var(--font-mono)',
-                  cursor: onOpenCorrelationTimeline ? 'pointer' : 'default',
-                  textDecoration: onOpenCorrelationTimeline ? 'underline' : 'none',
-                }}
-                onClick={(e) => {
-                  if (onOpenCorrelationTimeline && entry.correlationId) {
-                    e.stopPropagation();
-                    onOpenCorrelationTimeline(entry.correlationId);
+              for (const tok of order) {
+                if (tok === 'pid' || tok === 'tid') {
+                  if (!seenTokens.has('pid_tid')) {
+                    seenTokens.add('pid_tid');
+                    renderedTokens.push(renderToken('pid'));
                   }
-                }}
-                title={
-                  onOpenCorrelationTimeline
-                    ? `Correlation ID: ${entry.correlationId} (Click to open Timeline Graph)`
-                    : `Correlation ID: ${entry.correlationId}`
+                } else if (!seenTokens.has(tok)) {
+                  seenTokens.add(tok);
+                  renderedTokens.push(renderToken(tok));
                 }
-              >
-                {entry.correlationId}
-              </span>
-            )}
+              }
 
-            {/* Namespace */}
-            {entry.namespace && <span className="badge-namespace">{entry.namespace}</span>}
-
-            {/* Workflow Marker */}
-            {entry.workflow && (
-              <span
-                className="badge-workflow"
-                onClick={
-                  onOpenWorkflowTimeline
-                    ? (e) => {
-                        e.stopPropagation();
-                        onOpenWorkflowTimeline(entry.workflow!);
-                      }
-                    : undefined
+              // Render fallback tokens present on entry but missing from tokenOrder
+              for (const tok of defaultOrder) {
+                if (tok === 'pid' || tok === 'tid') {
+                  if (!seenTokens.has('pid_tid')) {
+                    seenTokens.add('pid_tid');
+                    renderedTokens.push(renderToken('pid'));
+                  }
+                } else if (!seenTokens.has(tok)) {
+                  seenTokens.add(tok);
+                  renderedTokens.push(renderToken(tok));
                 }
-                style={{
-                  cursor: onOpenWorkflowTimeline ? 'pointer' : 'default',
-                  textDecoration: onOpenWorkflowTimeline ? 'underline' : 'none',
-                }}
-                title={
-                  onOpenWorkflowTimeline
-                    ? `Workflow: ${entry.workflow} (Click to open Timeline Graph)`
-                    : `Workflow: ${entry.workflow}`
-                }
-              >
-                {entry.workflow}
-              </span>
-            )}
+              }
 
-            {/* Operation */}
-            {entry.operation && <span className="badge-operation">{entry.operation}</span>}
-
-            {/* Status */}
-            {entry.status && (
-              <span
-                className={`badge-status ${
-                  entry.status.toLowerCase().includes('success') || entry.status === '200'
-                    ? 'success'
-                    : entry.status.toLowerCase().includes('fail') ||
-                      entry.status.toLowerCase().includes('error') ||
-                      entry.status === '500'
-                    ? 'failed'
-                    : ''
-                }`}
-              >
-                {entry.status}
-              </span>
-            )}
-
-            {/* Duration */}
-            {entry.duration && <span className="badge-duration">{entry.duration}</span>}
+              return <React.Fragment key="tokens-container">{renderedTokens}</React.Fragment>;
+            })()}
           </>
         )}
 

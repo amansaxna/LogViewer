@@ -40,6 +40,7 @@ export interface LogEntry {
   operation?: string;
   status?: string;
   duration?: string;
+  tokenOrder?: string[];
   message: string;
   fileLocation?: string;
   level: LogLevel;

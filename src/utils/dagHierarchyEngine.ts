@@ -202,7 +202,19 @@ export function resolveEffectiveClusterLevel(
 
   // If all nodes share common prefix, step down to the first diverging segment
   let targetLevel = commonPrefix.length;
-  // If targetLevel points beyond available segments or is the leaf function, step back one level
+  // If targetLevel points beyond available segments or all segments are identical across all nodes
+  const isUniformHierarchy = commonPrefix.length === maxSegments && hierarchies.every((h) => h.segments.length === maxSegments);
+
+  if (isUniformHierarchy) {
+    // When every single node has the identical namespace path (e.g. Stream.Live),
+    // clustering by namespace produces 1 monolithic cluster. We indicate single subsystem.
+    return {
+      level: -1, // Special sentinel indicating operation-level clustering or flat
+      commonAncestor: commonPrefix.join(' › '),
+      levelName: 'Auto: Operations (Single Subsystem)',
+    };
+  }
+
   if (targetLevel >= maxSegments) {
     targetLevel = Math.max(0, maxSegments - 2);
   }
@@ -243,14 +255,24 @@ export function groupNodesIntoSubsystems<
   const hierarchies = nodes.map((n) => parseNamespaceHierarchy(n.module));
   const { level: effectiveLevel } = resolveEffectiveClusterLevel(hierarchies, granularity);
 
+  // If uniform namespace with <= 1 distinct operation, flat layout is superior to 1 monolithic box
+  if (effectiveLevel === -1) {
+    const distinctOps = new Set(nodes.map((n) => n.operation).filter(Boolean));
+    if (distinctOps.size <= 1) {
+      return [];
+    }
+  }
+
   const clusters: SubsystemCluster<T>[] = [];
 
   for (let i = 0; i < nodes.length; i++) {
     const node = nodes[i];
     const h = hierarchies[i];
 
-    // Determine cluster key based on effective level
-    const clusterSegment = h.segments[effectiveLevel] || (effectiveLevel === 0 ? h.root : h.leaf);
+    // Determine cluster key based on effective level (supports operation-level clustering if namespace is uniform)
+    const clusterSegment = effectiveLevel === -1
+      ? (node.operation || h.leaf || 'Operation')
+      : (h.segments[effectiveLevel] || (effectiveLevel === 0 ? h.root : h.leaf));
     const lastCluster = clusters[clusters.length - 1];
 
     const isError = node.level === 'error' || node.level === 'critical' || node.level === 'emergency';
@@ -371,6 +393,16 @@ export function groupNodesIntoThreadSwimlanes<
   return lanes.sort((a, b) => a.startTimeMs - b.startTimeMs);
 }
 
+export interface ActivationStackItem {
+  index: number;
+  module: string;
+  operation: string;
+  depth: number;
+  namespace: string;
+  fileLocation?: string;
+  level?: string;
+}
+
 export interface CallStackFrameInfo {
   callDepth: number;
   parentCallerStepIndex?: number;
@@ -379,14 +411,7 @@ export interface CallStackFrameInfo {
   isReturnResume: boolean;
   returnedFromStepIndex?: number;
   returnedFromOperation?: string;
-}
-
-export interface ActivationStackItem {
-  index: number;
-  module: string;
-  operation: string;
-  depth: number;
-  namespace: string;
+  callStack?: ActivationStackItem[];
 }
 
 /**
@@ -401,6 +426,7 @@ export function computeCallStackFrames<
     message?: string;
     level?: string;
     duration?: string;
+    fileLocation?: string;
   }
 >(nodes: T[]): Map<number, CallStackFrameInfo> {
   const result = new Map<number, CallStackFrameInfo>();
@@ -416,8 +442,7 @@ export function computeCallStackFrames<
     const msg = (node.message || '').toLowerCase();
 
     const isExplicitExit =
-      /\b(exit|exited|exiting|return|returned|returning|completed|complete|finished|done|succeeded)\b/.test(msg) ||
-      Boolean(node.duration);
+      /\b(exit|exited|exiting|return|returned|returning|completed|complete|finished|done|succeeded)\b/.test(msg);
 
     if (stack.length === 0) {
       // Root frame
@@ -427,10 +452,13 @@ export function computeCallStackFrames<
         operation: node.operation,
         depth: 0,
         namespace: node.module,
+        fileLocation: node.fileLocation,
+        level: node.level,
       });
       result.set(node.index, {
         callDepth: 0,
         isReturnResume: false,
+        callStack: stack.map((f) => ({ ...f })),
       });
       continue;
     }
@@ -459,49 +487,96 @@ export function computeCallStackFrames<
         parentCallerStepIndex: parentCaller?.index ?? (existingIndex === 0 && activeFrame.index !== node.index ? activeFrame.index : undefined),
         parentCallerOperation: parentCaller?.operation ?? (existingIndex === 0 && activeFrame.index !== node.index ? activeFrame.operation : undefined),
         parentCallerNamespace: parentCaller?.namespace ?? (existingIndex === 0 && activeFrame.index !== node.index ? activeFrame.namespace : undefined),
+        callStack: stack.map((f, idx) => ({
+          ...f,
+          index: idx === existingIndex ? node.index : f.index,
+          operation: idx === existingIndex ? node.operation : f.operation,
+          namespace: idx === existingIndex ? node.module : f.namespace,
+          fileLocation: idx === existingIndex ? node.fileLocation : f.fileLocation,
+          level: idx === existingIndex ? node.level : f.level,
+        })),
       });
 
       // Update active frame to latest step
       activeFrame.index = node.index;
       activeFrame.operation = node.operation;
+      activeFrame.namespace = node.module;
+      activeFrame.fileLocation = node.fileLocation;
+      activeFrame.level = node.level;
     } else if (existingIndex === stack.length - 1) {
       // Continuing inside the same active frame
       const parentCaller = stack.length > 1 ? stack[stack.length - 2] : undefined;
+
       result.set(node.index, {
         callDepth: stack.length - 1,
         isReturnResume: false,
         parentCallerStepIndex: parentCaller?.index ?? (stack.length === 1 && currentTop.index !== node.index ? currentTop.index : undefined),
         parentCallerOperation: parentCaller?.operation ?? (stack.length === 1 && currentTop.index !== node.index ? currentTop.operation : undefined),
         parentCallerNamespace: parentCaller?.namespace ?? (stack.length === 1 && currentTop.index !== node.index ? currentTop.namespace : undefined),
+        callStack: stack.map((f, idx) => ({
+          ...f,
+          index: idx === stack.length - 1 ? node.index : f.index,
+          operation: idx === stack.length - 1 ? node.operation : f.operation,
+          namespace: idx === stack.length - 1 ? node.module : f.namespace,
+          fileLocation: idx === stack.length - 1 ? node.fileLocation : f.fileLocation,
+          level: idx === stack.length - 1 ? node.level : f.level,
+        })),
       });
 
       // Update top frame to latest step
       currentTop.index = node.index;
       currentTop.operation = node.operation;
+      currentTop.namespace = node.module;
+      currentTop.fileLocation = node.fileLocation;
+      currentTop.level = node.level;
 
       if (isExplicitExit && stack.length > 1) {
         stack.pop();
       }
     } else {
       // New nested subroutine call pushed onto the stack
-      const depth = stack.length;
-      const caller = currentTop;
+      const MAX_STACK_DEPTH = 12;
+      if (stack.length >= MAX_STACK_DEPTH) {
+        // Enforce maximum stack depth ceiling to prevent pathological canvas explosion on large traces
+        const caller = stack[stack.length - 2] || currentTop;
+        currentTop.index = node.index;
+        currentTop.module = contextKey;
+        currentTop.operation = node.operation;
+        currentTop.namespace = node.module;
+        currentTop.fileLocation = node.fileLocation;
+        currentTop.level = node.level;
 
-      stack.push({
-        index: node.index,
-        module: contextKey,
-        operation: node.operation,
-        depth,
-        namespace: node.module,
-      });
+        result.set(node.index, {
+          callDepth: MAX_STACK_DEPTH - 1,
+          isReturnResume: false,
+          parentCallerStepIndex: caller.index,
+          parentCallerOperation: caller.operation,
+          parentCallerNamespace: caller.namespace,
+          callStack: stack.map((f) => ({ ...f })),
+        });
+      } else {
+        const depth = stack.length;
+        const caller = currentTop;
 
-      result.set(node.index, {
-        callDepth: depth,
-        isReturnResume: false,
-        parentCallerStepIndex: caller.index,
-        parentCallerOperation: caller.operation,
-        parentCallerNamespace: caller.namespace,
-      });
+        stack.push({
+          index: node.index,
+          module: contextKey,
+          operation: node.operation,
+          depth,
+          namespace: node.module,
+          fileLocation: node.fileLocation,
+          level: node.level,
+        });
+
+        result.set(node.index, {
+          callDepth: depth,
+          isReturnResume: false,
+          parentCallerStepIndex: caller.index,
+          parentCallerOperation: caller.operation,
+          parentCallerNamespace: caller.namespace,
+          callStack: stack.map((f) => ({ ...f })),
+        });
+      }
 
       if (isExplicitExit && stack.length > 1) {
         stack.pop();

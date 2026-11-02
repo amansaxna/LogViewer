@@ -56,6 +56,7 @@ import {
   computeCallStackFrames,
   computeActiveCallPath,
   CallStackFrameInfo,
+  ActivationStackItem,
   NamespaceHierarchy,
   SubsystemCluster,
   ThreadSwimlane,
@@ -101,6 +102,7 @@ interface TimelineStepNode {
   isReturnResume: boolean;
   returnedFromStepIndex?: number;
   returnedFromOperation?: string;
+  callStack?: ActivationStackItem[];
 }
 
 function getLevelColors(level: string, isLight: boolean) {
@@ -195,11 +197,12 @@ export const CorrelationTimelineModal: React.FC<CorrelationTimelineModalProps> =
   const isSubsystemClustered = clusterGranularity !== 'none';
   const [collapsedClusterIds, setCollapsedClusterIds] = useState<Set<string>>(new Set());
   const [isSpotlightEnabled, setIsSpotlightEnabled] = useState<boolean>(true);
-  const [hoveredNodeIndex, setHoveredNodeIndex] = useState<number | null>(null);
+  const [isStackUnfolded, setIsStackUnfolded] = useState<boolean>(false);
   const [isFullScreen, setIsFullScreen] = useState(false);
   const [searchFilter, setSearchFilter] = useState('');
   const [copiedSnippet, setCopiedSnippet] = useState(false);
   const [rcaCopied, setRcaCopied] = useState(false);
+  const [payloadCopied, setPayloadCopied] = useState(false);
   const [showShortcuts, setShowShortcuts] = useState(false);
 
   const toggleCollapseCluster = (clusterId: string, e?: React.MouseEvent) => {
@@ -347,6 +350,7 @@ export const CorrelationTimelineModal: React.FC<CorrelationTimelineModalProps> =
         message: n.entry.message || n.entry.raw,
         level: n.level,
         duration: n.duration,
+        fileLocation: n.fileLocation,
       }))
     );
 
@@ -361,6 +365,7 @@ export const CorrelationTimelineModal: React.FC<CorrelationTimelineModalProps> =
         isReturnResume: frame.isReturnResume,
         returnedFromStepIndex: frame.returnedFromStepIndex,
         returnedFromOperation: frame.returnedFromOperation,
+        callStack: frame.callStack,
       };
     });
   }, [entries, isWorkflow]);
@@ -379,6 +384,77 @@ export const CorrelationTimelineModal: React.FC<CorrelationTimelineModalProps> =
   }, [stepNodes, searchFilter]);
 
   const selectedNode = stepNodes[selectedNodeIndex] || stepNodes[0] || null;
+
+  const formattedPayloadSnippet = useMemo(() => {
+    if (!selectedNode?.payloadSnippet) return '';
+    const trimmed = selectedNode.payloadSnippet.trim();
+    if (trimmed.startsWith('<')) {
+      return trimmed;
+    }
+    try {
+      const parsed = JSON.parse(trimmed);
+      return JSON.stringify(parsed, null, 2);
+    } catch {
+      return trimmed;
+    }
+  }, [selectedNode?.payloadSnippet]);
+
+  // Active Call Stack frames for the selected node (Root -> Intermediate Caller -> Current Callee)
+  const activeStackFrames = useMemo(() => {
+    if (!selectedNode) return [];
+    if (selectedNode.callStack && selectedNode.callStack.length > 0) {
+      return selectedNode.callStack;
+    }
+    // Fallback synthesis if callStack was not populated
+    const frames: ActivationStackItem[] = [];
+    if (selectedNode.parentCallerStepIndex !== undefined) {
+      frames.push({
+        index: selectedNode.parentCallerStepIndex,
+        depth: Math.max(0, (selectedNode.callDepth || 1) - 1),
+        module: selectedNode.parentCallerNamespace || 'Caller Context',
+        operation: selectedNode.parentCallerOperation || 'Parent Subroutine',
+        namespace: selectedNode.parentCallerNamespace || '',
+      });
+    }
+    frames.push({
+      index: selectedNode.index,
+      depth: selectedNode.callDepth || 0,
+      module: selectedNode.module,
+      operation: selectedNode.operation,
+      namespace: selectedNode.module,
+      fileLocation: selectedNode.fileLocation,
+      level: selectedNode.level,
+    });
+    return frames;
+  }, [selectedNode]);
+
+  // Display stack frames with adaptive folding for deep traces (> 5 frames)
+  const displayStackFrames = useMemo(() => {
+    if (activeStackFrames.length <= 5 || isStackUnfolded) {
+      return activeStackFrames.map((f, i) => ({ frame: f, originalIdx: i, isFoldIndicator: false, hiddenCount: 0 }));
+    }
+    return [
+      { frame: activeStackFrames[0], originalIdx: 0, isFoldIndicator: false, hiddenCount: 0 },
+      {
+        frame: activeStackFrames[1],
+        originalIdx: 1,
+        isFoldIndicator: true,
+        hiddenCount: activeStackFrames.length - 3,
+      },
+      {
+        frame: activeStackFrames[activeStackFrames.length - 2],
+        originalIdx: activeStackFrames.length - 2,
+        isFoldIndicator: false,
+        hiddenCount: 0,
+      },
+      {
+        frame: activeStackFrames[activeStackFrames.length - 1],
+        originalIdx: activeStackFrames.length - 1,
+        isFoldIndicator: false,
+        hiddenCount: 0,
+      },
+    ];
+  }, [activeStackFrames, isStackUnfolded]);
 
   // Auto-scroll node into view when selected
   useEffect(() => {
@@ -408,12 +484,11 @@ export const CorrelationTimelineModal: React.FC<CorrelationTimelineModalProps> =
     return resolveEffectiveClusterLevel(hierarchies, clusterGranularity);
   }, [filteredStepNodes, clusterGranularity]);
 
-  // Active Call-Path Spotlight computation
+  // Active Call-Path Spotlight computation (tied to selectedNodeIndex for instant 60fps responsiveness on 200+ steps)
   const activeSpotlightPath = useMemo(() => {
     if (!isSpotlightEnabled) return null;
-    const focusIndex = hoveredNodeIndex !== null ? hoveredNodeIndex : selectedNodeIndex;
-    return computeActiveCallPath(focusIndex, stepNodes);
-  }, [isSpotlightEnabled, hoveredNodeIndex, selectedNodeIndex, stepNodes]);
+    return computeActiveCallPath(selectedNodeIndex, stepNodes);
+  }, [isSpotlightEnabled, selectedNodeIndex, stepNodes]);
 
   const subsystemClusters = useMemo(() => {
     return groupNodesIntoSubsystems(filteredStepNodes, isLight, clusterGranularity);
@@ -847,21 +922,25 @@ export const CorrelationTimelineModal: React.FC<CorrelationTimelineModalProps> =
                   marginTop: 2,
                 }}
               >
-                <span>{stepNodes.length} steps</span>
+                <span>{stepNodes.length} {stepNodes.length === 1 ? 'step' : 'steps'}</span>
                 <span>•</span>
-                <span>{distinctModules.length} modules</span>
+                <span>{distinctModules.length} {distinctModules.length === 1 ? 'module' : 'modules'}</span>
                 <span>•</span>
                 <span style={{ color: isLight ? '#0284c7' : '#38bdf8' }}>Total Δt: {formatDurationMs(totalTimeMs)}</span>
                 {errorCount > 0 && (
                   <>
                     <span>•</span>
-                    <span style={{ color: isLight ? '#dc2626' : '#f87171', fontWeight: 600 }}>{errorCount} errors</span>
+                    <span style={{ color: isLight ? '#dc2626' : '#f87171', fontWeight: 600 }}>
+                      {errorCount} {errorCount === 1 ? 'error' : 'errors'}
+                    </span>
                   </>
                 )}
                 {warnCount > 0 && (
                   <>
                     <span>•</span>
-                    <span style={{ color: isLight ? '#d97706' : '#fbbf24' }}>{warnCount} warnings</span>
+                    <span style={{ color: isLight ? '#d97706' : '#fbbf24' }}>
+                      {warnCount} {warnCount === 1 ? 'warning' : 'warnings'}
+                    </span>
                   </>
                 )}
               </div>
@@ -869,7 +948,7 @@ export const CorrelationTimelineModal: React.FC<CorrelationTimelineModalProps> =
           </div>
 
           {/* Right Toolbar Controls */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
             {/* Search Filter */}
             <div
               style={{
@@ -880,7 +959,7 @@ export const CorrelationTimelineModal: React.FC<CorrelationTimelineModalProps> =
                 border: isLight ? '1px solid #ded7ca' : '1px solid #232832',
                 borderRadius: 5,
                 padding: '4px 8px',
-                width: 170,
+                width: 140,
               }}
             >
               <Search size={13} color={isLight ? '#78716c' : '#64748b'} />
@@ -1105,19 +1184,122 @@ export const CorrelationTimelineModal: React.FC<CorrelationTimelineModalProps> =
               </button>
             </div>
 
-            {/* Subsystem Granularity Dropdown (Solution 2) */}
-            <div style={{ position: 'relative' }}>
+            {/* Subsystem Granularity Dropdown (Only for DAG Layout) */}
+            {viewLayout === 'dag' && (
+              <div style={{ position: 'relative' }}>
+                <button
+                  type="button"
+                  onClick={() => setShowGranularityMenu((p) => !p)}
+                  style={{
+                    border: clusterGranularity !== 'none'
+                      ? (isLight ? '1px solid #0284c7' : '1px solid #3b82f6')
+                      : (isLight ? '1px solid #ded7ca' : '1px solid #232832'),
+                    backgroundColor: clusterGranularity !== 'none'
+                      ? (isLight ? 'rgba(2, 132, 199, 0.1)' : 'rgba(59, 130, 246, 0.15)')
+                      : (isLight ? '#eae4d8' : '#090a0d'),
+                    color: clusterGranularity !== 'none'
+                      ? (isLight ? '#0284c7' : '#60a5fa')
+                      : (isLight ? '#78716c' : '#8b949e'),
+                    padding: '4px 8px',
+                    borderRadius: 5,
+                    fontSize: '0.72rem',
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 5,
+                  }}
+                  title="Cluster Granularity & Depth (Hotkey: b)"
+                >
+                  <LayersIcon size={12} />
+                  <span>
+                    Group: {clusterGranularity === 'auto' ? 'Auto (Smart)' : clusterGranularity === 'l1' ? 'L1: Domain' : clusterGranularity === 'l2' ? 'L2: Module' : clusterGranularity === 'l3' ? 'L3: Component' : 'Flat (Off)'}
+                  </span>
+                  <ChevronDown size={11} style={{ opacity: 0.7 }} />
+                </button>
+
+                {showGranularityMenu && (
+                  <>
+                    <div
+                      style={{ position: 'fixed', inset: 0, zIndex: 1000 }}
+                      onClick={() => setShowGranularityMenu(false)}
+                    />
+                    <div
+                      style={{
+                        position: 'absolute',
+                        top: '100%',
+                        right: 0,
+                        marginTop: 4,
+                        zIndex: 1001,
+                        backgroundColor: isLight ? '#ffffff' : '#141820',
+                        border: isLight ? '1px solid #ded7ca' : '1px solid #283040',
+                        borderRadius: 6,
+                        boxShadow: '0 8px 24px rgba(0,0,0,0.4)',
+                        padding: 4,
+                        minWidth: 210,
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: 2,
+                      }}
+                    >
+                      {[
+                        { id: 'auto', label: 'Auto (Smart LCP)', desc: 'Auto-trims shared parent (e.g. CoreBanking)' },
+                        { id: 'l1', label: 'L1: Domain / Root', desc: 'Highest root prefix (e.g. CoreBanking)' },
+                        { id: 'l2', label: 'L2: Module / Service', desc: 'Secondary module (e.g. AlertSubsystem)' },
+                        { id: 'l3', label: 'L3: Component / Class', desc: 'Tertiary component (e.g. PagerDutyNotifier)' },
+                        { id: 'none', label: 'Flat (Clusters Off)', desc: 'No bounding enclosures' },
+                      ].map((opt) => (
+                        <button
+                          key={opt.id}
+                          type="button"
+                          onClick={() => {
+                            setClusterGranularity(opt.id as ClusterGranularity);
+                            setShowGranularityMenu(false);
+                          }}
+                          style={{
+                            display: 'flex',
+                            flexDirection: 'column',
+                            alignItems: 'flex-start',
+                            padding: '6px 8px',
+                            borderRadius: 4,
+                            border: 'none',
+                            background: clusterGranularity === opt.id
+                              ? (isLight ? 'rgba(2, 132, 199, 0.1)' : 'rgba(59, 130, 246, 0.18)')
+                              : 'transparent',
+                            color: clusterGranularity === opt.id
+                              ? (isLight ? '#0284c7' : '#60a5fa')
+                              : (isLight ? '#1f2937' : '#cbd5e1'),
+                            cursor: 'pointer',
+                            textAlign: 'left',
+                          }}
+                        >
+                          <span style={{ fontSize: '0.74rem', fontWeight: clusterGranularity === opt.id ? 700 : 500 }}>
+                            {opt.label}
+                          </span>
+                          <span style={{ fontSize: '0.64rem', color: isLight ? '#78716c' : '#8b949e' }}>
+                            {opt.desc}
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
+
+            {/* Call-Path Spotlight Toggle (Only for DAG and Flame Layouts) */}
+            {(viewLayout === 'dag' || viewLayout === 'flame') && (
               <button
                 type="button"
-                onClick={() => setShowGranularityMenu((p) => !p)}
+                onClick={() => setIsSpotlightEnabled((p) => !p)}
                 style={{
-                  border: clusterGranularity !== 'none'
+                  border: isSpotlightEnabled
                     ? (isLight ? '1px solid #0284c7' : '1px solid #3b82f6')
                     : (isLight ? '1px solid #ded7ca' : '1px solid #232832'),
-                  backgroundColor: clusterGranularity !== 'none'
+                  backgroundColor: isSpotlightEnabled
                     ? (isLight ? 'rgba(2, 132, 199, 0.1)' : 'rgba(59, 130, 246, 0.15)')
                     : (isLight ? '#eae4d8' : '#090a0d'),
-                  color: clusterGranularity !== 'none'
+                  color: isSpotlightEnabled
                     ? (isLight ? '#0284c7' : '#60a5fa')
                     : (isLight ? '#78716c' : '#8b949e'),
                   padding: '4px 8px',
@@ -1129,111 +1311,12 @@ export const CorrelationTimelineModal: React.FC<CorrelationTimelineModalProps> =
                   alignItems: 'center',
                   gap: 5,
                 }}
-                title="Cluster Granularity & Depth (Hotkey: b)"
+                title="Toggle Active Call-Path Spotlight (Hotkey: s)"
               >
-                <LayersIcon size={12} />
-                <span>
-                  Group: {clusterGranularity === 'auto' ? 'Auto (Smart)' : clusterGranularity === 'l1' ? 'L1: Domain' : clusterGranularity === 'l2' ? 'L2: Module' : clusterGranularity === 'l3' ? 'L3: Component' : 'Flat (Off)'}
-                </span>
-                <ChevronDown size={11} style={{ opacity: 0.7 }} />
+                {isSpotlightEnabled ? <Eye size={12} /> : <EyeOff size={12} />}
+                <span>{isSpotlightEnabled ? 'Spotlight ON' : 'Spotlight OFF'}</span>
               </button>
-
-              {showGranularityMenu && (
-                <>
-                  <div
-                    style={{ position: 'fixed', inset: 0, zIndex: 1000 }}
-                    onClick={() => setShowGranularityMenu(false)}
-                  />
-                  <div
-                    style={{
-                      position: 'absolute',
-                      top: '100%',
-                      right: 0,
-                      marginTop: 4,
-                      zIndex: 1001,
-                      backgroundColor: isLight ? '#ffffff' : '#141820',
-                      border: isLight ? '1px solid #ded7ca' : '1px solid #283040',
-                      borderRadius: 6,
-                      boxShadow: '0 8px 24px rgba(0,0,0,0.4)',
-                      padding: 4,
-                      minWidth: 210,
-                      display: 'flex',
-                      flexDirection: 'column',
-                      gap: 2,
-                    }}
-                  >
-                    {[
-                      { id: 'auto', label: 'Auto (Smart LCP)', desc: 'Auto-trims shared parent (e.g. CoreBanking)' },
-                      { id: 'l1', label: 'L1: Domain / Root', desc: 'Highest root prefix (e.g. CoreBanking)' },
-                      { id: 'l2', label: 'L2: Module / Service', desc: 'Secondary module (e.g. AlertSubsystem)' },
-                      { id: 'l3', label: 'L3: Component / Class', desc: 'Tertiary component (e.g. PagerDutyNotifier)' },
-                      { id: 'none', label: 'Flat (Clusters Off)', desc: 'No bounding enclosures' },
-                    ].map((opt) => (
-                      <button
-                        key={opt.id}
-                        type="button"
-                        onClick={() => {
-                          setClusterGranularity(opt.id as ClusterGranularity);
-                          setShowGranularityMenu(false);
-                        }}
-                        style={{
-                          display: 'flex',
-                          flexDirection: 'column',
-                          alignItems: 'flex-start',
-                          padding: '6px 8px',
-                          borderRadius: 4,
-                          border: 'none',
-                          background: clusterGranularity === opt.id
-                            ? (isLight ? 'rgba(2, 132, 199, 0.1)' : 'rgba(59, 130, 246, 0.18)')
-                            : 'transparent',
-                          color: clusterGranularity === opt.id
-                            ? (isLight ? '#0284c7' : '#60a5fa')
-                            : (isLight ? '#1f2937' : '#cbd5e1'),
-                          cursor: 'pointer',
-                          textAlign: 'left',
-                        }}
-                      >
-                        <span style={{ fontSize: '0.74rem', fontWeight: clusterGranularity === opt.id ? 700 : 500 }}>
-                          {opt.label}
-                        </span>
-                        <span style={{ fontSize: '0.64rem', color: isLight ? '#78716c' : '#8b949e' }}>
-                          {opt.desc}
-                        </span>
-                      </button>
-                    ))}
-                  </div>
-                </>
-              )}
-            </div>
-
-            {/* Call-Path Spotlight Toggle */}
-            <button
-              type="button"
-              onClick={() => setIsSpotlightEnabled((p) => !p)}
-              style={{
-                border: isSpotlightEnabled
-                  ? (isLight ? '1px solid #0284c7' : '1px solid #3b82f6')
-                  : (isLight ? '1px solid #ded7ca' : '1px solid #232832'),
-                backgroundColor: isSpotlightEnabled
-                  ? (isLight ? 'rgba(2, 132, 199, 0.1)' : 'rgba(59, 130, 246, 0.15)')
-                  : (isLight ? '#eae4d8' : '#090a0d'),
-                color: isSpotlightEnabled
-                  ? (isLight ? '#0284c7' : '#60a5fa')
-                  : (isLight ? '#78716c' : '#8b949e'),
-                padding: '4px 8px',
-                borderRadius: 5,
-                fontSize: '0.72rem',
-                fontWeight: 600,
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                gap: 5,
-              }}
-              title="Toggle Active Call-Path Spotlight (Hotkey: s)"
-            >
-              {isSpotlightEnabled ? <Eye size={12} /> : <EyeOff size={12} />}
-              <span>{isSpotlightEnabled ? 'Spotlight ON' : 'Spotlight OFF'}</span>
-            </button>
+            )}
 
             {/* Zoom Controls */}
             <div
@@ -1615,11 +1698,11 @@ export const CorrelationTimelineModal: React.FC<CorrelationTimelineModalProps> =
                                     <div
                                       ref={isSelected ? activeNodeRef : null}
                                       onClick={() => setSelectedNodeIndex(node.index)}
-                                      onMouseEnter={() => setHoveredNodeIndex(node.index)}
-                                      onMouseLeave={() => setHoveredNodeIndex(null)}
-                                    style={{
-                                      width: 250,
-                                      opacity: isSpotlighted ? 1 : 0.22,
+                                      style={{
+                                        width: 250,
+                                        contentVisibility: 'auto',
+                                        containIntrinsicSize: '250px 110px',
+                                        opacity: isSpotlighted ? 1 : 0.22,
                                       filter: isSpotlighted ? 'none' : 'grayscale(0.65)',
                                       backgroundColor: isSelected
                                         ? (isLight ? '#ffffff' : '#151922')
@@ -2027,10 +2110,10 @@ export const CorrelationTimelineModal: React.FC<CorrelationTimelineModalProps> =
                         <div
                           ref={isSelected ? activeNodeRef : null}
                           onClick={() => setSelectedNodeIndex(node.index)}
-                          onMouseEnter={() => setHoveredNodeIndex(node.index)}
-                          onMouseLeave={() => setHoveredNodeIndex(null)}
                           style={{
                             width: 250,
+                            contentVisibility: 'auto',
+                            containIntrinsicSize: '250px 110px',
                             opacity: isSpotlighted ? 1 : 0.22,
                             filter: isSpotlighted ? 'none' : 'grayscale(0.65)',
                             backgroundColor: isSelected
@@ -2379,12 +2462,12 @@ export const CorrelationTimelineModal: React.FC<CorrelationTimelineModalProps> =
                 const cardHeight = 110;
                 const gapX = 80;
                 const rowHeight = 150;
-                const startX = 40;
-                const startY = 50;
+                const startX = 32;
+                const startY = 20;
 
                 const maxDepth = Math.max(0, ...filteredStepNodes.map((n) => n.callDepth || 0));
                 const canvasWidth = startX * 2 + filteredStepNodes.length * (cardWidth + gapX);
-                const canvasHeight = startY * 2 + (maxDepth + 1) * rowHeight + 40;
+                const canvasHeight = startY * 2 + (maxDepth + 1) * rowHeight + 20;
 
                 return (
                   <div
@@ -2396,7 +2479,7 @@ export const CorrelationTimelineModal: React.FC<CorrelationTimelineModalProps> =
                       minHeight: '100%',
                       transformOrigin: '0 0',
                       transform: `scale(${zoomLevel})`,
-                      padding: 24,
+                      padding: 16,
                     }}
                   >
                     {/* Horizontal Depth Swim-Tier Guideline Rails */}
@@ -2446,18 +2529,8 @@ export const CorrelationTimelineModal: React.FC<CorrelationTimelineModalProps> =
                       );
                     })}
 
-                    {/* SVG Bezier Spline Connector Layer */}
-                    <svg
-                      width={canvasWidth}
-                      height={canvasHeight}
-                      style={{
-                        position: 'absolute',
-                        top: 0,
-                        left: 0,
-                        pointerEvents: 'none',
-                        zIndex: 1,
-                      }}
-                    >
+                    {/* Shared SVG Markers for Flame Connectors */}
+                    <svg width="0" height="0" style={{ position: 'absolute', pointerEvents: 'none' }}>
                       <defs>
                         <marker
                           id={isLight ? 'flame-arrow-light' : 'flame-arrow'}
@@ -2480,101 +2553,104 @@ export const CorrelationTimelineModal: React.FC<CorrelationTimelineModalProps> =
                           <polygon points="0 0, 6 3, 0 6" fill={isLight ? '#059669' : '#34d399'} />
                         </marker>
                       </defs>
-
-                      {filteredStepNodes.map((curr, idx) => {
-                        if (idx === filteredStepNodes.length - 1) return null;
-                        const next = filteredStepNodes[idx + 1];
-
-                        const x1 = startX + idx * (cardWidth + gapX) + cardWidth;
-                        const y1 = startY + curr.callDepth * rowHeight + 52;
-
-                        const x2 = startX + (idx + 1) * (cardWidth + gapX);
-                        const y2 = startY + next.callDepth * rowHeight + 52;
-
-                        const dx = x2 - x1;
-                        const c1x = x1 + dx * 0.5;
-                        const c1y = y1;
-                        const c2x = x2 - dx * 0.5;
-                        const c2y = y2;
-                        const pathD = `M ${x1} ${y1} C ${c1x} ${c1y}, ${c2x} ${c2y}, ${x2} ${y2}`;
-
-                        const isReturn = next.isReturnResume || next.callDepth < curr.callDepth;
-                        const isDescent = next.callDepth > curr.callDepth;
-                        const strokeColor = isReturn
-                          ? (isLight ? '#059669' : '#34d399')
-                          : isDescent
-                          ? (isLight ? '#0284c7' : '#38bdf8')
-                          : (isLight ? '#0284c7' : '#3b82f6');
-
-                        const isSpotlighted =
-                          !activeSpotlightPath ||
-                          (activeSpotlightPath.has(curr.index) && activeSpotlightPath.has(next.index));
-
-                        const midX = (x1 + x2) / 2;
-                        const midY = (y1 + y2) / 2;
-
-                        return (
-                          <g key={`spline-${curr.id}-${next.id}`} opacity={isSpotlighted ? 1 : 0.2}>
-                            <path
-                              d={pathD}
-                              fill="none"
-                              stroke={strokeColor}
-                              strokeWidth={isReturn ? 2.2 : 2.0}
-                              strokeDasharray={isReturn ? '6 4' : isDescent ? 'none' : '4 3'}
-                              markerEnd={`url(#${
-                                isReturn
-                                  ? (isLight ? 'flame-return-light' : 'flame-return')
-                                  : (isLight ? 'flame-arrow-light' : 'flame-arrow')
-                              })`}
-                            />
-
-                            {/* Spline Midpoint Hop / Return Badge */}
-                            <foreignObject
-                              x={midX - 42}
-                              y={midY - 12}
-                              width={84}
-                              height={24}
-                              style={{ overflow: 'visible', pointerEvents: 'none' }}
-                            >
-                              <div
-                                style={{
-                                  display: 'flex',
-                                  alignItems: 'center',
-                                  justifyContent: 'center',
-                                  gap: 2,
-                                  backgroundColor: isReturn
-                                    ? (isLight ? '#ecfdf5' : '#062d1f')
-                                    : (isLight ? '#ffffff' : '#0e1117'),
-                                  border: isReturn
-                                    ? (isLight ? '1px solid #10b981' : '1px solid #34d399')
-                                    : (isLight ? '1px solid #ded7ca' : '1px solid #283040'),
-                                  borderRadius: 10,
-                                  padding: '1px 6px',
-                                  fontSize: '0.60rem',
-                                  fontFamily: 'var(--font-mono, monospace)',
-                                  fontWeight: 700,
-                                  color: isReturn
-                                    ? (isLight ? '#047857' : '#34d399')
-                                    : (isLight ? '#0284c7' : '#38bdf8'),
-                                  boxShadow: '0 1px 4px rgba(0,0,0,0.15)',
-                                  whiteSpace: 'nowrap',
-                                }}
-                              >
-                                {isReturn ? '↩ return' : `+${formatDurationMs(next.deltaFromPrevMs)}`}
-                              </div>
-                            </foreignObject>
-                          </g>
-                        );
-                      })}
                     </svg>
 
+                    {/* Highly performant localized SVG Spline Connectors (Eliminates single massive 66,000px SVG) */}
+                    {filteredStepNodes.map((curr, idx) => {
+                      if (idx === filteredStepNodes.length - 1) return null;
+                      const next = filteredStepNodes[idx + 1];
+
+                      const x1 = startX + idx * (cardWidth + gapX) + cardWidth;
+                      const y1 = startY + curr.callDepth * rowHeight + 65;
+
+                      const x2 = startX + (idx + 1) * (cardWidth + gapX);
+                      const y2 = startY + next.callDepth * rowHeight + 65;
+
+                      const minY = Math.min(y1, y2) - 15;
+                      const maxY = Math.max(y1, y2) + 15;
+                      const svgHeight = Math.max(maxY - minY, 30);
+                      const localY1 = y1 - minY;
+                      const localY2 = y2 - minY;
+                      const midY = (localY1 + localY2) / 2;
+
+                      const isReturn = next.isReturnResume || next.callDepth < curr.callDepth;
+                      const isDescent = next.callDepth > curr.callDepth;
+                      const strokeColor = isReturn
+                        ? (isLight ? '#059669' : '#34d399')
+                        : isDescent
+                        ? (isLight ? '#0284c7' : '#38bdf8')
+                        : (isLight ? '#0284c7' : '#3b82f6');
+
+                      const isSpotlighted =
+                        !activeSpotlightPath ||
+                        (activeSpotlightPath.has(curr.index) && activeSpotlightPath.has(next.index));
+
+                      return (
+                        <svg
+                          key={`flame-spline-${curr.id}-${next.id}`}
+                          width={gapX + 10}
+                          height={svgHeight}
+                          style={{
+                            position: 'absolute',
+                            left: x1,
+                            top: minY,
+                            pointerEvents: 'none',
+                            zIndex: 1,
+                            overflow: 'visible',
+                            opacity: isSpotlighted ? 1 : 0.2,
+                            contentVisibility: 'auto',
+                            containIntrinsicSize: `${gapX + 10}px ${svgHeight}px`,
+                          }}
+                        >
+                          <path
+                            d={`M 0 ${localY1} C 40 ${localY1}, 40 ${localY2}, 80 ${localY2}`}
+                            fill="none"
+                            stroke={strokeColor}
+                            strokeWidth={isReturn ? 2.2 : 2.0}
+                            strokeDasharray={isReturn ? '6 4' : isDescent ? 'none' : '4 3'}
+                            markerEnd={`url(#${
+                              isReturn
+                                ? (isLight ? 'flame-return-light' : 'flame-return')
+                                : (isLight ? 'flame-arrow-light' : 'flame-arrow')
+                            })`}
+                          />
+
+                          {/* Native High-Performance SVG Spline Badge (Replaces heavyweight foreignObject) */}
+                          <g transform={`translate(40, ${midY})`}>
+                            <rect
+                              x={-34}
+                              y={-9}
+                              width={68}
+                              height={18}
+                              rx={9}
+                              ry={9}
+                              fill={isReturn ? (isLight ? '#ecfdf5' : '#062d1f') : (isLight ? '#ffffff' : '#0e1117')}
+                              stroke={isReturn ? (isLight ? '#10b981' : '#34d399') : (isLight ? '#ded7ca' : '#283040')}
+                              strokeWidth={1}
+                            />
+                            <text
+                              x={0}
+                              y={3.5}
+                              textAnchor="middle"
+                              fill={isReturn ? (isLight ? '#047857' : '#34d399') : (isLight ? '#0284c7' : '#38bdf8')}
+                              fontSize="9.5"
+                              fontFamily="var(--font-mono, monospace)"
+                              fontWeight="700"
+                            >
+                              {isReturn ? '↩ return' : `+${formatDurationMs(next.deltaFromPrevMs)}`}
+                            </text>
+                          </g>
+                        </svg>
+                      );
+                    })}
+
                     {/* Step Node Cards Placed on 2D Flame Coordinates */}
-                    {filteredStepNodes.map((node) => {
+                    {filteredStepNodes.map((node, nodeIdx) => {
                       const isSelected = selectedNode?.id === node.id;
                       const lvlTheme = getLevelColors(node.level, isLight);
                       const isSpotlighted = !activeSpotlightPath || activeSpotlightPath.has(node.index);
-                      const nodeX = startX + node.index * (cardWidth + gapX);
-                      const nodeY = startY + node.callDepth * rowHeight;
+                      const nodeX = startX + nodeIdx * (cardWidth + gapX);
+                      const nodeY = startY + node.callDepth * rowHeight + 10;
                       const subColor = getSubsystemColor(node.hierarchy.root, isLight);
 
                       return (
@@ -2582,14 +2658,14 @@ export const CorrelationTimelineModal: React.FC<CorrelationTimelineModalProps> =
                           key={`flame-node-${node.id}`}
                           ref={isSelected ? activeNodeRef : null}
                           onClick={() => setSelectedNodeIndex(node.index)}
-                          onMouseEnter={() => setHoveredNodeIndex(node.index)}
-                          onMouseLeave={() => setHoveredNodeIndex(null)}
                           style={{
                             position: 'absolute',
                             left: nodeX,
                             top: nodeY,
                             width: cardWidth,
                             minHeight: cardHeight,
+                            contentVisibility: 'auto',
+                            containIntrinsicSize: '250px 110px',
                             zIndex: 2,
                             opacity: isSpotlighted ? 1 : 0.22,
                             filter: isSpotlighted ? 'none' : 'grayscale(0.65)',
@@ -3857,58 +3933,250 @@ export const CorrelationTimelineModal: React.FC<CorrelationTimelineModalProps> =
                       </div>
                     )}
 
-                    {/* Parent Caller Info */}
-                    {selectedNode.parentCallerStepIndex !== undefined && (
+                    {/* Active Virtual Call Stack Trace (Root -> Callee) */}
+                    <div style={{ marginTop: selectedNode.isReturnResume && selectedNode.returnedFromStepIndex !== undefined ? 8 : 4 }}>
                       <div
                         style={{
+                          fontSize: '0.62rem',
+                          fontWeight: 700,
+                          textTransform: 'uppercase',
+                          letterSpacing: '0.04em',
+                          color: isLight ? '#78716c' : '#8b949e',
+                          marginBottom: 6,
                           display: 'flex',
                           alignItems: 'center',
                           justifyContent: 'space-between',
-                          padding: '6px 8px',
-                          borderRadius: 5,
-                          backgroundColor: isLight ? '#f5f2eb' : '#141820',
-                          fontSize: '0.7rem',
                         }}
                       >
-                        <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0, gap: 1 }}>
-                          <span style={{ fontSize: '0.6rem', color: isLight ? '#78716c' : '#8b949e', textTransform: 'uppercase', fontWeight: 700 }}>
-                            Enclosing Parent Caller
+                        <span>Active Call Stack (Root → Callee)</span>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                          <span style={{ fontFamily: 'var(--font-mono, monospace)', fontWeight: 600 }}>
+                            {activeStackFrames.length} {activeStackFrames.length === 1 ? 'frame' : 'frames'}
                           </span>
-                          <span
-                            style={{
-                              fontWeight: 600,
-                              color: isLight ? '#1f2937' : '#cbd5e1',
-                              fontFamily: 'var(--font-mono, monospace)',
-                              overflow: 'hidden',
-                              textOverflow: 'ellipsis',
-                              whiteSpace: 'nowrap',
-                              maxWidth: 190,
-                            }}
-                            title={selectedNode.parentCallerOperation}
-                          >
-                            Step #{selectedNode.parentCallerStepIndex + 1}: {selectedNode.parentCallerOperation || 'Caller'}
-                          </span>
+                          {activeStackFrames.length > 5 && (
+                            <button
+                              type="button"
+                              onClick={() => setIsStackUnfolded((u) => !u)}
+                              style={{
+                                background: 'none',
+                                border: isLight ? '1px solid #ded7ca' : '1px solid #283040',
+                                borderRadius: 3,
+                                color: isLight ? '#0284c7' : '#38bdf8',
+                                fontSize: '0.58rem',
+                                cursor: 'pointer',
+                                padding: '1px 5px',
+                                fontWeight: 600,
+                              }}
+                            >
+                              {isStackUnfolded ? 'Fold' : 'Expand All'}
+                            </button>
+                          )}
                         </div>
-                        <button
-                          type="button"
-                          onClick={() => setSelectedNodeIndex(selectedNode.parentCallerStepIndex!)}
-                          style={{
-                            background: 'none',
-                            border: isLight ? '1px solid #ded7ca' : '1px solid #3b82f6',
-                            color: isLight ? '#0284c7' : '#60a5fa',
-                            borderRadius: 4,
-                            padding: '2px 7px',
-                            fontSize: '0.64rem',
-                            cursor: 'pointer',
-                            fontWeight: 600,
-                            flexShrink: 0,
-                          }}
-                          title="Jump to the parent step that invoked this frame"
-                        >
-                          Jump to Caller
-                        </button>
                       </div>
-                    )}
+
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                        {displayStackFrames.map((item, fIdx) => {
+                          if (item.isFoldIndicator) {
+                            return (
+                              <div
+                                key="stack-fold-indicator"
+                                onClick={() => setIsStackUnfolded(true)}
+                                style={{
+                                  padding: '4px 10px',
+                                  borderRadius: 4,
+                                  backgroundColor: isLight ? '#eae4d8' : '#141820',
+                                  border: isLight ? '1px dashed #0284c7' : '1px dashed #38bdf8',
+                                  color: isLight ? '#0369a1' : '#38bdf8',
+                                  fontSize: '0.62rem',
+                                  fontFamily: 'var(--font-mono, monospace)',
+                                  cursor: 'pointer',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'space-between',
+                                  margin: '2px 0 2px 14px',
+                                }}
+                                title="Click to expand all intermediate call frames"
+                              >
+                                <span>↕ {item.hiddenCount} intermediate frames folded</span>
+                                <span style={{ textDecoration: 'underline', fontWeight: 600 }}>Expand</span>
+                              </div>
+                            );
+                          }
+
+                          const frame = item.frame;
+                          const isCurrent = frame.index === selectedNode.index;
+                          const isRoot = frame.depth === 0;
+
+                          return (
+                            <React.Fragment key={`frame-${frame.depth}-${frame.index}-${fIdx}`}>
+                              {/* Visual Subroutine Call Flow Connector between frames */}
+                              {fIdx > 0 && (
+                                <div
+                                  style={{
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: 6,
+                                    paddingLeft: 10 + (fIdx - 1) * 8,
+                                    margin: '-1px 0',
+                                    color: isLight ? '#0284c7' : '#38bdf8',
+                                    fontSize: '0.58rem',
+                                    fontFamily: 'var(--font-mono, monospace)',
+                                    opacity: 0.8,
+                                  }}
+                                >
+                                  <span>│</span>
+                                  <span>↳ invokes callee</span>
+                                </div>
+                              )}
+
+                              <div
+                                onClick={() => setSelectedNodeIndex(frame.index)}
+                                style={{
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'space-between',
+                                  padding: '6px 8px',
+                                  borderRadius: 5,
+                                  backgroundColor: isCurrent
+                                    ? (isLight ? 'rgba(2, 132, 199, 0.1)' : 'rgba(56, 189, 248, 0.12)')
+                                    : (isLight ? '#f5f2eb' : '#141820'),
+                                  borderLeft: isCurrent
+                                    ? (isLight ? '3px solid #0284c7' : '3px solid #38bdf8')
+                                    : (isLight ? '3px solid #ded7ca' : '3px solid #232832'),
+                                  borderTop: isCurrent
+                                    ? (isLight ? '1px solid rgba(2, 132, 199, 0.3)' : '1px solid rgba(56, 189, 248, 0.35)')
+                                    : (isLight ? '1px solid #e7e2d6' : '1px solid #1a202c'),
+                                  borderRight: isCurrent
+                                    ? (isLight ? '1px solid rgba(2, 132, 199, 0.3)' : '1px solid rgba(56, 189, 248, 0.35)')
+                                    : (isLight ? '1px solid #e7e2d6' : '1px solid #1a202c'),
+                                  borderBottom: isCurrent
+                                    ? (isLight ? '1px solid rgba(2, 132, 199, 0.3)' : '1px solid rgba(56, 189, 248, 0.35)')
+                                    : (isLight ? '1px solid #e7e2d6' : '1px solid #1a202c'),
+                                  cursor: 'pointer',
+                                  transition: 'all 120ms ease',
+                                  marginLeft: frame.depth * 6,
+                                }}
+                                title={isCurrent ? 'Current active frame' : `Click to jump to Step #${frame.index + 1}`}
+                              >
+                                <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0, gap: 2, flex: 1 }}>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                                    <span
+                                      style={{
+                                        fontSize: '0.58rem',
+                                        fontFamily: 'var(--font-mono, monospace)',
+                                        fontWeight: 700,
+                                        backgroundColor: isCurrent
+                                          ? (isLight ? '#0284c7' : '#38bdf8')
+                                          : (isLight ? '#e7e2d6' : '#1e2430'),
+                                        color: isCurrent
+                                          ? '#ffffff'
+                                          : (isLight ? '#57534e' : '#94a3b8'),
+                                        padding: '1px 5px',
+                                        borderRadius: 3,
+                                      }}
+                                    >
+                                      Depth {frame.depth} {isRoot ? '• Root' : isCurrent ? '• Active Callee' : '• Caller'}
+                                    </span>
+
+                                    <span
+                                      style={{
+                                        fontSize: '0.64rem',
+                                        fontWeight: 700,
+                                        fontFamily: 'var(--font-mono, monospace)',
+                                        color: isCurrent
+                                          ? (isLight ? '#0369a1' : '#38bdf8')
+                                          : (isLight ? '#1f2937' : '#e2e8f0'),
+                                      }}
+                                    >
+                                      Step #{frame.index + 1}
+                                    </span>
+                                  </div>
+
+                                  <div
+                                    style={{
+                                      fontFamily: 'var(--font-mono, monospace)',
+                                      fontSize: '0.72rem',
+                                      fontWeight: 600,
+                                      color: isCurrent
+                                        ? (isLight ? '#0369a1' : '#38bdf8')
+                                        : (isLight ? '#1f2937' : '#cbd5e1'),
+                                      overflow: 'hidden',
+                                      textOverflow: 'ellipsis',
+                                      whiteSpace: 'nowrap',
+                                    }}
+                                    title={frame.operation}
+                                  >
+                                    {frame.operation || 'Subroutine'}
+                                  </div>
+
+                                  <div
+                                    style={{
+                                      fontSize: '0.62rem',
+                                      color: isLight ? '#78716c' : '#8b949e',
+                                      overflow: 'hidden',
+                                      textOverflow: 'ellipsis',
+                                      whiteSpace: 'nowrap',
+                                      display: 'flex',
+                                      alignItems: 'center',
+                                      gap: 4,
+                                    }}
+                                  >
+                                    <span>{frame.namespace || frame.module}</span>
+                                    {frame.fileLocation && (
+                                      <>
+                                        <span>•</span>
+                                        <span style={{ fontFamily: 'var(--font-mono, monospace)' }}>{frame.fileLocation}</span>
+                                      </>
+                                    )}
+                                  </div>
+                                </div>
+
+                                <div style={{ marginLeft: 8, flexShrink: 0 }}>
+                                  {isCurrent ? (
+                                    <span
+                                      style={{
+                                        fontSize: '0.62rem',
+                                        fontWeight: 700,
+                                        color: isLight ? '#0284c7' : '#38bdf8',
+                                        backgroundColor: isLight ? 'rgba(2, 132, 199, 0.12)' : 'rgba(56, 189, 248, 0.15)',
+                                        border: isLight ? '1px solid #0284c7' : '1px solid #38bdf8',
+                                        borderRadius: 3,
+                                        padding: '2px 6px',
+                                        whiteSpace: 'nowrap',
+                                      }}
+                                    >
+                                      Active
+                                    </span>
+                                  ) : (
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setSelectedNodeIndex(frame.index);
+                                      }}
+                                      style={{
+                                        background: 'none',
+                                        border: isLight ? '1px solid #ded7ca' : '1px solid #3b82f6',
+                                        color: isLight ? '#0284c7' : '#60a5fa',
+                                        borderRadius: 4,
+                                        padding: '2px 7px',
+                                        fontSize: '0.64rem',
+                                        cursor: 'pointer',
+                                        fontWeight: 600,
+                                        whiteSpace: 'nowrap',
+                                      }}
+                                      title={`Jump to step #${frame.index + 1}`}
+                                    >
+                                      Jump
+                                    </button>
+                                  )}
+                                </div>
+                              </div>
+                            </React.Fragment>
+                          );
+                        })}
+                      </div>
+                    </div>
                   </div>
                 )}
 
@@ -3999,39 +4267,80 @@ export const CorrelationTimelineModal: React.FC<CorrelationTimelineModalProps> =
                         justifyContent: 'space-between',
                         fontSize: '0.68rem',
                         color: isLight ? '#b45309' : '#fde047',
-                        marginBottom: 4,
+                        marginBottom: 6,
                         fontWeight: 600,
                       }}
                     >
                       <span>EMBEDDED PAYLOAD INSPECTION</span>
-                      <button
-                        type="button"
-                        onClick={() =>
-                          handleOpenInspector(
-                            selectedNode.payloadSnippet!,
-                            selectedNode.payloadSnippet!.trim().startsWith('<') ? 'xml' : 'json'
-                          )
-                        }
-                        style={{
-                          backgroundColor: isLight ? 'rgba(217, 119, 6, 0.12)' : 'rgba(234, 179, 8, 0.14)',
-                          border: isLight ? '1px solid #d97706' : '1px solid #fde047',
-                          color: isLight ? '#b45309' : '#fde047',
-                          fontSize: '0.68rem',
-                          borderRadius: 4,
-                          padding: '2px 8px',
-                          cursor: 'pointer',
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: 4,
-                          fontWeight: 600,
-                        }}
-                      >
-                        <Code2 size={11} />
-                        <span>Open in AST Tree</span>
-                      </button>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            handleCopyRaw(formattedPayloadSnippet || selectedNode.payloadSnippet!);
+                            setPayloadCopied(true);
+                            setTimeout(() => setPayloadCopied(false), 1800);
+                          }}
+                          style={{
+                            backgroundColor: payloadCopied
+                              ? (isLight ? 'rgba(5, 150, 105, 0.15)' : 'rgba(52, 211, 153, 0.18)')
+                              : (isLight ? 'rgba(217, 119, 6, 0.08)' : 'rgba(234, 179, 8, 0.1)'),
+                            border: payloadCopied
+                              ? (isLight ? '1px solid #10b981' : '1px solid #34d399')
+                              : (isLight ? '1px solid #d97706' : '1px solid #fde047'),
+                            color: payloadCopied
+                              ? (isLight ? '#047857' : '#34d399')
+                              : (isLight ? '#b45309' : '#fde047'),
+                            fontSize: '0.68rem',
+                            borderRadius: 4,
+                            padding: '2px 8px',
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 4,
+                            fontWeight: 600,
+                          }}
+                          title="Copy payload to clipboard"
+                        >
+                          {payloadCopied ? <Check size={11} /> : <Copy size={11} />}
+                          <span>{payloadCopied ? 'Copied' : 'Copy'}</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() =>
+                            handleOpenInspector(
+                              selectedNode.payloadSnippet!,
+                              selectedNode.payloadSnippet!.trim().startsWith('<') ? 'xml' : 'json'
+                            )
+                          }
+                          style={{
+                            backgroundColor: isLight ? 'rgba(217, 119, 6, 0.12)' : 'rgba(234, 179, 8, 0.14)',
+                            border: isLight ? '1px solid #d97706' : '1px solid #fde047',
+                            color: isLight ? '#b45309' : '#fde047',
+                            fontSize: '0.68rem',
+                            borderRadius: 4,
+                            padding: '2px 8px',
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 4,
+                            fontWeight: 600,
+                          }}
+                          title="Open in full interactive AST Tree Inspector (Hotkey: p)"
+                        >
+                          <Code2 size={11} />
+                          <span>Open in AST Tree (p)</span>
+                        </button>
+                      </div>
                     </div>
 
                     <pre
+                      onClick={() =>
+                        handleOpenInspector(
+                          selectedNode.payloadSnippet!,
+                          selectedNode.payloadSnippet!.trim().startsWith('<') ? 'xml' : 'json'
+                        )
+                      }
                       style={{
                         backgroundColor: isLight ? '#eae4d8' : '#090a0d',
                         borderRadius: 6,
@@ -4041,14 +4350,16 @@ export const CorrelationTimelineModal: React.FC<CorrelationTimelineModalProps> =
                         fontFamily: 'var(--font-mono, monospace)',
                         color: isLight ? '#92400e' : '#fde047',
                         margin: 0,
-                        maxHeight: 120,
+                        maxHeight: 140,
                         overflowX: 'auto',
                         whiteSpace: 'pre-wrap',
                         wordBreak: 'break-all',
+                        cursor: 'pointer',
                       }}
+                      title="Click to open interactive AST Tree"
                     >
-                      {selectedNode.payloadSnippet.slice(0, 300)}
-                      {selectedNode.payloadSnippet.length > 300 ? '...' : ''}
+                      {(formattedPayloadSnippet || selectedNode.payloadSnippet).slice(0, 400)}
+                      {(formattedPayloadSnippet || selectedNode.payloadSnippet).length > 400 ? '...' : ''}
                     </pre>
                   </div>
                 )}

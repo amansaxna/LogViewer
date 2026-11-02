@@ -461,20 +461,30 @@ body {
 }
 
 .source-copy-btn {
-  display: none;
+  display: inline-flex;
   align-items: center;
   justify-content: center;
   background: transparent;
   border: none;
   cursor: pointer;
-  padding: 2px;
+  padding: 2px 3px;
   line-height: 1;
+  opacity: 0.4;
+  transition: opacity 0.15s ease, color 0.15s ease, background-color 0.15s ease;
+  border-radius: 3px;
 }
 
 .source-item:hover .source-copy-btn,
+.source-item.active .source-copy-btn,
 .source-rotated-item:hover .source-copy-btn,
+.source-rotated-item.active .source-copy-btn,
+.source-copy-btn:hover,
 .source-copy-btn.copied {
-  display: inline-flex !important;
+  opacity: 1 !important;
+}
+
+.source-copy-btn:hover {
+  background-color: rgba(56, 189, 248, 0.12);
 }
 
 .source-size-badge {

@@ -40,6 +40,7 @@ import {
 } from 'lucide-react';
 import { LogLevel, LogSource, SortOption, LogPreset } from '../types.ts';
 import { Spinner } from './Loaders.tsx';
+import { copyWithToast } from '../utils/copyNotifier.ts';
 
 interface TopbarProps {
   activeSource?: LogSource;
@@ -427,7 +428,7 @@ export const Topbar: React.FC<TopbarProps> = ({
 
   const handleCopyPath = () => {
     if (activeSource?.path) {
-      navigator.clipboard.writeText(activeSource.path);
+      copyWithToast(activeSource.path, 'Copied source path');
       setIsPathCopied(true);
       setTimeout(() => setIsPathCopied(false), 2000);
     }

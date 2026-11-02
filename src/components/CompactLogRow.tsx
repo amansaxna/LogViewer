@@ -102,6 +102,126 @@ export const CompactLogRow: React.FC<CompactLogRowProps> = ({
   // Operation method color (POST/GET/etc orange vs action amber)
   const isHttpOp = Boolean(entry.operation && /^(POST|GET|PUT|DELETE|PATCH|HEAD)/i.test(entry.operation));
 
+  // Helper to render individual token by tokenType
+  const renderToken = (tokenType: string): React.ReactNode => {
+    switch (tokenType) {
+      case 'datetime':
+        return showDatetime !== false && entry.datetime ? (
+          <span key="tok-datetime" style={{ color: 'var(--tok-datetime)', marginRight: 8 }}>
+            [{entry.datetime}]
+          </span>
+        ) : null;
+
+      case 'pid':
+        return showPid && entry.pid ? (
+          <span key="tok-pid" style={{ color: 'var(--tok-pid)', marginRight: 6 }}>
+            [{entry.pid}]
+          </span>
+        ) : null;
+
+      case 'tid':
+        return showTid && entry.tid ? (
+          <span key="tok-tid" style={{ color: 'var(--tok-pid)', marginRight: 6 }}>
+            [{entry.tid}]
+          </span>
+        ) : null;
+
+      case 'correlationId':
+        return showCorrelation && entry.correlationId ? (
+          <span
+            key="tok-correlationId"
+            style={{
+              color: 'var(--tok-corr)',
+              fontWeight: 600,
+              marginRight: 6,
+              cursor: onOpenCorrelationTimeline ? 'pointer' : 'default',
+              textDecoration: onOpenCorrelationTimeline ? 'underline' : 'none',
+            }}
+            onClick={(e) => {
+              if (onOpenCorrelationTimeline && entry.correlationId) {
+                e.stopPropagation();
+                onOpenCorrelationTimeline(entry.correlationId);
+              }
+            }}
+            title={
+              onOpenCorrelationTimeline
+                ? `Correlation ID: ${entry.correlationId} (Click to open Timeline Graph)`
+                : `Correlation ID: ${entry.correlationId}`
+            }
+          >
+            [{highlightMatches(entry.correlationId, [searchQuery, correlationQuery])}]
+          </span>
+        ) : null;
+
+      case 'status':
+        return entry.status ? (
+          <span key="tok-status" style={{ color: getStatusColor(entry.status), fontWeight: 700, marginRight: 6 }}>
+            [{entry.status}]
+          </span>
+        ) : null;
+
+      case 'namespace':
+        return entry.namespace ? (
+          <span key="tok-namespace" style={{ color: 'var(--tok-namespace)', marginRight: 6 }}>
+            [{highlightMatches(entry.namespace, [searchQuery])}]
+          </span>
+        ) : null;
+
+      case 'workflow':
+        return entry.workflow ? (
+          <span
+            key="tok-workflow"
+            onClick={
+              onOpenWorkflowTimeline
+                ? (e) => {
+                    e.stopPropagation();
+                    onOpenWorkflowTimeline(entry.workflow!);
+                  }
+                : undefined
+            }
+            style={{
+              color: 'var(--tok-workflow)',
+              fontWeight: 600,
+              marginRight: 6,
+              cursor: onOpenWorkflowTimeline ? 'pointer' : 'default',
+              textDecoration: onOpenWorkflowTimeline ? 'underline' : 'none',
+            }}
+            title={
+              onOpenWorkflowTimeline
+                ? `Workflow: ${entry.workflow} (Click to open Timeline Graph)`
+                : `Workflow: ${entry.workflow}`
+            }
+          >
+            [{highlightMatches(entry.workflow, [searchQuery, markerQuery])}]
+          </span>
+        ) : null;
+
+      case 'operation':
+        return entry.operation ? (
+          <span
+            key="tok-operation"
+            style={{
+              color: isHttpOp ? 'var(--tok-op-http)' : 'var(--tok-op-action)',
+              fontWeight: 600,
+              marginRight: 6,
+            }}
+          >
+            [{highlightMatches(entry.operation, [searchQuery])}]
+          </span>
+        ) : null;
+
+      case 'duration':
+        return entry.duration ? (
+          <span key="tok-duration" style={{ color: 'var(--tok-duration)', fontWeight: 600, marginRight: 8 }}>
+            [{entry.duration}]
+          </span>
+        ) : null;
+
+      default:
+        return null;
+    }
+  };
+
   return (
     <div
       onClick={(e) => onSelect(entry.lineNumber, e.shiftKey)}
@@ -230,106 +350,26 @@ export const CompactLogRow: React.FC<CompactLogRowProps> = ({
               </span>
             )}
 
-            {/* Datetime */}
-            {showDatetime !== false && entry.datetime && (
-              <span style={{ color: 'var(--tok-datetime)', marginRight: 8 }}>[{entry.datetime}]</span>
-            )}
+            {/* Dynamic Native Schema Order from Log File */}
+            {(() => {
+              const defaultOrder = ['datetime', 'pid', 'tid', 'correlationId', 'namespace', 'workflow', 'operation', 'status', 'duration'];
+              const order = entry.tokenOrder && entry.tokenOrder.length > 0 ? entry.tokenOrder : defaultOrder;
 
-            {/* PID & TID (Muted Slate) */}
-            {showPid && entry.pid && (
-              <span style={{ color: 'var(--tok-pid)', marginRight: 6 }}>[{entry.pid}]</span>
-            )}
-            {showTid && entry.tid && (
-              <span style={{ color: 'var(--tok-pid)', marginRight: 6 }}>[{entry.tid}]</span>
-            )}
+              const renderedTokens = order.map((tok) => renderToken(tok));
+              const renderedSet = new Set(order);
 
-            {/* Correlation ID */}
-            {showCorrelation && entry.correlationId && (
-              <span
-                style={{
-                  color: 'var(--tok-corr)',
-                  fontWeight: 600,
-                  marginRight: 6,
-                  cursor: onOpenCorrelationTimeline ? 'pointer' : 'default',
-                  textDecoration: onOpenCorrelationTimeline ? 'underline' : 'none',
-                }}
-                onClick={(e) => {
-                  if (onOpenCorrelationTimeline && entry.correlationId) {
-                    e.stopPropagation();
-                    onOpenCorrelationTimeline(entry.correlationId);
-                  }
-                }}
-                title={
-                  onOpenCorrelationTimeline
-                    ? `Correlation ID: ${entry.correlationId} (Click to open Timeline Graph)`
-                    : `Correlation ID: ${entry.correlationId}`
-                }
-              >
-                [{highlightMatches(entry.correlationId, [searchQuery, correlationQuery])}]
-              </span>
-            )}
+              // Render any fallback tokens that were present on entry but not in tokenOrder
+              const fallbackTokens = defaultOrder
+                .filter((tok) => !renderedSet.has(tok))
+                .map((tok) => renderToken(tok));
 
-            {/* Namespace */}
-            {entry.namespace && (
-              <span style={{ color: 'var(--tok-namespace)', marginRight: 6 }}>
-                [{highlightMatches(entry.namespace, [searchQuery])}]
-              </span>
-            )}
-
-            {/* Workflow Marker */}
-            {entry.workflow && (
-              <span
-                onClick={
-                  onOpenWorkflowTimeline
-                    ? (e) => {
-                        e.stopPropagation();
-                        onOpenWorkflowTimeline(entry.workflow!);
-                      }
-                    : undefined
-                }
-                style={{
-                  color: 'var(--tok-workflow)',
-                  fontWeight: 600,
-                  marginRight: 6,
-                  cursor: onOpenWorkflowTimeline ? 'pointer' : 'default',
-                  textDecoration: onOpenWorkflowTimeline ? 'underline' : 'none',
-                }}
-                title={
-                  onOpenWorkflowTimeline
-                    ? `Workflow: ${entry.workflow} (Click to open Timeline Graph)`
-                    : `Workflow: ${entry.workflow}`
-                }
-              >
-                [{highlightMatches(entry.workflow, [searchQuery, markerQuery])}]
-              </span>
-            )}
-
-            {/* Operation */}
-            {entry.operation && (
-              <span
-                style={{
-                  color: isHttpOp ? 'var(--tok-op-http)' : 'var(--tok-op-action)',
-                  fontWeight: 600,
-                  marginRight: 6,
-                }}
-              >
-                [{highlightMatches(entry.operation, [searchQuery])}]
-              </span>
-            )}
-
-            {/* Status */}
-            {entry.status && (
-              <span style={{ color: getStatusColor(entry.status), fontWeight: 700, marginRight: 6 }}>
-                [{entry.status}]
-              </span>
-            )}
-
-            {/* Duration */}
-            {entry.duration && (
-              <span style={{ color: 'var(--tok-duration)', fontWeight: 600, marginRight: 8 }}>
-                [{entry.duration}]
-              </span>
-            )}
+              return (
+                <React.Fragment key="tokens-container">
+                  {renderedTokens}
+                  {fallbackTokens}
+                </React.Fragment>
+              );
+            })()}
           </>
         )}
 

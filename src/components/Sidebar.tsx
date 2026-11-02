@@ -21,6 +21,7 @@ import {
   Square,
 } from 'lucide-react';
 import { LogSource } from '../types.ts';
+import { copyWithToast } from '../utils/copyNotifier.ts';
 
 interface SidebarProps {
   sources: LogSource[];
@@ -95,7 +96,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
   const handleCopy = (e: React.MouseEvent, path: string, id: string) => {
     e.stopPropagation();
-    navigator.clipboard.writeText(path);
+    copyWithToast(path, 'Copied file path');
     setCopiedId(id);
     setTimeout(() => setCopiedId(null), 1800);
   };
@@ -244,6 +245,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
                     <div
                       className={`source-item ${isActive ? 'active' : ''}`}
                       onClick={() => onSelectSource(source.id)}
+                      onContextMenu={(e) => {
+                        e.preventDefault();
+                        handleCopy(e, source.path, source.id);
+                      }}
+                      title={`Click to open • Right-click to copy path: ${source.path}`}
                     >
                       <div className="source-item-left">
                         {onToggleSourceSelect && sources.length > 1 && (
@@ -367,7 +373,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
                               key={rot.id}
                               className={`source-rotated-item ${isRotActive ? 'active' : ''}`}
                               onClick={() => onSelectSource(rot.id)}
-                              title={rot.name}
+                              onContextMenu={(e) => {
+                                e.preventDefault();
+                                handleCopy(e, rot.path, rot.id);
+                              }}
+                              title={`Click to open • Right-click to copy path: ${rot.path}`}
                             >
                               <div style={{ display: 'flex', alignItems: 'center', gap: 5, minWidth: 0, flex: 1 }}>
                                 <History size={11} color={isRotActive ? '#38bdf8' : '#64748b'} />
