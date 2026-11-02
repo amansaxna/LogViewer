@@ -761,9 +761,7 @@ body {
   min-height: 32px;
   padding-top: 6px;
   border-top: 1px solid rgba(255, 255, 255, 0.1);
-  overflow-x: auto;
-  overflow-y: hidden;
-  scrollbar-width: none;
+  overflow: visible;
 }
 
 .topbar-tier-2::-webkit-scrollbar {

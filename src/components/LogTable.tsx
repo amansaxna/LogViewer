@@ -30,6 +30,7 @@ interface LogTableProps {
   deltaAnchorLine?: number | null;
   deltaTargetLine?: number | null;
   onSetDeltaAnchor?: (lineNumber: number) => void;
+  onOpenCorrelationTimeline?: (corr: string) => void;
 }
 
 export const LogTable: React.FC<LogTableProps> = ({
@@ -56,6 +57,7 @@ export const LogTable: React.FC<LogTableProps> = ({
   isUnifiedStream = false,
   deltaAnchorLine = null,
   deltaTargetLine = null,
+  onOpenCorrelationTimeline,
 }) => {
   const parentRef = useRef<HTMLDivElement>(null);
   const [isAutoScrollPaused, setIsAutoScrollPaused] = React.useState(false);
@@ -273,6 +275,7 @@ export const LogTable: React.FC<LogTableProps> = ({
                   isDeltaTarget={isDeltaTarget}
                   isDeltaInRange={isDeltaInRange}
                   gutterWidth={dynamicGutterWidth}
+                  onOpenCorrelationTimeline={onOpenCorrelationTimeline}
                 />
               ) : viewMode === 'raw' ? (
                 <div
@@ -339,6 +342,7 @@ export const LogTable: React.FC<LogTableProps> = ({
                   isDeltaAnchor={isDeltaAnchor}
                   isDeltaTarget={isDeltaTarget}
                   isDeltaInRange={isDeltaInRange}
+                  onOpenCorrelationTimeline={onOpenCorrelationTimeline}
                 />
               )}
             </div>

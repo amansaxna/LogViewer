@@ -11,6 +11,7 @@ interface CompactLogRowProps {
   isSelected: boolean;
   onSelect: (lineNumber: number, isShift?: boolean) => void;
   onDoubleClick: (lineNumber: number, sourceId?: string) => void;
+  onOpenCorrelationTimeline?: (corr: string) => void;
   searchQuery?: string;
   markerQuery?: string;
   correlationQuery?: string;
@@ -32,6 +33,7 @@ export const CompactLogRow: React.FC<CompactLogRowProps> = ({
   isSelected,
   onSelect,
   onDoubleClick,
+  onOpenCorrelationTimeline,
   searchQuery,
   markerQuery,
   correlationQuery,
@@ -242,8 +244,24 @@ export const CompactLogRow: React.FC<CompactLogRowProps> = ({
             {/* Correlation ID */}
             {showCorrelation && entry.correlationId && (
               <span
-                style={{ color: 'var(--tok-corr)', fontWeight: 600, marginRight: 6 }}
-                title={`Correlation ID: ${entry.correlationId}`}
+                style={{
+                  color: 'var(--tok-corr)',
+                  fontWeight: 600,
+                  marginRight: 6,
+                  cursor: onOpenCorrelationTimeline ? 'pointer' : 'default',
+                  textDecoration: onOpenCorrelationTimeline ? 'underline' : 'none',
+                }}
+                onClick={(e) => {
+                  if (onOpenCorrelationTimeline && entry.correlationId) {
+                    e.stopPropagation();
+                    onOpenCorrelationTimeline(entry.correlationId);
+                  }
+                }}
+                title={
+                  onOpenCorrelationTimeline
+                    ? `Correlation ID: ${entry.correlationId} (Click to open Timeline Graph)`
+                    : `Correlation ID: ${entry.correlationId}`
+                }
               >
                 [{highlightMatches(entry.correlationId, [searchQuery, correlationQuery])}]
               </span>

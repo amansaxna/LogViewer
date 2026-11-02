@@ -13,6 +13,7 @@ interface LogRowProps {
   onSelect?: (lineNumber: number, isShift?: boolean) => void;
   onViewContext: (lineNumber: number, sourceId?: string) => void;
   onSetDeltaAnchor?: (lineNumber: number) => void;
+  onOpenCorrelationTimeline?: (corr: string) => void;
   wrapLines?: boolean;
   hideBrackets?: boolean;
   showDatetime?: boolean;
@@ -46,6 +47,7 @@ export const LogRow: React.FC<LogRowProps> = ({
   onSelect,
   onViewContext,
   onSetDeltaAnchor,
+  onOpenCorrelationTimeline,
   wrapLines = false,
   hideBrackets = false,
   showDatetime = true,
@@ -178,8 +180,20 @@ export const LogRow: React.FC<LogRowProps> = ({
                   color: 'var(--tok-corr)',
                   border: '1px solid var(--accent-primary)',
                   fontFamily: 'var(--font-mono)',
+                  cursor: onOpenCorrelationTimeline ? 'pointer' : 'default',
+                  textDecoration: onOpenCorrelationTimeline ? 'underline' : 'none',
                 }}
-                title={`Correlation ID: ${entry.correlationId}`}
+                onClick={(e) => {
+                  if (onOpenCorrelationTimeline && entry.correlationId) {
+                    e.stopPropagation();
+                    onOpenCorrelationTimeline(entry.correlationId);
+                  }
+                }}
+                title={
+                  onOpenCorrelationTimeline
+                    ? `Correlation ID: ${entry.correlationId} (Click to open Timeline Graph)`
+                    : `Correlation ID: ${entry.correlationId}`
+                }
               >
                 {entry.correlationId}
               </span>

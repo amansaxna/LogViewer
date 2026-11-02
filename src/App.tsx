@@ -13,6 +13,7 @@ import { CopyToast } from './components/CopyToast.tsx';
 import { PresetModal } from './components/PresetModal.tsx';
 import { TextSelectionToolbar } from './components/TextSelectionToolbar.tsx';
 import { DeltaTimeToolbar } from './components/DeltaTimeToolbar.tsx';
+import { CorrelationTimelineModal } from './components/CorrelationTimelineModal.tsx';
 import { calculateDeltaTime } from './utils/deltaTimeEngine.ts';
 import { copyWithToast } from './utils/copyNotifier.ts';
 import { LandingPage } from './components/LandingPage.tsx';
@@ -72,6 +73,7 @@ export const App: React.FC = () => {
   const [selectedWorkflow, setSelectedWorkflow] = useState<string | null>(() => localStorage.getItem('lv_selected_workflow') || null);
   const [selectedOperation, setSelectedOperation] = useState<string | null>(() => localStorage.getItem('lv_selected_operation') || null);
   const [selectedCorrelation, setSelectedCorrelation] = useState<string | null>(() => localStorage.getItem('lv_selected_correlation') || null);
+  const [activeTimelineCorrelation, setActiveTimelineCorrelation] = useState<string | null>(null);
   const [startDate, setStartDate] = useState<string | null>(() => localStorage.getItem('lv_start_date') || null);
   const [endDate, setEndDate] = useState<string | null>(() => localStorage.getItem('lv_end_date') || null);
   const [sortOption, setSortOption] = useState<SortOption>(() => (localStorage.getItem('lv_sort_option') as SortOption) || 'time-asc');
@@ -1102,6 +1104,7 @@ export const App: React.FC = () => {
       if (e.key === 'Escape') {
         if (isPresetModalOpen) { setIsPresetModalOpen(false); setPresetModalInitialCreate(false); return; }
         if (isShortcutsOpen) { setIsShortcutsOpen(false); return; }
+        if (activeTimelineCorrelation !== null) { setActiveTimelineCorrelation(null); return; }
         if (contextLineNumber !== null) { setContextLineNumber(null); return; }
         if (isGoToLineModalOpen) { setIsGoToLineModalOpen(false); return; }
         if (isPasteModalOpen) { setIsPasteModalOpen(false); return; }
@@ -1124,6 +1127,7 @@ export const App: React.FC = () => {
         isGoToLineModalOpen ||
         isPresetModalOpen ||
         contextLineNumber !== null ||
+        activeTimelineCorrelation !== null ||
         isShortcutsOpen ||
         inspectorPayload !== null
       ) {
@@ -1322,6 +1326,16 @@ export const App: React.FC = () => {
         if (selectedLineNumber !== null) {
           e.preventDefault();
           handleSetDeltaAnchor(selectedLineNumber);
+          return;
+        }
+      }
+
+      // 9b. 'Shift+T': Open Correlation Timeline Graph
+      if (!e.ctrlKey && !e.metaKey && !e.altKey && e.shiftKey && (e.key === 't' || e.key === 'T')) {
+        const corrToOpen = selectedCorrelation || displayEntries.find((entry) => entry.lineNumber === selectedLineNumber)?.correlationId;
+        if (corrToOpen) {
+          e.preventDefault();
+          setActiveTimelineCorrelation(corrToOpen);
           return;
         }
       }
@@ -1703,6 +1717,7 @@ export const App: React.FC = () => {
           operationCounts={operationCounts}
           selectedCorrelation={selectedCorrelation}
           onSelectCorrelation={setSelectedCorrelation}
+          onOpenCorrelationTimeline={(corr) => setActiveTimelineCorrelation(corr)}
           correlationCounts={correlationCounts}
           isLiveTail={isLiveTail}
           liveLogsPerSec={liveLogsPerSec}
@@ -1776,6 +1791,7 @@ export const App: React.FC = () => {
           deltaAnchorLine={effectiveAnchorLine}
           deltaTargetLine={effectiveTargetLine}
           onSetDeltaAnchor={handleSetDeltaAnchor}
+          onOpenCorrelationTimeline={(corr) => setActiveTimelineCorrelation(corr)}
         />
       </main>
 
@@ -1812,6 +1828,21 @@ export const App: React.FC = () => {
       <KeyboardShortcutsModal
         isOpen={isShortcutsOpen}
         onClose={() => setIsShortcutsOpen(false)}
+      />
+
+      {/* Graphical Correlation Timeline & DAG Modal */}
+      <CorrelationTimelineModal
+        isOpen={activeTimelineCorrelation !== null}
+        onClose={() => setActiveTimelineCorrelation(null)}
+        correlationId={activeTimelineCorrelation}
+        activeSourceId={activeSourceId}
+        selectedSourceIds={selectedSourceIds}
+        currentEntries={entries}
+        onSelectLine={handleSelectLine}
+        onViewContext={(line, srcId) => {
+          setContextLineNumber(line);
+          setContextSourceId(srcId || activeSourceId || '');
+        }}
       />
 
       {/* Dedicated JSON and XML Inspector on another div */}

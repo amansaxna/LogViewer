@@ -27,6 +27,7 @@ const SHORTCUTS: ShortcutItem[] = [
   { keys: ['Enter', 'Space'], description: 'Open Context Viewer for highlighted line', category: 'Inspection' },
   { keys: ['Ctrl', 'c'], description: 'Copy selected log line content', category: 'Inspection' },
   { keys: ['d'], description: 'Set Delta Time Anchor (T1) to measure latency to another line', category: 'Inspection' },
+  { keys: ['Shift', 't'], description: 'Open Correlation Timeline & DAG graph (when correlation active)', category: 'Inspection' },
   { keys: ['g'], description: 'Open "Go to line" modal', category: 'Inspection' },
   { keys: ['Esc'], description: 'Close modal or deselect line', category: 'Inspection' },
 

@@ -110,6 +110,7 @@ interface TopbarProps {
   // Correlation filter
   selectedCorrelation?: string | null;
   onSelectCorrelation?: (corr: string | null) => void;
+  onOpenCorrelationTimeline?: (corr: string) => void;
   correlationCounts?: Record<string, number>;
 
   // Stream & theme
@@ -217,6 +218,7 @@ export const Topbar: React.FC<TopbarProps> = ({
   operationCounts = {},
   selectedCorrelation,
   onSelectCorrelation,
+  onOpenCorrelationTimeline,
   correlationCounts = {},
   isLiveTail,
   liveLogsPerSec = 0,
@@ -1569,69 +1571,70 @@ export const Topbar: React.FC<TopbarProps> = ({
 
           {/* CORRELATION DROPDOWN */}
           {correlationCounts && Object.keys(correlationCounts).length > 0 && (
-            <div style={{ position: 'relative' }}>
-              <button
-                className={`level-pill ${selectedCorrelation ? 'active' : ''}`}
-                onClick={() => {
-                  setIsCorrelationDropdownOpen(!isCorrelationDropdownOpen);
-                  setIsWorkflowDropdownOpen(false);
-                  setIsOperationDropdownOpen(false);
-                }}
-                style={{
-                  backgroundColor: selectedCorrelation ? 'rgba(52, 211, 153, 0.2)' : undefined,
-                  borderColor: selectedCorrelation ? '#34d399' : undefined,
-                  color: selectedCorrelation ? '#34d399' : undefined,
-                  fontWeight: selectedCorrelation ? 700 : undefined,
-                }}
-              >
-                <Zap size={12} />
-                <span>{selectedCorrelation ? selectedCorrelation : 'Correlation'}</span>
-                <span className="level-pill-count">
-                  {selectedCorrelation ? (correlationCounts[selectedCorrelation] || 0) : Object.keys(correlationCounts).length}
-                </span>
-                <ChevronDown size={11} />
-              </button>
-
-              {selectedCorrelation && (
+            <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+              <div style={{ position: 'relative' }}>
                 <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onSelectCorrelation?.(null);
+                  className={`level-pill ${selectedCorrelation ? 'active' : ''}`}
+                  onClick={() => {
+                    setIsCorrelationDropdownOpen(!isCorrelationDropdownOpen);
+                    setIsWorkflowDropdownOpen(false);
+                    setIsOperationDropdownOpen(false);
                   }}
                   style={{
-                    position: 'absolute',
-                    top: -4,
-                    right: -4,
-                    background: '#ef4444',
-                    color: '#ffffff',
-                    border: 'none',
-                    borderRadius: '50%',
-                    width: 15,
-                    height: 15,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    cursor: 'pointer',
-                    fontSize: '0.65rem',
-                    fontWeight: 'bold',
-                    zIndex: 2,
+                    backgroundColor: selectedCorrelation ? 'rgba(52, 211, 153, 0.2)' : undefined,
+                    borderColor: selectedCorrelation ? '#34d399' : undefined,
+                    color: selectedCorrelation ? '#34d399' : undefined,
+                    fontWeight: selectedCorrelation ? 700 : undefined,
                   }}
-                  title="Clear correlation filter"
                 >
-                  ×
+                  <Zap size={12} />
+                  <span>{selectedCorrelation ? selectedCorrelation : 'Correlation'}</span>
+                  <span className="level-pill-count">
+                    {selectedCorrelation ? (correlationCounts[selectedCorrelation] || 0) : Object.keys(correlationCounts).length}
+                  </span>
+                  <ChevronDown size={11} />
                 </button>
-              )}
 
-              {isCorrelationDropdownOpen && (
-                <>
-                  <div
-                    style={{ position: 'fixed', inset: 0, zIndex: 999 }}
-                    onClick={() => setIsCorrelationDropdownOpen(false)}
-                  />
-                  <div
-                    ref={correlationRef}
-                    onMouseEnter={cancelCorrMouseLeave}
-                    onMouseLeave={handleCorrMouseLeave}
+                {selectedCorrelation && (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onSelectCorrelation?.(null);
+                    }}
+                    style={{
+                      position: 'absolute',
+                      top: -4,
+                      right: -4,
+                      background: '#ef4444',
+                      color: '#ffffff',
+                      border: 'none',
+                      borderRadius: '50%',
+                      width: 15,
+                      height: 15,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      cursor: 'pointer',
+                      fontSize: '0.65rem',
+                      fontWeight: 'bold',
+                      zIndex: 2,
+                    }}
+                    title="Clear correlation filter"
+                  >
+                    ×
+                  </button>
+                )}
+
+                {isCorrelationDropdownOpen && (
+                  <>
+                    <div
+                      style={{ position: 'fixed', inset: 0, zIndex: 999 }}
+                      onClick={() => setIsCorrelationDropdownOpen(false)}
+                    />
+                    <div
+                      ref={correlationRef}
+                      onMouseEnter={cancelCorrMouseLeave}
+                      onMouseLeave={handleCorrMouseLeave}
                     style={{
                       position: 'absolute',
                       top: 'calc(100% + 6px)',
@@ -1655,7 +1658,7 @@ export const Topbar: React.FC<TopbarProps> = ({
                         value={correlationSearch}
                         onChange={(e) => setCorrelationSearch(e.target.value)}
                         className="sidebar-search-input"
-                        style={{ fontSize: '0.78rem', padding: '5px 10px', background: 'var(--bg-surface)', border: '1px solid var(--border-subtle)', color: 'var(--text-primary)' }}
+                        style={{ width: '100%', boxSizing: 'border-box', fontSize: '0.78rem', padding: '5px 10px', background: 'var(--bg-surface)', border: '1px solid var(--border-subtle)', color: 'var(--text-primary)' }}
                         autoFocus
                       />
                     </div>
@@ -1715,6 +1718,33 @@ export const Topbar: React.FC<TopbarProps> = ({
                                 {corr}
                               </span>
                               <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                {onOpenCorrelationTimeline && (
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setIsCorrelationDropdownOpen(false);
+                                      onSelectCorrelation?.(corr);
+                                      onOpenCorrelationTimeline(corr);
+                                    }}
+                                    style={{
+                                      border: 'none',
+                                      background: 'rgba(56, 189, 248, 0.12)',
+                                      color: '#38bdf8',
+                                      borderRadius: 3,
+                                      padding: '2px 5px',
+                                      fontSize: '0.68rem',
+                                      cursor: 'pointer',
+                                      display: 'flex',
+                                      alignItems: 'center',
+                                      gap: 3,
+                                    }}
+                                    title="Open Timeline Graph"
+                                  >
+                                    <Activity size={10} />
+                                    <span>Graph</span>
+                                  </button>
+                                )}
                                 <span
                                   style={{
                                     fontSize: '0.7rem',
@@ -1737,7 +1767,32 @@ export const Topbar: React.FC<TopbarProps> = ({
                 </>
               )}
             </div>
-          )}
+
+            {/* Open Timeline Graph button when a correlation is active */}
+            {selectedCorrelation && onOpenCorrelationTimeline && (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onOpenCorrelationTimeline(selectedCorrelation);
+                }}
+                className="level-pill"
+                style={{
+                  backgroundColor: 'rgba(56, 189, 248, 0.15)',
+                  borderColor: '#38bdf8',
+                  color: '#38bdf8',
+                  fontWeight: 600,
+                  gap: 5,
+                  padding: '2px 8px',
+                }}
+                title="Open Graphical Timeline & Workflow DAG for this Correlation"
+              >
+                <Activity size={12} />
+                <span>Timeline Graph</span>
+              </button>
+            )}
+          </div>
+        )}
 
           {/* Rotated Archive Indicator */}
           {activeSource?.isRotated && (
