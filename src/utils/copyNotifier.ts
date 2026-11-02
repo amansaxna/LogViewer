@@ -33,13 +33,46 @@ export function triggerCopyToast(text: string, label: string = 'Copied to clipbo
 }
 
 /**
- * Copies text to clipboard and immediately triggers the sleek copy toast notification.
+ * Copies text to clipboard with automatic fallback to document.execCommand,
+ * ensuring copy works in all browser environments, iframes, and VS Code webviews.
  */
 export async function copyWithToast(text: string, label: string = 'Copied to clipboard'): Promise<void> {
   triggerCopyToast(text, label);
+
+  // 1. Primary: modern navigator.clipboard API
+  if (navigator?.clipboard?.writeText) {
+    try {
+      await navigator.clipboard.writeText(text);
+      return;
+    } catch (err) {
+      console.warn('navigator.clipboard.writeText failed, falling back to execCommand:', err);
+    }
+  }
+
+  // 2. Reliable Fallback: hidden textarea + document.execCommand('copy')
   try {
-    await navigator.clipboard.writeText(text);
-  } catch (err) {
-    console.warn('Failed to write to clipboard via copyWithToast:', err);
+    const textarea = document.createElement('textarea');
+    textarea.value = text;
+    textarea.style.position = 'fixed';
+    textarea.style.top = '0';
+    textarea.style.left = '0';
+    textarea.style.width = '2em';
+    textarea.style.height = '2em';
+    textarea.style.padding = '0';
+    textarea.style.border = 'none';
+    textarea.style.outline = 'none';
+    textarea.style.boxShadow = 'none';
+    textarea.style.background = 'transparent';
+    textarea.style.opacity = '0';
+    document.body.appendChild(textarea);
+    textarea.focus();
+    textarea.select();
+    const successful = document.execCommand('copy');
+    document.body.removeChild(textarea);
+    if (!successful) {
+      console.warn('document.execCommand copy returned false');
+    }
+  } catch (fallbackErr) {
+    console.error('All clipboard copy methods failed:', fallbackErr);
   }
 }

@@ -761,7 +761,9 @@ body {
   min-height: 32px;
   padding-top: 6px;
   border-top: 1px solid rgba(255, 255, 255, 0.1);
-  overflow: visible;
+  overflow: visible !important;
+  position: relative;
+  z-index: 80;
 }
 
 .topbar-tier-2::-webkit-scrollbar {
@@ -777,6 +779,9 @@ body {
   min-height: 32px;
   padding-top: 6px;
   border-top: 1px solid rgba(255, 255, 255, 0.1);
+  overflow: visible !important;
+  position: relative;
+  z-index: 40;
 }
 
 [data-theme='light'] .topbar-tier-2,

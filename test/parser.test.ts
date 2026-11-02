@@ -108,4 +108,21 @@ assert.strictEqual(parsedJson.duration, '1500ms');
 assert.strictEqual(parsedJson.datetime, '2026-09-02T04:15:00.100Z');
 console.log('✓ Test 7 Passed: Native JSON log line parsed into structured LogEntry');
 
+// Test 8: Namespace parsing (. separated or :: colon separated)
+const colonNamespaceLine = '[2026-09-02 00:05:01.002] [9100] [Billing::Service] [AuthorizePayment] [SUCCESS] [88ms] Transaction TXN-1002 authorized [PaymentVault.go::42]';
+const parsedColonNs = parseSingleLine(colonNamespaceLine, 8);
+assert.strictEqual(parsedColonNs.namespace, 'Billing::Service', 'Colon-separated :: namespace parsed correctly');
+assert.strictEqual(parsedColonNs.operation, 'AuthorizePayment');
+assert.strictEqual(parsedColonNs.fileLocation, 'PaymentVault.go::42');
+
+const deepColonNsLine = '[2026-09-02 00:05:02.100] [App::Controllers::UserController] [ProcessRegistration] [INFO] User registration completed';
+const parsedDeepColonNs = parseSingleLine(deepColonNsLine, 9);
+assert.strictEqual(parsedDeepColonNs.namespace, 'App::Controllers::UserController', 'Multi-level colon-separated :: namespace parsed correctly');
+
+const dotNsLine = '[2026-09-02 00:05:03.200] [Auth.SessionManager] [ValidateSession] [INFO] Session valid';
+const parsedDotNs = parseSingleLine(dotNsLine, 10);
+assert.strictEqual(parsedDotNs.namespace, 'Auth.SessionManager', 'Dot-separated . namespace parsed correctly');
+
+console.log('✓ Test 8 Passed: Namespace accurately parsed for both dot-separated (.) and colon-separated (::) formats');
+
 console.log('All Parser Tests Passed Successfully!');

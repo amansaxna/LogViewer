@@ -71,7 +71,7 @@ LogViewer/
    - `datetime`: Verified against timestamp patterns (`YYYY-MM-DD HH:mm:ss.SSS`).
    - `pid`: Numeric or `PID:\d+`.
    - `tid`: `thread-\w+`, `worker-\w+`, `tid:\w+`.
-   - `namespace`: Dotted identifiers (`Auth.Service`).
+   - `namespace`: Either `.` separated or `::` colon separated identifiers (e.g. `Auth.Service` or `Auth::Service`).
    - `workflow`: Prefixes `WF:`, `flow-`, `jobexecution-`, `txn-`.
    - `operation`: HTTP requests (`POST /api/...`) or PascalCase action verbs.
    - `status`: Keywords like `SUCCESS`, `FAILED`, `PENDING`, `ERROR`, `WARN`.

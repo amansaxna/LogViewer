@@ -212,11 +212,11 @@ export function renderSyntaxColoredLine(rawLine: string, hideBrackets = false): 
       fontWeight = 600;
     }
     // 7. Trailing file location: [FileName::LineNumber]
-    else if (token.includes('::') || /\.[a-z]{2,4}::\d+$/i.test(token)) {
+    else if (/::\d+$/.test(token) || /\.[a-z0-9_-]+::\d+$/i.test(token)) {
       tokenColor = 'var(--tok-file)';
     }
-    // 8. Namespace
-    else if (token.includes('.') || /^[A-Z][a-zA-Z0-9_]+$/.test(token)) {
+    // 8. Namespace: either . separated or :: colon separated
+    else if (!/::\d+$/.test(token) && (token.includes('.') || token.includes('::'))) {
       tokenColor = 'var(--tok-namespace)';
       fontWeight = 500;
     }

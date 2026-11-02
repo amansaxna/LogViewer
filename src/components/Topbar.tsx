@@ -101,6 +101,7 @@ interface TopbarProps {
   // Workflow & Operation dropdown filters
   selectedWorkflow: string | null;
   onSelectWorkflow: (wf: string | null) => void;
+  onOpenWorkflowTimeline?: (wf: string) => void;
   workflowCounts: Record<string, number>;
 
   selectedOperation: string | null;
@@ -212,6 +213,7 @@ export const Topbar: React.FC<TopbarProps> = ({
   levelCounts,
   selectedWorkflow,
   onSelectWorkflow,
+  onOpenWorkflowTimeline,
   workflowCounts = {},
   selectedOperation,
   onSelectOperation,
@@ -1176,7 +1178,7 @@ export const Topbar: React.FC<TopbarProps> = ({
       {/* TIER 2: SEVERITY LEVEL PILLS (LEFT) + DIMENSION FACETS & ARCHIVE (RIGHT) */}
       <div className="topbar-tier-2">
         {/* Left: Severity Level Pills */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6, overflowX: 'auto' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, overflowX: 'auto', scrollbarWidth: 'none', minWidth: 0, flexShrink: 1 }}>
           <button
             className={`level-pill all ${isAllSelected ? 'active' : ''}`}
             onClick={() => onToggleLevel('all')}
@@ -1228,7 +1230,7 @@ export const Topbar: React.FC<TopbarProps> = ({
         <div className="topbar-divider-v" />
 
         {/* Right: Facet Dimension Dropdowns (Workflows, Operations, Correlation) */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginLeft: 'auto' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginLeft: 'auto', flexShrink: 0 }}>
           {/* WORKFLOW DROPDOWN */}
           <div style={{ position: 'relative' }}>
             <button
@@ -1311,13 +1313,13 @@ export const Topbar: React.FC<TopbarProps> = ({
                 >
                   <div style={{ padding: '8px 10px', borderBottom: '1px solid var(--border-subtle)', background: 'var(--bg-sidebar)' }}>
                     <input
+                      ref={(el) => { if (el) el.focus({ preventScroll: true }); }}
                       type="text"
                       placeholder="Filter active workflows..."
                       value={workflowSearch}
                       onChange={(e) => setWorkflowSearch(e.target.value)}
                       className="sidebar-search-input"
                       style={{ fontSize: '0.78rem', padding: '5px 10px', background: 'var(--bg-surface)', border: '1px solid var(--border-subtle)', color: 'var(--text-primary)' }}
-                      autoFocus
                     />
                   </div>
 
@@ -1376,6 +1378,34 @@ export const Topbar: React.FC<TopbarProps> = ({
                               {wf}
                             </span>
                             <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                              {onOpenWorkflowTimeline && (
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setIsWorkflowDropdownOpen(false);
+                                    onSelectWorkflow(wf);
+                                    onOpenWorkflowTimeline(wf);
+                                  }}
+                                  style={{
+                                    border: 'none',
+                                    background: 'rgba(192, 132, 252, 0.15)',
+                                    color: '#c084fc',
+                                    fontSize: '0.65rem',
+                                    padding: '2px 6px',
+                                    borderRadius: 3,
+                                    cursor: 'pointer',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: 3,
+                                    fontWeight: 600,
+                                  }}
+                                  title="Open Graphical Workflow Timeline & DAG Analysis"
+                                >
+                                  <GitBranch size={10} />
+                                  <span>Graph</span>
+                                </button>
+                              )}
                               <span
                                 style={{
                                   fontSize: '0.7rem',
@@ -1398,6 +1428,29 @@ export const Topbar: React.FC<TopbarProps> = ({
               </>
             )}
           </div>
+
+          {/* Open Workflow Timeline Graph button when a workflow is active */}
+          {selectedWorkflow && onOpenWorkflowTimeline && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onOpenWorkflowTimeline(selectedWorkflow);
+              }}
+              className="level-pill"
+              style={{
+                backgroundColor: 'rgba(192, 132, 252, 0.15)',
+                borderColor: '#c084fc',
+                color: '#c084fc',
+                fontWeight: 600,
+                gap: 4,
+              }}
+              title="Open Graphical Workflow Timeline & DAG Analysis"
+            >
+              <GitBranch size={11} />
+              <span>Timeline Graph</span>
+            </button>
+          )}
 
           {/* OPERATION DROPDOWN */}
           <div style={{ position: 'relative' }}>
@@ -1481,13 +1534,13 @@ export const Topbar: React.FC<TopbarProps> = ({
                 >
                   <div style={{ padding: '8px 10px', borderBottom: '1px solid var(--border-subtle)', background: 'var(--bg-sidebar)' }}>
                     <input
+                      ref={(el) => { if (el) el.focus({ preventScroll: true }); }}
                       type="text"
                       placeholder="Filter operations..."
                       value={operationSearch}
                       onChange={(e) => setOperationSearch(e.target.value)}
                       className="sidebar-search-input"
                       style={{ fontSize: '0.78rem', padding: '5px 10px', background: 'var(--bg-surface)', border: '1px solid var(--border-subtle)', color: 'var(--text-primary)' }}
-                      autoFocus
                     />
                   </div>
 
@@ -1653,13 +1706,13 @@ export const Topbar: React.FC<TopbarProps> = ({
                   >
                     <div style={{ padding: '8px 10px', borderBottom: '1px solid var(--border-subtle)', background: 'var(--bg-sidebar)' }}>
                       <input
+                        ref={(el) => { if (el) el.focus({ preventScroll: true }); }}
                         type="text"
                         placeholder="Filter correlation IDs..."
                         value={correlationSearch}
                         onChange={(e) => setCorrelationSearch(e.target.value)}
                         className="sidebar-search-input"
                         style={{ width: '100%', boxSizing: 'border-box', fontSize: '0.78rem', padding: '5px 10px', background: 'var(--bg-surface)', border: '1px solid var(--border-subtle)', color: 'var(--text-primary)' }}
-                        autoFocus
                       />
                     </div>
 
@@ -1689,79 +1742,92 @@ export const Topbar: React.FC<TopbarProps> = ({
                         {!selectedCorrelation && <Check size={13} color="var(--accent-primary)" />}
                       </div>
 
-                      {Object.entries(correlationCounts)
-                        .filter(([corr]) => corr.toLowerCase().includes(correlationSearch.toLowerCase()))
-                        .sort((a, b) => a[0].localeCompare(b[0], undefined, { numeric: true, sensitivity: 'base' }))
-                        .map(([corr, count]) => {
-                          const isSelected = selectedCorrelation === corr;
-                          return (
-                            <div
-                              key={corr}
-                              onClick={() => {
-                                onSelectCorrelation?.(isSelected ? null : corr);
-                                setIsCorrelationDropdownOpen(false);
-                              }}
-                              style={{
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'space-between',
-                                padding: '6px 8px',
-                                borderRadius: 4,
-                                cursor: 'pointer',
-                                fontSize: '0.78rem',
-                                backgroundColor: isSelected ? 'rgba(52, 211, 153, 0.2)' : 'transparent',
-                                color: isSelected ? '#34d399' : 'var(--text-primary)',
-                                fontWeight: isSelected ? 600 : 400,
-                              }}
-                            >
-                              <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', fontFamily: 'var(--font-mono)' }}>
-                                {corr}
-                              </span>
-                              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                                {onOpenCorrelationTimeline && (
-                                  <button
-                                    type="button"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      setIsCorrelationDropdownOpen(false);
-                                      onSelectCorrelation?.(corr);
-                                      onOpenCorrelationTimeline(corr);
-                                    }}
-                                    style={{
-                                      border: 'none',
-                                      background: 'rgba(56, 189, 248, 0.12)',
-                                      color: '#38bdf8',
-                                      borderRadius: 3,
-                                      padding: '2px 5px',
-                                      fontSize: '0.68rem',
-                                      cursor: 'pointer',
-                                      display: 'flex',
-                                      alignItems: 'center',
-                                      gap: 3,
-                                    }}
-                                    title="Open Timeline Graph"
-                                  >
-                                    <Activity size={10} />
-                                    <span>Graph</span>
-                                  </button>
-                                )}
-                                <span
+                      {(() => {
+                        const filtered = Object.entries(correlationCounts)
+                          .filter(([corr]) => corr.toLowerCase().includes(correlationSearch.toLowerCase()))
+                          .sort((a, b) => (b[1] !== a[1] ? b[1] - a[1] : a[0].localeCompare(b[0], undefined, { numeric: true, sensitivity: 'base' })));
+                        const displayed = filtered.slice(0, 100);
+
+                        return (
+                          <>
+                            {displayed.map(([corr, count]) => {
+                              const isSelected = selectedCorrelation === corr;
+                              return (
+                                <div
+                                  key={corr}
+                                  onClick={() => {
+                                    onSelectCorrelation?.(isSelected ? null : corr);
+                                    setIsCorrelationDropdownOpen(false);
+                                  }}
                                   style={{
-                                    fontSize: '0.7rem',
-                                    fontFamily: 'var(--font-mono)',
-                                    backgroundColor: 'var(--bg-surface)',
-                                    padding: '1px 6px',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'space-between',
+                                    padding: '6px 8px',
                                     borderRadius: 4,
-                                    color: isSelected ? '#34d399' : 'var(--text-muted)',
+                                    cursor: 'pointer',
+                                    fontSize: '0.78rem',
+                                    backgroundColor: isSelected ? 'rgba(52, 211, 153, 0.2)' : 'transparent',
+                                    color: isSelected ? '#34d399' : 'var(--text-primary)',
+                                    fontWeight: isSelected ? 600 : 400,
                                   }}
                                 >
-                                  {count}
-                                </span>
-                                {isSelected && <Check size={13} color="#34d399" />}
+                                  <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', fontFamily: 'var(--font-mono)' }}>
+                                    {corr}
+                                  </span>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                    {onOpenCorrelationTimeline && (
+                                      <button
+                                        type="button"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          setIsCorrelationDropdownOpen(false);
+                                          onSelectCorrelation?.(corr);
+                                          onOpenCorrelationTimeline(corr);
+                                        }}
+                                        style={{
+                                          border: 'none',
+                                          background: 'rgba(56, 189, 248, 0.12)',
+                                          color: '#38bdf8',
+                                          borderRadius: 3,
+                                          padding: '2px 5px',
+                                          fontSize: '0.68rem',
+                                          cursor: 'pointer',
+                                          display: 'flex',
+                                          alignItems: 'center',
+                                          gap: 3,
+                                        }}
+                                        title="Open Timeline Graph"
+                                      >
+                                        <Activity size={10} />
+                                        <span>Graph</span>
+                                      </button>
+                                    )}
+                                    <span
+                                      style={{
+                                        fontSize: '0.7rem',
+                                        fontFamily: 'var(--font-mono)',
+                                        backgroundColor: 'var(--bg-surface)',
+                                        padding: '1px 6px',
+                                        borderRadius: 4,
+                                        color: isSelected ? '#34d399' : 'var(--text-muted)',
+                                      }}
+                                    >
+                                      {count}
+                                    </span>
+                                    {isSelected && <Check size={13} color="#34d399" />}
+                                  </div>
+                                </div>
+                              );
+                            })}
+                            {filtered.length > 100 && (
+                              <div style={{ padding: '6px 8px', fontSize: '0.68rem', color: 'var(--text-muted)', textAlign: 'center', fontStyle: 'italic', borderTop: '1px dashed var(--border-subtle)', marginTop: 4 }}>
+                                Showing top 100 of {filtered.length} correlations • type to filter
                               </div>
-                            </div>
-                          );
-                        })}
+                            )}
+                          </>
+                        );
+                      })()}
                     </div>
                   </div>
                 </>

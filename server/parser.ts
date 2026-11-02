@@ -393,8 +393,8 @@ export function parseSingleLine(rawLine: string, lineNumber: number): LogEntry {
       continue;
     }
 
-    // Check Namespace (e.g. Auth.Service or Security.Session or BillingService)
-    if (!namespace && (token.includes('.') || /^[A-Z][a-zA-Z0-9_]+$/.test(token))) {
+    // Check Namespace: either . separated or :: colon separated (e.g. Auth.Service or Auth::Service)
+    if (!namespace && !/::\d+$/.test(token) && (token.includes('.') || token.includes('::'))) {
       namespace = token;
       continue;
     }
@@ -409,7 +409,7 @@ export function parseSingleLine(rawLine: string, lineNumber: number): LogEntry {
       explicitLevel = STATUS_LEVEL_MAP[token.toLowerCase()];
     } else if (!correlationId && (/^(corr|cid|correlation|req|trace)[-_:]/i.test(token) || /^[0-9a-f]{8}-[0-9a-f]{4}-/i.test(token) || /^c_[a-f0-9]{4,}/i.test(token))) {
       correlationId = token;
-    } else if (!namespace) {
+    } else if (!namespace && !/::\d+$/.test(token) && (token.includes('.') || token.includes('::'))) {
       namespace = token;
     } else if (!operation) {
       operation = token;

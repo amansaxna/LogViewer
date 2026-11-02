@@ -27,9 +27,22 @@ const SHORTCUTS: ShortcutItem[] = [
   { keys: ['Enter', 'Space'], description: 'Open Context Viewer for highlighted line', category: 'Inspection' },
   { keys: ['Ctrl', 'c'], description: 'Copy selected log line content', category: 'Inspection' },
   { keys: ['d'], description: 'Set Delta Time Anchor (T1) to measure latency to another line', category: 'Inspection' },
-  { keys: ['Shift', 't'], description: 'Open Correlation Timeline & DAG graph (when correlation active)', category: 'Inspection' },
+  { keys: ['Shift', 't'], description: 'Open Correlation or Workflow Timeline & DAG graph', category: 'Inspection' },
   { keys: ['g'], description: 'Open "Go to line" modal', category: 'Inspection' },
   { keys: ['Esc'], description: 'Close modal or deselect line', category: 'Inspection' },
+
+  // Timeline & DAG (Developer Hotkeys)
+  { keys: ['←', '→'], description: 'Navigate step backward / forward in DAG & Waterfall (or j/k)', category: 'Timeline & DAG' },
+  { keys: ['e'], description: 'Jump directly to next Error step in trace', category: 'Timeline & DAG' },
+  { keys: ['w'], description: 'Jump directly to next Warning step in trace', category: 'Timeline & DAG' },
+  { keys: ['h'], description: 'Jump directly to Latency Bottleneck Hotspot', category: 'Timeline & DAG' },
+  { keys: ['v'], description: 'Toggle DAG Graph ↔ Waterfall View (or Tab)', category: 'Timeline & DAG' },
+  { keys: ['Enter'], description: 'Jump to selected step in main log table', category: 'Timeline & DAG' },
+  { keys: ['c'], description: 'View surrounding ±25 context lines', category: 'Timeline & DAG' },
+  { keys: ['y'], description: 'Yank (copy) log message to clipboard', category: 'Timeline & DAG' },
+  { keys: ['r'], description: 'Copy Root Cause Analysis (RCA) report in Markdown', category: 'Timeline & DAG' },
+  { keys: ['d'], description: 'Download RCA report as .md file', category: 'Timeline & DAG' },
+  { keys: ['p'], description: 'Open JSON/XML payload in AST inspector', category: 'Timeline & DAG' },
 
   // Search
   { keys: ['/'], description: 'Focus search bar', category: 'Search' },

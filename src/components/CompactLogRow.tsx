@@ -12,6 +12,7 @@ interface CompactLogRowProps {
   onSelect: (lineNumber: number, isShift?: boolean) => void;
   onDoubleClick: (lineNumber: number, sourceId?: string) => void;
   onOpenCorrelationTimeline?: (corr: string) => void;
+  onOpenWorkflowTimeline?: (wf: string) => void;
   searchQuery?: string;
   markerQuery?: string;
   correlationQuery?: string;
@@ -34,6 +35,7 @@ export const CompactLogRow: React.FC<CompactLogRowProps> = ({
   onSelect,
   onDoubleClick,
   onOpenCorrelationTimeline,
+  onOpenWorkflowTimeline,
   searchQuery,
   markerQuery,
   correlationQuery,
@@ -276,7 +278,28 @@ export const CompactLogRow: React.FC<CompactLogRowProps> = ({
 
             {/* Workflow Marker */}
             {entry.workflow && (
-              <span style={{ color: 'var(--tok-workflow)', fontWeight: 600, marginRight: 6 }}>
+              <span
+                onClick={
+                  onOpenWorkflowTimeline
+                    ? (e) => {
+                        e.stopPropagation();
+                        onOpenWorkflowTimeline(entry.workflow!);
+                      }
+                    : undefined
+                }
+                style={{
+                  color: 'var(--tok-workflow)',
+                  fontWeight: 600,
+                  marginRight: 6,
+                  cursor: onOpenWorkflowTimeline ? 'pointer' : 'default',
+                  textDecoration: onOpenWorkflowTimeline ? 'underline' : 'none',
+                }}
+                title={
+                  onOpenWorkflowTimeline
+                    ? `Workflow: ${entry.workflow} (Click to open Timeline Graph)`
+                    : `Workflow: ${entry.workflow}`
+                }
+              >
                 [{highlightMatches(entry.workflow, [searchQuery, markerQuery])}]
               </span>
             )}

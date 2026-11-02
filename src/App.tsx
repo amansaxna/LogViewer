@@ -74,6 +74,7 @@ export const App: React.FC = () => {
   const [selectedOperation, setSelectedOperation] = useState<string | null>(() => localStorage.getItem('lv_selected_operation') || null);
   const [selectedCorrelation, setSelectedCorrelation] = useState<string | null>(() => localStorage.getItem('lv_selected_correlation') || null);
   const [activeTimelineCorrelation, setActiveTimelineCorrelation] = useState<string | null>(null);
+  const [activeTimelineWorkflow, setActiveTimelineWorkflow] = useState<string | null>(null);
   const [startDate, setStartDate] = useState<string | null>(() => localStorage.getItem('lv_start_date') || null);
   const [endDate, setEndDate] = useState<string | null>(() => localStorage.getItem('lv_end_date') || null);
   const [sortOption, setSortOption] = useState<SortOption>(() => (localStorage.getItem('lv_sort_option') as SortOption) || 'time-asc');
@@ -1105,6 +1106,7 @@ export const App: React.FC = () => {
         if (isPresetModalOpen) { setIsPresetModalOpen(false); setPresetModalInitialCreate(false); return; }
         if (isShortcutsOpen) { setIsShortcutsOpen(false); return; }
         if (activeTimelineCorrelation !== null) { setActiveTimelineCorrelation(null); return; }
+        if (activeTimelineWorkflow !== null) { setActiveTimelineWorkflow(null); return; }
         if (contextLineNumber !== null) { setContextLineNumber(null); return; }
         if (isGoToLineModalOpen) { setIsGoToLineModalOpen(false); return; }
         if (isPasteModalOpen) { setIsPasteModalOpen(false); return; }
@@ -1128,6 +1130,7 @@ export const App: React.FC = () => {
         isPresetModalOpen ||
         contextLineNumber !== null ||
         activeTimelineCorrelation !== null ||
+        activeTimelineWorkflow !== null ||
         isShortcutsOpen ||
         inspectorPayload !== null
       ) {
@@ -1330,12 +1333,17 @@ export const App: React.FC = () => {
         }
       }
 
-      // 9b. 'Shift+T': Open Correlation Timeline Graph
+      // 9b. 'Shift+T': Open Correlation or Workflow Timeline Graph
       if (!e.ctrlKey && !e.metaKey && !e.altKey && e.shiftKey && (e.key === 't' || e.key === 'T')) {
         const corrToOpen = selectedCorrelation || displayEntries.find((entry) => entry.lineNumber === selectedLineNumber)?.correlationId;
+        const wfToOpen = selectedWorkflow || displayEntries.find((entry) => entry.lineNumber === selectedLineNumber)?.workflow;
         if (corrToOpen) {
           e.preventDefault();
           setActiveTimelineCorrelation(corrToOpen);
+          return;
+        } else if (wfToOpen) {
+          e.preventDefault();
+          setActiveTimelineWorkflow(wfToOpen);
           return;
         }
       }
@@ -1711,6 +1719,7 @@ export const App: React.FC = () => {
           levelCounts={levelCounts}
           selectedWorkflow={selectedWorkflow}
           onSelectWorkflow={setSelectedWorkflow}
+          onOpenWorkflowTimeline={(wf) => setActiveTimelineWorkflow(wf)}
           workflowCounts={workflowCounts}
           selectedOperation={selectedOperation}
           onSelectOperation={setSelectedOperation}
@@ -1792,6 +1801,7 @@ export const App: React.FC = () => {
           deltaTargetLine={effectiveTargetLine}
           onSetDeltaAnchor={handleSetDeltaAnchor}
           onOpenCorrelationTimeline={(corr) => setActiveTimelineCorrelation(corr)}
+          onOpenWorkflowTimeline={(wf) => setActiveTimelineWorkflow(wf)}
         />
       </main>
 
@@ -1830,14 +1840,19 @@ export const App: React.FC = () => {
         onClose={() => setIsShortcutsOpen(false)}
       />
 
-      {/* Graphical Correlation Timeline & DAG Modal */}
+      {/* Graphical Correlation & Workflow Timeline & DAG Modal */}
       <CorrelationTimelineModal
-        isOpen={activeTimelineCorrelation !== null}
-        onClose={() => setActiveTimelineCorrelation(null)}
+        isOpen={activeTimelineCorrelation !== null || activeTimelineWorkflow !== null}
+        onClose={() => {
+          setActiveTimelineCorrelation(null);
+          setActiveTimelineWorkflow(null);
+        }}
         correlationId={activeTimelineCorrelation}
+        workflowId={activeTimelineWorkflow}
         activeSourceId={activeSourceId}
         selectedSourceIds={selectedSourceIds}
         currentEntries={entries}
+        theme={theme}
         onSelectLine={handleSelectLine}
         onViewContext={(line, srcId) => {
           setContextLineNumber(line);

@@ -14,6 +14,7 @@ interface LogRowProps {
   onViewContext: (lineNumber: number, sourceId?: string) => void;
   onSetDeltaAnchor?: (lineNumber: number) => void;
   onOpenCorrelationTimeline?: (corr: string) => void;
+  onOpenWorkflowTimeline?: (wf: string) => void;
   wrapLines?: boolean;
   hideBrackets?: boolean;
   showDatetime?: boolean;
@@ -48,6 +49,7 @@ export const LogRow: React.FC<LogRowProps> = ({
   onViewContext,
   onSetDeltaAnchor,
   onOpenCorrelationTimeline,
+  onOpenWorkflowTimeline,
   wrapLines = false,
   hideBrackets = false,
   showDatetime = true,
@@ -203,7 +205,30 @@ export const LogRow: React.FC<LogRowProps> = ({
             {entry.namespace && <span className="badge-namespace">{entry.namespace}</span>}
 
             {/* Workflow Marker */}
-            {entry.workflow && <span className="badge-workflow">{entry.workflow}</span>}
+            {entry.workflow && (
+              <span
+                className="badge-workflow"
+                onClick={
+                  onOpenWorkflowTimeline
+                    ? (e) => {
+                        e.stopPropagation();
+                        onOpenWorkflowTimeline(entry.workflow!);
+                      }
+                    : undefined
+                }
+                style={{
+                  cursor: onOpenWorkflowTimeline ? 'pointer' : 'default',
+                  textDecoration: onOpenWorkflowTimeline ? 'underline' : 'none',
+                }}
+                title={
+                  onOpenWorkflowTimeline
+                    ? `Workflow: ${entry.workflow} (Click to open Timeline Graph)`
+                    : `Workflow: ${entry.workflow}`
+                }
+              >
+                {entry.workflow}
+              </span>
+            )}
 
             {/* Operation */}
             {entry.operation && <span className="badge-operation">{entry.operation}</span>}
