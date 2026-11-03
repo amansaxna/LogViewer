@@ -644,3 +644,192 @@ export function computeActiveCallPath(
 
   return path;
 }
+
+/**
+ * Information describing a unique group (subsystem / module / component)
+ * for group-level transition visualization.
+ */
+export interface GroupNodeInfo {
+  id: string;
+  name: string;
+  color: {
+    border: string;
+    bg: string;
+    text: string;
+    badge: string;
+  };
+  stepCount: number;
+  hasError: boolean;
+  totalDeltaMs: number;
+  initials: string;
+}
+
+/**
+ * Step-by-step transition entry linking previous group to destination group.
+ */
+export interface GroupTransitionStep {
+  stepIndex: number;
+  fromGroup: string;
+  toGroup: string;
+  isCrossGroup: boolean;
+  operation: string;
+  deltaFromPrevMs: number;
+  isHotspot: boolean;
+  level: string;
+  hasTrace?: boolean;
+}
+
+/**
+ * Aggregated directed transition edge between two groups.
+ */
+export interface GroupTransitionEdge {
+  id: string;
+  fromGroup: string;
+  toGroup: string;
+  count: number;
+  isSelfLoop: boolean;
+  totalDeltaMs: number;
+  stepIndices: number[];
+}
+
+export interface GroupTransitionsData {
+  groups: GroupNodeInfo[];
+  transitions: GroupTransitionStep[];
+  edges: GroupTransitionEdge[];
+  totalSteps: number;
+}
+
+/**
+ * Extracts and computes group-level transitions and topology graph data
+ * from trace step nodes for animated visualization from Step 1 to Last.
+ */
+export function computeGroupTransitions<
+  T extends {
+    index: number;
+    module: string;
+    operation: string;
+    level?: string;
+    deltaFromPrevMs?: number;
+    isHotspot?: boolean;
+    hasTrace?: boolean;
+    hierarchy?: NamespaceHierarchy;
+  }
+>(nodes: T[], isLight: boolean = false): GroupTransitionsData {
+  if (!nodes || nodes.length === 0) {
+    return { groups: [], transitions: [], edges: [], totalSteps: 0 };
+  }
+
+  // 1. Determine group name for each node hierarchically:
+  // Prefer top-level root/domain if multiple distinct roots exist.
+  const roots = nodes.map((n) => n.hierarchy?.root || n.module.split(/[:.]+/)[0] || 'Default');
+  const uniqueRoots = new Set(roots);
+
+  let stepGroupNames: string[];
+  if (uniqueRoots.size > 1) {
+    stepGroupNames = roots;
+  } else {
+    // Check 2-tier subsystems
+    const subs = nodes.map((n) => n.hierarchy?.subsystem || n.hierarchy?.root || n.module || 'Default');
+    const uniqueSubs = new Set(subs);
+    if (uniqueSubs.size > 1) {
+      stepGroupNames = subs;
+    } else {
+      // Fallback to leaf component or operation
+      stepGroupNames = nodes.map((n) => n.hierarchy?.leaf || n.operation || 'Step');
+    }
+  }
+
+  // 2. Build unique groups map
+  const groupMap = new Map<string, GroupNodeInfo>();
+  const groupOrder: string[] = [];
+
+  for (let i = 0; i < nodes.length; i++) {
+    const node = nodes[i];
+    const gName = stepGroupNames[i];
+    const isError = node.level === 'error' || node.level === 'critical' || node.level === 'emergency';
+    const delta = node.deltaFromPrevMs || 0;
+
+    let group = groupMap.get(gName);
+    if (!group) {
+      const palette = getSubsystemColor(gName, isLight);
+      const words = gName.split(/[\s:._-]+/).filter(Boolean);
+      let initials = '';
+      if (words.length >= 2) {
+        initials = (words[0][0] + words[1][0]).toUpperCase();
+      } else if (gName.length > 0) {
+        initials = gName.slice(0, 3).toUpperCase();
+      } else {
+        initials = 'GRP';
+      }
+
+      group = {
+        id: `grp-${gName}`,
+        name: gName,
+        color: palette,
+        stepCount: 0,
+        hasError: false,
+        totalDeltaMs: 0,
+        initials,
+      };
+      groupMap.set(gName, group);
+      groupOrder.push(gName);
+    }
+
+    group.stepCount++;
+    if (isError) group.hasError = true;
+    group.totalDeltaMs += delta;
+  }
+
+  const groups = groupOrder.map((name) => groupMap.get(name)!);
+
+  // 3. Build step transitions and aggregate edges
+  const transitions: GroupTransitionStep[] = [];
+  const edgeMap = new Map<string, GroupTransitionEdge>();
+
+  for (let i = 0; i < nodes.length; i++) {
+    const node = nodes[i];
+    const currGroup = stepGroupNames[i];
+    const prevGroup = i === 0 ? currGroup : stepGroupNames[i - 1];
+    const isCross = prevGroup !== currGroup;
+    const delta = node.deltaFromPrevMs || 0;
+
+    transitions.push({
+      stepIndex: node.index !== undefined ? node.index : i,
+      fromGroup: prevGroup,
+      toGroup: currGroup,
+      isCrossGroup: isCross,
+      operation: node.operation || `Step ${i + 1}`,
+      deltaFromPrevMs: delta,
+      isHotspot: Boolean(node.isHotspot),
+      level: node.level || 'info',
+      hasTrace: Boolean(node.hasTrace),
+    });
+
+    const edgeKey = `${prevGroup}➔${currGroup}`;
+    let edge = edgeMap.get(edgeKey);
+    if (!edge) {
+      edge = {
+        id: edgeKey,
+        fromGroup: prevGroup,
+        toGroup: currGroup,
+        count: 0,
+        isSelfLoop: prevGroup === currGroup,
+        totalDeltaMs: 0,
+        stepIndices: [],
+      };
+      edgeMap.set(edgeKey, edge);
+    }
+    edge.count++;
+    edge.totalDeltaMs += delta;
+    edge.stepIndices.push(node.index !== undefined ? node.index : i);
+  }
+
+  const edges = Array.from(edgeMap.values());
+
+  return {
+    groups,
+    transitions,
+    edges,
+    totalSteps: nodes.length,
+  };
+}

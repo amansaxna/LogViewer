@@ -317,6 +317,7 @@ export function parseSingleLine(rawLine: string, lineNumber: number): LogEntry {
   let status: string | undefined;
   let duration: string | undefined;
   let explicitLevel: LogLevel | undefined;
+  const tokenOrder: string[] = [];
 
   const unassignedTokens: string[] = [];
 
@@ -328,6 +329,7 @@ export function parseSingleLine(rawLine: string, lineNumber: number): LogEntry {
     if (STATUS_LEVEL_MAP[tokenLower] && !status) {
       status = token.toUpperCase();
       explicitLevel = STATUS_LEVEL_MAP[tokenLower];
+      tokenOrder.push('status');
       continue;
     }
 
@@ -338,12 +340,14 @@ export function parseSingleLine(rawLine: string, lineNumber: number): LogEntry {
       if (!isNaN(parsedTime)) {
         timestamp = parsedTime;
       }
+      tokenOrder.push('datetime');
       continue;
     }
 
     // Check Duration
     if (!duration && DURATION_REGEX.test(token)) {
       duration = token;
+      tokenOrder.push('duration');
       continue;
     }
 
@@ -355,6 +359,7 @@ export function parseSingleLine(rawLine: string, lineNumber: number): LogEntry {
       /^workflow[-_:]/i.test(token)
     )) {
       workflow = token;
+      tokenOrder.push('workflow');
       continue;
     }
 
@@ -365,12 +370,14 @@ export function parseSingleLine(rawLine: string, lineNumber: number): LogEntry {
       /^(c|corr)_[a-f0-9]{6,}/i.test(token)
     )) {
       correlationId = token;
+      tokenOrder.push('correlationId');
       continue;
     }
 
     // Check PID
     if (!pid && (/^\d{3,6}$/.test(token) || /^pid:\s*\d+/i.test(token))) {
       pid = token.replace(/^pid:\s*/i, '');
+      tokenOrder.push('pid');
       continue;
     }
 
@@ -381,6 +388,7 @@ export function parseSingleLine(rawLine: string, lineNumber: number): LogEntry {
       /^tid:\s*\w+/i.test(token)
     )) {
       tid = token.replace(/^tid:\s*/i, '');
+      tokenOrder.push('tid');
       continue;
     }
 
@@ -390,12 +398,14 @@ export function parseSingleLine(rawLine: string, lineNumber: number): LogEntry {
       /^[A-Z][a-zA-Z0-9]+(Check|Create|Update|Delete|Query|Fetch|Dispatch|Process|Rollback|Sync|Validate|Reserve|Charge|Finalize|Send)$/.test(token)
     )) {
       operation = token;
+      tokenOrder.push('operation');
       continue;
     }
 
     // Check Namespace: either . separated or :: colon separated (e.g. Auth.Service or Auth::Service)
     if (!namespace && !/::\d+$/.test(token) && (token.includes('.') || token.includes('::'))) {
       namespace = token;
+      tokenOrder.push('namespace');
       continue;
     }
 
@@ -407,14 +417,19 @@ export function parseSingleLine(rawLine: string, lineNumber: number): LogEntry {
     if (!status && STATUS_LEVEL_MAP[token.toLowerCase()]) {
       status = token.toUpperCase();
       explicitLevel = STATUS_LEVEL_MAP[token.toLowerCase()];
+      tokenOrder.push('status');
     } else if (!correlationId && (/^(corr|cid|correlation|req|trace)[-_:]/i.test(token) || /^[0-9a-f]{8}-[0-9a-f]{4}-/i.test(token) || /^c_[a-f0-9]{4,}/i.test(token))) {
       correlationId = token;
+      tokenOrder.push('correlationId');
     } else if (!namespace && !/::\d+$/.test(token) && (token.includes('.') || token.includes('::'))) {
       namespace = token;
+      tokenOrder.push('namespace');
     } else if (!operation) {
       operation = token;
+      tokenOrder.push('operation');
     } else if (!workflow) {
       workflow = token;
+      tokenOrder.push('workflow');
     }
   }
 
@@ -438,6 +453,7 @@ export function parseSingleLine(rawLine: string, lineNumber: number): LogEntry {
     operation,
     status,
     duration,
+    tokenOrder: tokenOrder.length > 0 ? tokenOrder : undefined,
     message: remainderMessage || (unassignedTokens.join(' ') || rawLine),
     fileLocation,
     level: finalLevel,

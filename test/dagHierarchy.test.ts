@@ -8,6 +8,7 @@ import {
   resolveEffectiveClusterLevel,
   computeCallStackFrames,
   computeActiveCallPath,
+  computeGroupTransitions,
 } from '../src/utils/dagHierarchyEngine.ts';
 
 console.log('--- Testing DAG Hierarchy, Subsystem Clustering & Thread Swimlanes ---');
@@ -362,5 +363,30 @@ for (const [, frame] of largeStackFrames) {
 }
 assert.ok(tElapsed < 50, `500-step trace analysis must complete in <50ms (took ${tElapsed.toFixed(2)}ms)`);
 console.log(`✓ Test 17 Passed: 500-step trace processed in ${tElapsed.toFixed(2)}ms with max depth capped at 12`);
+
+// Test 18: Animated Group Transitions Graph computation
+const sampleGroupTrace = [
+  { index: 0, module: 'Gateway::Api::ReceiveRequest', operation: 'Receive', level: 'info', deltaFromPrevMs: 0 },
+  { index: 1, module: 'Auth::Token::Validate', operation: 'ValidateToken', level: 'info', deltaFromPrevMs: 15 },
+  { index: 2, module: 'Auth::Session::Lookup', operation: 'LookupSession', level: 'info', deltaFromPrevMs: 25 },
+  { index: 3, module: 'Database::UserRepo::FindById', operation: 'FindById', level: 'info', deltaFromPrevMs: 80, isHotspot: true },
+  { index: 4, module: 'Payment::Stripe::Charge', operation: 'Charge', level: 'error', deltaFromPrevMs: 120 },
+  { index: 5, module: 'Gateway::Api::SendResponse', operation: 'SendResponse', level: 'info', deltaFromPrevMs: 10 },
+].map((item) => ({
+  ...item,
+  hierarchy: parseNamespaceHierarchy(item.module),
+}));
+
+const groupData = computeGroupTransitions(sampleGroupTrace);
+assert.strictEqual(groupData.totalSteps, 6, 'Total steps must be 6');
+assert.strictEqual(groupData.groups.length, 4, 'Must have 4 unique groups: Gateway, Auth, Database, Payment');
+assert.strictEqual(groupData.transitions.length, 6, 'Must have 6 transitions from Step 1 to Last');
+assert.strictEqual(groupData.transitions[0].fromGroup, groupData.transitions[0].toGroup, 'Step 0 starts in initial group');
+assert.strictEqual(groupData.transitions[1].fromGroup, 'Gateway');
+assert.strictEqual(groupData.transitions[1].toGroup, 'Auth');
+assert.strictEqual(groupData.transitions[2].isCrossGroup, false, 'Step 1->2 is within Auth, so not cross-group');
+assert.strictEqual(groupData.transitions[4].level, 'error', 'Error level correctly recorded');
+assert.ok(groupData.groups.some((g) => g.hasError), 'Payment group must be flagged with error');
+console.log('✓ Test 18 Passed: computeGroupTransitions extracts groups, steps & transitions accurately');
 
 console.log('\nAll DAG Hierarchy, Subsystem & Swimlane Tests Passed Successfully!\n');

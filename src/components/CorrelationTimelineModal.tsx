@@ -25,6 +25,8 @@ import {
   Info,
   ShieldAlert,
   ArrowRight,
+  ArrowDown,
+  GitMerge,
   AlertOctagon,
   Flame,
   Share2,
@@ -46,6 +48,7 @@ import { copyWithToast } from '../utils/copyNotifier.ts';
 import { renderSyntaxColoredLine } from '../utils/coloredLogRenderer.tsx';
 import { findJsonBlocks, findXmlBlocks } from '../utils/messageContextHighlighter.tsx';
 import { TraceViewer } from './TraceViewer.tsx';
+import { GroupTransitionsGraph } from './GroupTransitionsGraph.tsx';
 import {
   parseNamespaceHierarchy,
   groupNodesIntoSubsystems,
@@ -192,18 +195,80 @@ export const CorrelationTimelineModal: React.FC<CorrelationTimelineModalProps> =
   const [selectedNodeIndex, setSelectedNodeIndex] = useState<number>(0);
   const [zoomLevel, setZoomLevel] = useState<number>(1);
   const [viewLayout, setViewLayout] = useState<'dag' | 'flame' | 'macro' | 'waterfall' | 'swimlanes'>('dag');
+  const [showTransitionsGraph, setShowTransitionsGraph] = useState<boolean>(true);
   const [clusterGranularity, setClusterGranularity] = useState<ClusterGranularity>('auto');
   const [showGranularityMenu, setShowGranularityMenu] = useState(false);
   const isSubsystemClustered = clusterGranularity !== 'none';
   const [collapsedClusterIds, setCollapsedClusterIds] = useState<Set<string>>(new Set());
   const [isSpotlightEnabled, setIsSpotlightEnabled] = useState<boolean>(true);
   const [isStackUnfolded, setIsStackUnfolded] = useState<boolean>(false);
-  const [isFullScreen, setIsFullScreen] = useState(false);
+  const [isFullScreen, setIsFullScreen] = useState(true);
   const [searchFilter, setSearchFilter] = useState('');
   const [copiedSnippet, setCopiedSnippet] = useState(false);
   const [rcaCopied, setRcaCopied] = useState(false);
   const [payloadCopied, setPayloadCopied] = useState(false);
   const [showShortcuts, setShowShortcuts] = useState(false);
+
+  // Floating Draggable Group Transitions Graph HUD State
+  const [hudPos, setHudPos] = useState<{ x: number; y: number } | null>(null);
+  const [isDraggingHud, setIsDraggingHud] = useState(false);
+  const dragRef = useRef<{ startMouseX: number; startMouseY: number; startX: number; startY: number } | null>(null);
+  const hudElementRef = useRef<HTMLDivElement>(null);
+
+  const handleHudMouseDown = (e: React.MouseEvent) => {
+    const target = e.target as HTMLElement;
+    if (target.closest('button') || target.closest('input') || target.closest('svg.interactive') || target.closest('.no-drag')) {
+      return;
+    }
+    if (!target.closest('.hud-drag-handle')) {
+      return;
+    }
+    const rect = hudElementRef.current?.getBoundingClientRect();
+    const modalRect = document.querySelector('.modal-content')?.getBoundingClientRect();
+    const modalLeft = modalRect ? modalRect.left : 0;
+    const modalTop = modalRect ? modalRect.top : 0;
+
+    const currentX = rect ? (rect.left - modalLeft) : (window.innerWidth - 420);
+    const currentY = rect ? (rect.top - modalTop) : 64;
+
+    dragRef.current = {
+      startMouseX: e.clientX,
+      startMouseY: e.clientY,
+      startX: currentX,
+      startY: currentY,
+    };
+    setIsDraggingHud(true);
+  };
+
+  useEffect(() => {
+    if (!isDraggingHud) return;
+
+    const handleMouseMove = (e: MouseEvent) => {
+      if (!dragRef.current) return;
+      const dx = e.clientX - dragRef.current.startMouseX;
+      const dy = e.clientY - dragRef.current.startMouseY;
+      const modalRect = document.querySelector('.modal-content')?.getBoundingClientRect();
+      const modalWidth = modalRect ? modalRect.width : window.innerWidth;
+      const modalHeight = modalRect ? modalRect.height : window.innerHeight;
+
+      const newX = Math.max(12, Math.min(modalWidth - 360, dragRef.current.startX + dx));
+      const newY = Math.max(56, Math.min(modalHeight - 80, dragRef.current.startY + dy));
+
+      setHudPos({ x: newX, y: newY });
+    };
+
+    const handleMouseUp = () => {
+      setIsDraggingHud(false);
+      dragRef.current = null;
+    };
+
+    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('mouseup', handleMouseUp);
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, [isDraggingHud]);
 
   const toggleCollapseCluster = (clusterId: string, e?: React.MouseEvent) => {
     if (e) e.stopPropagation();
@@ -851,19 +916,23 @@ export const CorrelationTimelineModal: React.FC<CorrelationTimelineModalProps> =
            ==================================================================== */}
         <div
           style={{
-            height: 54,
-            padding: '0 20px',
+            height: 52,
+            minHeight: 52,
+            padding: '0 16px',
             backgroundColor: isLight ? '#f3eee5' : '#101216',
             borderBottom: isLight ? '1px solid #ded7ca' : '1px solid #1c212a',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
-            gap: 16,
+            gap: 10,
+            flexWrap: 'nowrap',
+            boxSizing: 'border-box',
             flexShrink: 0,
+            overflowX: 'auto',
           }}
         >
           {/* Left Brand & Timeline Identity (Correlation or Workflow) */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
             <div
               style={{
                 width: 32,
@@ -881,32 +950,34 @@ export const CorrelationTimelineModal: React.FC<CorrelationTimelineModalProps> =
                 color: isWorkflow
                   ? (isLight ? '#7c3aed' : '#c084fc')
                   : (isLight ? '#059669' : '#34d399'),
+                flexShrink: 0,
               }}
             >
               {isWorkflow ? <GitBranch size={16} /> : <Zap size={16} />}
             </div>
 
-            <div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <span style={{ fontSize: '0.88rem', fontWeight: 700, letterSpacing: '-0.01em', color: isLight ? '#1c1917' : '#ededef' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'nowrap', lineHeight: 1.2 }}>
+                <span style={{ fontSize: '0.86rem', fontWeight: 700, letterSpacing: '-0.01em', color: isLight ? '#1c1917' : '#ededef', whiteSpace: 'nowrap' }}>
                   {isWorkflow ? 'Workflow Timeline & DAG' : 'Correlation Timeline & DAG'}
                 </span>
                 <span
                   style={{
                     fontFamily: 'var(--font-mono, monospace)',
-                    fontSize: '0.78rem',
+                    fontSize: '0.74rem',
                     color: isWorkflow
                       ? (isLight ? '#6d28d9' : '#c084fc')
                       : (isLight ? '#047857' : '#34d399'),
                     backgroundColor: isWorkflow
                       ? (isLight ? 'rgba(124, 58, 237, 0.1)' : 'rgba(192, 132, 252, 0.1)')
                       : (isLight ? 'rgba(5, 150, 105, 0.1)' : 'rgba(52, 211, 153, 0.1)'),
-                    padding: '2px 8px',
+                    padding: '1px 7px',
                     borderRadius: 4,
                     border: isWorkflow
                       ? (isLight ? '1px solid rgba(124, 58, 237, 0.3)' : '1px solid rgba(192, 132, 252, 0.3)')
                       : (isLight ? '1px solid rgba(5, 150, 105, 0.3)' : '1px solid rgba(52, 211, 153, 0.3)'),
                     fontWeight: 600,
+                    whiteSpace: 'nowrap',
                   }}
                 >
                   {targetId}
@@ -914,12 +985,13 @@ export const CorrelationTimelineModal: React.FC<CorrelationTimelineModalProps> =
               </div>
               <div
                 style={{
-                  fontSize: '0.72rem',
+                  fontSize: '0.70rem',
                   color: isLight ? '#78716c' : 'var(--text-muted, #8b949e)',
                   display: 'flex',
                   alignItems: 'center',
-                  gap: 8,
-                  marginTop: 2,
+                  gap: 6,
+                  lineHeight: 1.2,
+                  whiteSpace: 'nowrap',
                 }}
               >
                 <span>{stepNodes.length} {stepNodes.length === 1 ? 'step' : 'steps'}</span>
@@ -948,25 +1020,25 @@ export const CorrelationTimelineModal: React.FC<CorrelationTimelineModalProps> =
           </div>
 
           {/* Right Toolbar Controls */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 5, flexShrink: 0 }}>
             {/* Search Filter */}
             <div
               style={{
                 display: 'flex',
                 alignItems: 'center',
-                gap: 6,
+                gap: 5,
                 backgroundColor: isLight ? '#eae4d8' : '#090a0d',
                 border: isLight ? '1px solid #ded7ca' : '1px solid #232832',
                 borderRadius: 5,
-                padding: '4px 8px',
-                width: 140,
+                padding: '3px 7px',
+                width: 95,
               }}
             >
-              <Search size={13} color={isLight ? '#78716c' : '#64748b'} />
+              <Search size={12} color={isLight ? '#78716c' : '#64748b'} />
               <input
                 ref={searchInputRef}
                 type="text"
-                placeholder="Filter steps... (/)"
+                placeholder="Filter... (/)"
                 value={searchFilter}
                 onChange={(e) => setSearchFilter(e.target.value)}
                 style={{
@@ -974,7 +1046,7 @@ export const CorrelationTimelineModal: React.FC<CorrelationTimelineModalProps> =
                   border: 'none',
                   outline: 'none',
                   color: isLight ? '#1c1917' : '#ededef',
-                  fontSize: '0.74rem',
+                  fontSize: '0.72rem',
                   fontFamily: 'var(--font-mono, monospace)',
                   width: '100%',
                 }}
@@ -1000,20 +1072,20 @@ export const CorrelationTimelineModal: React.FC<CorrelationTimelineModalProps> =
                   border: 'none',
                   backgroundColor: rcaCopied ? (isLight ? 'rgba(5, 150, 105, 0.15)' : 'rgba(52, 211, 153, 0.18)') : 'transparent',
                   color: rcaCopied ? (isLight ? '#047857' : '#34d399') : (isLight ? '#0369a1' : '#38bdf8'),
-                  padding: '3px 8px',
+                  padding: '3px 7px',
                   borderRadius: 4,
-                  fontSize: '0.72rem',
+                  fontSize: '0.70rem',
                   fontWeight: 600,
                   cursor: 'pointer',
                   display: 'flex',
                   alignItems: 'center',
-                  gap: 5,
+                  gap: 4,
                   transition: 'all 150ms ease',
                 }}
                 title="Copy Root Cause Analysis Markdown report to clipboard (Hotkey: r)"
               >
-                {rcaCopied ? <Check size={12} color={isLight ? '#047857' : '#34d399'} /> : <Copy size={12} />}
-                <span>{rcaCopied ? 'Copied RCA' : 'Copy RCA'}</span>
+                {rcaCopied ? <Check size={11} color={isLight ? '#047857' : '#34d399'} /> : <Copy size={11} />}
+                <span>{rcaCopied ? 'Copied' : 'RCA'}</span>
               </button>
 
               <button
@@ -1023,16 +1095,16 @@ export const CorrelationTimelineModal: React.FC<CorrelationTimelineModalProps> =
                   border: 'none',
                   backgroundColor: 'transparent',
                   color: isLight ? '#57534e' : '#8b949e',
-                  padding: '3px 6px',
+                  padding: '3px 5px',
                   borderRadius: 4,
-                  fontSize: '0.72rem',
+                  fontSize: '0.70rem',
                   cursor: 'pointer',
                   display: 'flex',
                   alignItems: 'center',
                 }}
                 title="Download RCA Report as .md file (Hotkey: d)"
               >
-                <Download size={12} />
+                <Download size={11} />
               </button>
             </div>
 
@@ -1046,18 +1118,18 @@ export const CorrelationTimelineModal: React.FC<CorrelationTimelineModalProps> =
                   ? (isLight ? '#ffffff' : 'rgba(59, 130, 246, 0.18)')
                   : (isLight ? '#eae4d8' : '#090a0d'),
                 color: showShortcuts ? (isLight ? '#0284c7' : '#60a5fa') : (isLight ? '#57534e' : '#8b949e'),
-                padding: '4px 8px',
+                padding: '3px 7px',
                 borderRadius: 5,
-                fontSize: '0.72rem',
+                fontSize: '0.70rem',
                 fontWeight: 600,
                 cursor: 'pointer',
                 display: 'flex',
                 alignItems: 'center',
-                gap: 5,
+                gap: 4,
               }}
               title="Toggle Developer Keyboard Shortcuts (?)"
             >
-              <Keyboard size={13} />
+              <Keyboard size={12} />
               <span>Keys</span>
             </button>
 
@@ -1080,18 +1152,18 @@ export const CorrelationTimelineModal: React.FC<CorrelationTimelineModalProps> =
                   background: viewLayout === 'dag' ? (isLight ? '#ffffff' : 'rgba(59, 130, 246, 0.18)') : 'transparent',
                   boxShadow: viewLayout === 'dag' && isLight ? '0 1px 3px rgba(0,0,0,0.08)' : 'none',
                   color: viewLayout === 'dag' ? (isLight ? '#0284c7' : '#60a5fa') : (isLight ? '#78716c' : '#8b949e'),
-                  fontSize: '0.72rem',
+                  fontSize: '0.70rem',
                   fontWeight: viewLayout === 'dag' ? 600 : 400,
-                  padding: '3px 8px',
+                  padding: '3px 7px',
                   borderRadius: 4,
                   cursor: 'pointer',
                   display: 'flex',
                   alignItems: 'center',
-                  gap: 4,
+                  gap: 3,
                 }}
                 title="DAG Pipeline View (v)"
               >
-                <Layers size={12} />
+                <Layers size={11} />
                 <span>DAG</span>
               </button>
               <button
@@ -1102,18 +1174,18 @@ export const CorrelationTimelineModal: React.FC<CorrelationTimelineModalProps> =
                   background: viewLayout === 'flame' ? (isLight ? '#ffffff' : 'rgba(59, 130, 246, 0.18)') : 'transparent',
                   boxShadow: viewLayout === 'flame' && isLight ? '0 1px 3px rgba(0,0,0,0.08)' : 'none',
                   color: viewLayout === 'flame' ? (isLight ? '#0284c7' : '#60a5fa') : (isLight ? '#78716c' : '#8b949e'),
-                  fontSize: '0.72rem',
+                  fontSize: '0.70rem',
                   fontWeight: viewLayout === 'flame' ? 600 : 400,
-                  padding: '3px 8px',
+                  padding: '3px 7px',
                   borderRadius: 4,
                   cursor: 'pointer',
                   display: 'flex',
                   alignItems: 'center',
-                  gap: 4,
+                  gap: 3,
                 }}
                 title="2D Stack-Depth Flame-DAG View (v)"
               >
-                <Flame size={12} />
+                <Flame size={11} />
                 <span>Flame</span>
               </button>
               <button
@@ -1124,18 +1196,18 @@ export const CorrelationTimelineModal: React.FC<CorrelationTimelineModalProps> =
                   background: viewLayout === 'macro' ? (isLight ? '#ffffff' : 'rgba(59, 130, 246, 0.18)') : 'transparent',
                   boxShadow: viewLayout === 'macro' && isLight ? '0 1px 3px rgba(0,0,0,0.08)' : 'none',
                   color: viewLayout === 'macro' ? (isLight ? '#0284c7' : '#60a5fa') : (isLight ? '#78716c' : '#8b949e'),
-                  fontSize: '0.72rem',
+                  fontSize: '0.70rem',
                   fontWeight: viewLayout === 'macro' ? 600 : 400,
-                  padding: '3px 8px',
+                  padding: '3px 7px',
                   borderRadius: 4,
                   cursor: 'pointer',
                   display: 'flex',
                   alignItems: 'center',
-                  gap: 4,
+                  gap: 3,
                 }}
                 title="Subsystem Macro Transit Graph (v)"
               >
-                <Boxes size={12} />
+                <Boxes size={11} />
                 <span>Macro</span>
               </button>
               <button
@@ -1146,18 +1218,18 @@ export const CorrelationTimelineModal: React.FC<CorrelationTimelineModalProps> =
                   background: viewLayout === 'waterfall' ? (isLight ? '#ffffff' : 'rgba(59, 130, 246, 0.18)') : 'transparent',
                   boxShadow: viewLayout === 'waterfall' && isLight ? '0 1px 3px rgba(0,0,0,0.08)' : 'none',
                   color: viewLayout === 'waterfall' ? (isLight ? '#0284c7' : '#60a5fa') : (isLight ? '#78716c' : '#8b949e'),
-                  fontSize: '0.72rem',
+                  fontSize: '0.70rem',
                   fontWeight: viewLayout === 'waterfall' ? 600 : 400,
-                  padding: '3px 8px',
+                  padding: '3px 7px',
                   borderRadius: 4,
                   cursor: 'pointer',
                   display: 'flex',
                   alignItems: 'center',
-                  gap: 4,
+                  gap: 3,
                 }}
                 title="Chronological Waterfall View (v)"
               >
-                <Activity size={12} />
+                <Activity size={11} />
                 <span>Waterfall</span>
               </button>
               <button
@@ -1168,19 +1240,19 @@ export const CorrelationTimelineModal: React.FC<CorrelationTimelineModalProps> =
                   background: viewLayout === 'swimlanes' ? (isLight ? '#ffffff' : 'rgba(59, 130, 246, 0.18)') : 'transparent',
                   boxShadow: viewLayout === 'swimlanes' && isLight ? '0 1px 3px rgba(0,0,0,0.08)' : 'none',
                   color: viewLayout === 'swimlanes' ? (isLight ? '#0284c7' : '#60a5fa') : (isLight ? '#78716c' : '#8b949e'),
-                  fontSize: '0.72rem',
+                  fontSize: '0.70rem',
                   fontWeight: viewLayout === 'swimlanes' ? 600 : 400,
-                  padding: '3px 8px',
+                  padding: '3px 7px',
                   borderRadius: 4,
                   cursor: 'pointer',
                   display: 'flex',
                   alignItems: 'center',
-                  gap: 4,
+                  gap: 3,
                 }}
                 title="Parallel Multi-Thread Async Swimlanes View (v)"
               >
-                <Cpu size={12} />
-                <span>Swimlanes</span>
+                <Cpu size={11} />
+                <span>Swim</span>
               </button>
             </div>
 
@@ -1200,22 +1272,22 @@ export const CorrelationTimelineModal: React.FC<CorrelationTimelineModalProps> =
                     color: clusterGranularity !== 'none'
                       ? (isLight ? '#0284c7' : '#60a5fa')
                       : (isLight ? '#78716c' : '#8b949e'),
-                    padding: '4px 8px',
+                    padding: '3px 7px',
                     borderRadius: 5,
-                    fontSize: '0.72rem',
+                    fontSize: '0.70rem',
                     fontWeight: 600,
                     cursor: 'pointer',
                     display: 'flex',
                     alignItems: 'center',
-                    gap: 5,
+                    gap: 4,
                   }}
                   title="Cluster Granularity & Depth (Hotkey: b)"
                 >
-                  <LayersIcon size={12} />
+                  <LayersIcon size={11} />
                   <span>
-                    Group: {clusterGranularity === 'auto' ? 'Auto (Smart)' : clusterGranularity === 'l1' ? 'L1: Domain' : clusterGranularity === 'l2' ? 'L2: Module' : clusterGranularity === 'l3' ? 'L3: Component' : 'Flat (Off)'}
+                    Group: {clusterGranularity === 'auto' ? 'Auto' : clusterGranularity === 'l1' ? 'L1' : clusterGranularity === 'l2' ? 'L2' : clusterGranularity === 'l3' ? 'L3' : 'Flat'}
                   </span>
-                  <ChevronDown size={11} style={{ opacity: 0.7 }} />
+                  <ChevronDown size={10} style={{ opacity: 0.7 }} />
                 </button>
 
                 {showGranularityMenu && (
@@ -1287,6 +1359,37 @@ export const CorrelationTimelineModal: React.FC<CorrelationTimelineModalProps> =
               </div>
             )}
 
+            {/* Group Transitions Graph Toggle */}
+            {viewLayout === 'dag' && (
+              <button
+                type="button"
+                onClick={() => setShowTransitionsGraph((p) => !p)}
+                style={{
+                  border: showTransitionsGraph
+                    ? (isLight ? '1px solid #0284c7' : '1px solid #3b82f6')
+                    : (isLight ? '1px solid #ded7ca' : '1px solid #232832'),
+                  backgroundColor: showTransitionsGraph
+                    ? (isLight ? 'rgba(2, 132, 199, 0.1)' : 'rgba(59, 130, 246, 0.15)')
+                    : (isLight ? '#eae4d8' : '#090a0d'),
+                  color: showTransitionsGraph
+                    ? (isLight ? '#0284c7' : '#60a5fa')
+                    : (isLight ? '#78716c' : '#8b949e'),
+                  padding: '3px 7px',
+                  borderRadius: 5,
+                  fontSize: '0.70rem',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 4,
+                }}
+                title="Toggle Draggable Group Level Transitions HUD"
+              >
+                <GitMerge size={11} />
+                <span>Transitions</span>
+              </button>
+            )}
+
             {/* Call-Path Spotlight Toggle (Only for DAG and Flame Layouts) */}
             {(viewLayout === 'dag' || viewLayout === 'flame') && (
               <button
@@ -1302,131 +1405,162 @@ export const CorrelationTimelineModal: React.FC<CorrelationTimelineModalProps> =
                   color: isSpotlightEnabled
                     ? (isLight ? '#0284c7' : '#60a5fa')
                     : (isLight ? '#78716c' : '#8b949e'),
-                  padding: '4px 8px',
+                  padding: '3px 7px',
                   borderRadius: 5,
-                  fontSize: '0.72rem',
+                  fontSize: '0.70rem',
                   fontWeight: 600,
                   cursor: 'pointer',
                   display: 'flex',
                   alignItems: 'center',
-                  gap: 5,
+                  gap: 4,
                 }}
                 title="Toggle Active Call-Path Spotlight (Hotkey: s)"
               >
-                {isSpotlightEnabled ? <Eye size={12} /> : <EyeOff size={12} />}
-                <span>{isSpotlightEnabled ? 'Spotlight ON' : 'Spotlight OFF'}</span>
+                {isSpotlightEnabled ? <Eye size={11} /> : <EyeOff size={11} />}
+                <span>Spotlight</span>
               </button>
             )}
 
-            {/* Zoom Controls */}
-            <div
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 2,
-                backgroundColor: isLight ? '#eae4d8' : '#090a0d',
-                border: isLight ? '1px solid #ded7ca' : '1px solid #232832',
-                borderRadius: 5,
-                padding: 2,
-              }}
-            >
+            {/* Right Pinned Window Controls (Zoom, Fullscreen, Close) */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginLeft: 2 }}>
+              {/* Zoom Controls */}
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 1,
+                  backgroundColor: isLight ? '#eae4d8' : '#090a0d',
+                  border: isLight ? '1px solid #ded7ca' : '1px solid #232832',
+                  borderRadius: 5,
+                  padding: 1,
+                }}
+              >
+                <button
+                  type="button"
+                  onClick={() => setZoomLevel((z) => Math.max(0.6, z - 0.1))}
+                  style={{
+                    border: 'none',
+                    background: 'transparent',
+                    color: isLight ? '#57534e' : '#8b949e',
+                    padding: 3,
+                    cursor: 'pointer',
+                    borderRadius: 3,
+                  }}
+                  title="Zoom Out"
+                >
+                  <ZoomOut size={12} />
+                </button>
+                <span
+                  style={{
+                    fontSize: '0.66rem',
+                    fontFamily: 'var(--font-mono, monospace)',
+                    color: isLight ? '#57534e' : '#8b949e',
+                    padding: '0 3px',
+                  }}
+                >
+                  {Math.round(zoomLevel * 100)}%
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setZoomLevel((z) => Math.min(1.8, z + 0.1))}
+                  style={{
+                    border: 'none',
+                    background: 'transparent',
+                    color: isLight ? '#57534e' : '#8b949e',
+                    padding: 3,
+                    cursor: 'pointer',
+                    borderRadius: 3,
+                  }}
+                  title="Zoom In"
+                >
+                  <ZoomIn size={12} />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setZoomLevel(1)}
+                  style={{
+                    border: 'none',
+                    background: 'transparent',
+                    color: isLight ? '#57534e' : '#8b949e',
+                    padding: 3,
+                    cursor: 'pointer',
+                    borderRadius: 3,
+                  }}
+                  title="Reset Zoom"
+                >
+                  <RotateCcw size={10} />
+                </button>
+              </div>
+
+              {/* Fullscreen Toggle */}
               <button
                 type="button"
-                onClick={() => setZoomLevel((z) => Math.max(0.6, z - 0.1))}
+                onClick={() => setIsFullScreen((v) => !v)}
                 style={{
-                  border: 'none',
-                  background: 'transparent',
+                  border: isLight ? '1px solid #ded7ca' : '1px solid #232832',
+                  backgroundColor: isLight ? '#eae4d8' : '#090a0d',
                   color: isLight ? '#57534e' : '#8b949e',
-                  padding: 4,
+                  padding: '4px 6px',
+                  borderRadius: 5,
                   cursor: 'pointer',
-                  borderRadius: 3,
                 }}
-                title="Zoom Out"
+                title={isFullScreen ? 'Exit Fullscreen' : 'Fullscreen'}
               >
-                <ZoomOut size={13} />
+                {isFullScreen ? <Minimize2 size={12} /> : <Maximize2 size={12} />}
               </button>
-              <span
-                style={{
-                  fontSize: '0.68rem',
-                  fontFamily: 'var(--font-mono, monospace)',
-                  color: isLight ? '#57534e' : '#8b949e',
-                  padding: '0 4px',
-                }}
-              >
-                {Math.round(zoomLevel * 100)}%
-              </span>
+
+              {/* Close Button */}
               <button
                 type="button"
-                onClick={() => setZoomLevel((z) => Math.min(1.8, z + 0.1))}
+                onClick={onClose}
                 style={{
-                  border: 'none',
-                  background: 'transparent',
+                  border: isLight ? '1px solid #ded7ca' : '1px solid #232832',
+                  backgroundColor: isLight ? '#eae4d8' : '#090a0d',
                   color: isLight ? '#57534e' : '#8b949e',
-                  padding: 4,
+                  padding: '4px 6px',
+                  borderRadius: 5,
                   cursor: 'pointer',
-                  borderRadius: 3,
                 }}
-                title="Zoom In"
+                title="Close Timeline (Esc)"
               >
-                <ZoomIn size={13} />
-              </button>
-              <button
-                type="button"
-                onClick={() => setZoomLevel(1)}
-                style={{
-                  border: 'none',
-                  background: 'transparent',
-                  color: isLight ? '#57534e' : '#8b949e',
-                  padding: 4,
-                  cursor: 'pointer',
-                  borderRadius: 3,
-                }}
-                title="Reset Zoom"
-              >
-                <RotateCcw size={11} />
+                <X size={13} />
               </button>
             </div>
-
-            {/* Fullscreen Toggle */}
-            <button
-              type="button"
-              onClick={() => setIsFullScreen((v) => !v)}
-              style={{
-                border: isLight ? '1px solid #ded7ca' : '1px solid #232832',
-                backgroundColor: isLight ? '#eae4d8' : '#090a0d',
-                color: isLight ? '#57534e' : '#8b949e',
-                padding: 6,
-                borderRadius: 5,
-                cursor: 'pointer',
-              }}
-              title={isFullScreen ? 'Exit Fullscreen' : 'Fullscreen'}
-            >
-              {isFullScreen ? <Minimize2 size={13} /> : <Maximize2 size={13} />}
-            </button>
-
-            {/* Close Button */}
-            <button
-              type="button"
-              onClick={onClose}
-              style={{
-                border: isLight ? '1px solid #ded7ca' : '1px solid #232832',
-                backgroundColor: isLight ? '#eae4d8' : '#090a0d',
-                color: isLight ? '#57534e' : '#8b949e',
-                padding: 6,
-                borderRadius: 5,
-                cursor: 'pointer',
-              }}
-              title="Close Timeline (Esc)"
-            >
-              <X size={14} />
-            </button>
           </div>
         </div>
 
         {/* ====================================================================
             BODY: SPLIT GRAPH / WATERFALL VIEWPORT & STEP INSPECTOR DRAWER
            ==================================================================== */}
-        <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
+        <div style={{ flex: 1, display: 'flex', overflow: 'hidden', position: 'relative' }}>
+          {/* Floating Draggable Group Transitions Graph HUD (Movable Item) */}
+          {showTransitionsGraph && filteredStepNodes.length > 0 && viewLayout === 'dag' && (
+            <div
+              ref={hudElementRef}
+              onMouseDown={handleHudMouseDown}
+              style={{
+                position: 'absolute',
+                top: hudPos ? hudPos.y : 16,
+                left: hudPos ? hudPos.x : undefined,
+                right: hudPos ? undefined : 24,
+                zIndex: 40,
+                maxWidth: 390,
+                width: '100%',
+                pointerEvents: 'auto',
+                cursor: isDraggingHud ? 'grabbing' : undefined,
+              }}
+            >
+              <GroupTransitionsGraph
+                nodes={filteredStepNodes}
+                selectedStepIndex={selectedNodeIndex}
+                onSelectStep={(idx) => {
+                  setSelectedNodeIndex(idx);
+                }}
+                isLight={isLight}
+                onClose={() => setShowTransitionsGraph(false)}
+              />
+            </div>
+          )}
           {/* Main Visual Canvas Area */}
           <div
             ref={containerRef}
@@ -1538,28 +1672,68 @@ export const CorrelationTimelineModal: React.FC<CorrelationTimelineModalProps> =
               </div>
             ) : viewLayout === 'dag' ? (
               /* ==============================================================
-                 MODE 1: DAG WORKFLOW PIPELINE GRAPH (WITH SUBSYSTEM CLUSTERS & COMPACT BREADCRUMBS)
+                 MODE 1: DAG WORKFLOW PIPELINE GRAPH (TOP-TO-BOTTOM CARD DIRECTION)
+                 & ATTACHED ANIMATED GROUP TRANSITIONS GRAPH
                  ============================================================== */
               <div
                 style={{
-                  padding: '36px 32px',
-                  display: 'inline-flex',
+                  position: 'relative',
+                  width: '100%',
+                  minHeight: '100%',
+                  display: 'flex',
+                  flexDirection: 'column',
                   alignItems: 'flex-start',
-                  gap: isSubsystemClustered ? 24 : 0,
-                  transformOrigin: '0 0',
-                  transform: `scale(${zoomLevel})`,
-                  minWidth: 'max-content',
                 }}
               >
+                {/* Global SVG Marker Definitions for DAG Vector Connectors */}
+                <svg width="0" height="0" style={{ position: 'absolute', pointerEvents: 'none' }}>
+                  <defs>
+                    <marker
+                      id="arrowhead"
+                      markerWidth="6"
+                      markerHeight="6"
+                      refX="5"
+                      refY="3"
+                      orient="auto"
+                    >
+                      <polygon points="0 0, 6 3, 0 6" fill="#3b82f6" />
+                    </marker>
+                    <marker
+                      id="arrowhead-light"
+                      markerWidth="6"
+                      markerHeight="6"
+                      refX="5"
+                      refY="3"
+                      orient="auto"
+                    >
+                      <polygon points="0 0, 6 3, 0 6" fill="#0284c7" />
+                    </marker>
+                  </defs>
+                </svg>
+
+                {/* Main Cards Graph Flow: Starting immediately from the top-left */}
+                <div
+                  style={{
+                    padding: '20px 32px 80px 32px',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'flex-start',
+                    gap: 0,
+                    transformOrigin: '0 0',
+                    transform: `scale(${zoomLevel})`,
+                    minWidth: 'max-content',
+                    boxSizing: 'border-box',
+                  }}
+                >
                 {isSubsystemClustered ? (
-                  /* --- CLUSTERED SUBSYSTEM BOUNDARY VIEW (Phase 2) --- */
+                  /* --- CLUSTERED SUBSYSTEM BOUNDARY VIEW (Across=Top-to-Bottom, Within=Left-to-Right) --- */
                   subsystemClusters.map((cluster, cIdx) => {
                     const isLastCluster = cIdx === subsystemClusters.length - 1;
                     const cTheme = getSubsystemColor(cluster.displayName || cluster.root, isLight);
 
                     return (
                       <React.Fragment key={cluster.id}>
-                        {/* Cluster Bounding Enclosure */}
+                        {/* Cluster Bounding Enclosure (Expands horizontally to contain its steps) */}
                         <div
                           style={{
                             border: `1.5px dashed ${cTheme.border}`,
@@ -1568,11 +1742,15 @@ export const CorrelationTimelineModal: React.FC<CorrelationTimelineModalProps> =
                             padding: '14px 16px 16px 16px',
                             display: 'flex',
                             flexDirection: 'column',
+                            alignItems: 'stretch',
                             gap: 12,
                             position: 'relative',
                             boxShadow: isLight
                               ? '0 2px 8px rgba(0, 0, 0, 0.04)'
                               : `0 4px 20px ${cTheme.bg}`,
+                            width: 'fit-content',
+                            maxWidth: '100%',
+                            boxSizing: 'border-box',
                           }}
                         >
                           {/* Subsystem Cluster Header Badge */}
@@ -1584,6 +1762,8 @@ export const CorrelationTimelineModal: React.FC<CorrelationTimelineModalProps> =
                               gap: 12,
                               paddingBottom: 6,
                               borderBottom: isLight ? '1px solid #ded7ca' : '1px solid rgba(255, 255, 255, 0.06)',
+                              width: '100%',
+                              boxSizing: 'border-box',
                             }}
                           >
                             <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -1684,8 +1864,16 @@ export const CorrelationTimelineModal: React.FC<CorrelationTimelineModalProps> =
                               </div>
                             </div>
                           ) : (
-                            /* Horizontal Row of Nodes inside this Cluster */
-                            <div style={{ display: 'inline-flex', alignItems: 'center', gap: 0 }}>
+                            /* Horizontal Nodes inside this Cluster (Left-to-Right Flow) */
+                            <div
+                              style={{
+                                display: 'inline-flex',
+                                flexDirection: 'row',
+                                alignItems: 'center',
+                                gap: 0,
+                                width: 'auto',
+                              }}
+                            >
                               {cluster.items.map((node, i) => {
                                 const isSelected = selectedNode?.id === node.id;
                                 const isLastInCluster = i === cluster.items.length - 1;
@@ -1703,28 +1891,28 @@ export const CorrelationTimelineModal: React.FC<CorrelationTimelineModalProps> =
                                         contentVisibility: 'auto',
                                         containIntrinsicSize: '250px 110px',
                                         opacity: isSpotlighted ? 1 : 0.22,
-                                      filter: isSpotlighted ? 'none' : 'grayscale(0.65)',
-                                      backgroundColor: isSelected
-                                        ? (isLight ? '#ffffff' : '#151922')
-                                        : (isLight ? '#ffffff' : '#0e1117'),
-                                      border: isSelected
-                                        ? (isLight ? '1.5px solid #0284c7' : '1.5px solid #3b82f6')
-                                        : `1.5px solid ${lvlTheme.border}`,
-                                      boxShadow: isSelected
-                                        ? (isLight
-                                            ? '0 0 0 2px #0284c7, 0 8px 24px rgba(2, 132, 199, 0.2)'
-                                            : '0 0 24px rgba(59, 130, 246, 0.4), inset 0 0 12px rgba(59, 130, 246, 0.1)')
-                                        : (isLight
-                                            ? '0 3px 10px rgba(28, 25, 23, 0.07)'
-                                            : '0 8px 20px rgba(0,0,0,0.5)'),
-                                      borderRadius: 8,
-                                      padding: 12,
-                                      cursor: 'pointer',
-                                      transition: 'opacity 140ms ease, filter 140ms ease, border-color 160ms ease, box-shadow 160ms ease',
-                                      position: 'relative',
-                                      flexShrink: 0,
-                                    }}
-                                  >
+                                        filter: isSpotlighted ? 'none' : 'grayscale(0.65)',
+                                        backgroundColor: isSelected
+                                          ? (isLight ? '#ffffff' : '#151922')
+                                          : (isLight ? '#ffffff' : '#0e1117'),
+                                        border: isSelected
+                                          ? (isLight ? '1.5px solid #0284c7' : '1.5px solid #3b82f6')
+                                          : `1.5px solid ${lvlTheme.border}`,
+                                        boxShadow: isSelected
+                                          ? (isLight
+                                              ? '0 0 0 2px #0284c7, 0 8px 24px rgba(2, 132, 199, 0.2)'
+                                              : '0 0 24px rgba(59, 130, 246, 0.4), inset 0 0 12px rgba(59, 130, 246, 0.1)')
+                                          : (isLight
+                                              ? '0 3px 10px rgba(28, 25, 23, 0.07)'
+                                              : '0 8px 20px rgba(0,0,0,0.5)'),
+                                        borderRadius: 8,
+                                        padding: 12,
+                                        cursor: 'pointer',
+                                        transition: 'opacity 140ms ease, filter 140ms ease, border-color 160ms ease, box-shadow 160ms ease',
+                                        position: 'relative',
+                                        flexShrink: 0,
+                                      }}
+                                    >
                                     {/* Step Sequence Badge */}
                                     <div
                                       style={{
@@ -1979,7 +2167,7 @@ export const CorrelationTimelineModal: React.FC<CorrelationTimelineModalProps> =
                                     </div>
                                   </div>
 
-                                  {/* Intra-Cluster Connecting Vector Edge */}
+                                  {/* Intra-Cluster Connecting Vector Edge (Left-to-Right Horizontal Arrow) */}
                                   {!isLastInCluster && (
                                     <div
                                       style={{
@@ -1988,6 +2176,7 @@ export const CorrelationTimelineModal: React.FC<CorrelationTimelineModalProps> =
                                         alignItems: 'center',
                                         justifyContent: 'center',
                                         width: 70,
+                                        height: 36,
                                         position: 'relative',
                                         flexShrink: 0,
                                       }}
@@ -1996,8 +2185,9 @@ export const CorrelationTimelineModal: React.FC<CorrelationTimelineModalProps> =
                                       <div
                                         style={{
                                           position: 'absolute',
-                                          top: '25%',
-                                          transform: 'translateY(-50%)',
+                                          top: -7,
+                                          left: '50%',
+                                          transform: 'translateX(-50%)',
                                           fontSize: '0.62rem',
                                           fontFamily: 'var(--font-mono, monospace)',
                                           backgroundColor: cluster.items[i + 1]?.isHotspot
@@ -2026,13 +2216,13 @@ export const CorrelationTimelineModal: React.FC<CorrelationTimelineModalProps> =
                                         +{formatDurationMs(cluster.items[i + 1].deltaFromPrevMs)}
                                       </div>
 
-                                      {/* Arrow Vector Line */}
-                                      <svg width="70" height="24" style={{ display: 'block' }}>
+                                      {/* Arrow Vector Line (Horizontal Flow inside cluster) */}
+                                      <svg width={70} height={24} style={{ display: 'block' }}>
                                         <line
-                                          x1="0"
-                                          y1="12"
-                                          x2="64"
-                                          y2="12"
+                                          x1={0}
+                                          y1={12}
+                                          x2={64}
+                                          y2={12}
                                           stroke={isLight ? '#0284c7' : '#3b82f6'}
                                           strokeWidth="1.6"
                                           strokeDasharray="4 3"
@@ -2048,7 +2238,7 @@ export const CorrelationTimelineModal: React.FC<CorrelationTimelineModalProps> =
                         )}
                         </div>
 
-                        {/* Inter-Subsystem Boundary Vector Edge */}
+                        {/* Inter-Subsystem Boundary Vector Edge (Top-to-Bottom across clusters) */}
                         {!isLastCluster && (
                           <div
                             style={{
@@ -2056,35 +2246,38 @@ export const CorrelationTimelineModal: React.FC<CorrelationTimelineModalProps> =
                               flexDirection: 'column',
                               alignItems: 'center',
                               justifyContent: 'center',
-                              width: 90,
+                              width: 282,
+                              height: 60,
                               position: 'relative',
                               flexShrink: 0,
-                              alignSelf: 'center',
+                              alignSelf: 'flex-start',
                             }}
                           >
                             <div
                               style={{
                                 position: 'absolute',
-                                top: '-14px',
+                                top: '50%',
+                                left: 'calc(50% + 18px)',
+                                transform: 'translateY(-50%)',
                                 fontSize: '0.60rem',
                                 textTransform: 'uppercase',
                                 fontWeight: 700,
                                 color: isLight ? '#b45309' : '#f59e0b',
                                 letterSpacing: '0.04em',
                                 backgroundColor: isLight ? '#fef3c7' : 'rgba(245, 158, 11, 0.15)',
-                                padding: '1px 5px',
-                                borderRadius: 3,
+                                padding: '2px 6px',
+                                borderRadius: 4,
                                 whiteSpace: 'nowrap',
                               }}
                             >
                               CROSS-SUBSYSTEM
                             </div>
-                            <svg width="90" height="28" style={{ display: 'block' }}>
+                            <svg width={24} height={60} style={{ display: 'block' }}>
                               <line
-                                x1="0"
-                                y1="14"
-                                x2="84"
-                                y2="14"
+                                x1={12}
+                                y1={0}
+                                x2={12}
+                                y2={54}
                                 stroke={isLight ? '#d97706' : '#f59e0b'}
                                 strokeWidth="2.2"
                                 strokeDasharray="6 3"
@@ -2098,22 +2291,30 @@ export const CorrelationTimelineModal: React.FC<CorrelationTimelineModalProps> =
                   })
                 ) : (
                   /* --- UNCLUSTERED FLAT DAG PIPELINE VIEW --- */
-                  filteredStepNodes.map((node, i) => {
-                    const isSelected = selectedNode?.id === node.id;
-                    const isLast = i === filteredStepNodes.length - 1;
-                    const lvlTheme = getLevelColors(node.level, isLight);
-                    const isSpotlighted = !activeSpotlightPath || activeSpotlightPath.has(node.index);
+                  <div
+                    style={{
+                      display: 'inline-flex',
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                      gap: 0,
+                    }}
+                  >
+                    {filteredStepNodes.map((node, i) => {
+                      const isSelected = selectedNode?.id === node.id;
+                      const isLast = i === filteredStepNodes.length - 1;
+                      const lvlTheme = getLevelColors(node.level, isLight);
+                      const isSpotlighted = !activeSpotlightPath || activeSpotlightPath.has(node.index);
 
-                    return (
-                      <React.Fragment key={node.id}>
-                        {/* Step Node Card with Compact Breadcrumbs */}
-                        <div
-                          ref={isSelected ? activeNodeRef : null}
-                          onClick={() => setSelectedNodeIndex(node.index)}
-                          style={{
-                            width: 250,
-                            contentVisibility: 'auto',
-                            containIntrinsicSize: '250px 110px',
+                      return (
+                        <React.Fragment key={node.id}>
+                          {/* Step Node Card with Compact Breadcrumbs */}
+                          <div
+                            ref={isSelected ? activeNodeRef : null}
+                            onClick={() => setSelectedNodeIndex(node.index)}
+                            style={{
+                              width: 250,
+                              contentVisibility: 'auto',
+                              containIntrinsicSize: '250px 110px',
                             opacity: isSpotlighted ? 1 : 0.22,
                             filter: isSpotlighted ? 'none' : 'grayscale(0.65)',
                             backgroundColor: isSelected
@@ -2374,7 +2575,7 @@ export const CorrelationTimelineModal: React.FC<CorrelationTimelineModalProps> =
                           </div>
                         </div>
 
-                        {/* Connecting Latency Vector Edge */}
+                        {/* Connecting Latency Vector Edge (Horizontal Arrow in Flat View) */}
                         {!isLast && (
                           <div
                             style={{
@@ -2382,7 +2583,8 @@ export const CorrelationTimelineModal: React.FC<CorrelationTimelineModalProps> =
                               flexDirection: 'column',
                               alignItems: 'center',
                               justifyContent: 'center',
-                              width: 80,
+                              width: 70,
+                              height: 36,
                               position: 'relative',
                               flexShrink: 0,
                             }}
@@ -2391,8 +2593,9 @@ export const CorrelationTimelineModal: React.FC<CorrelationTimelineModalProps> =
                             <div
                               style={{
                                 position: 'absolute',
-                                top: '25%',
-                                transform: 'translateY(-50%)',
+                                top: -7,
+                                left: '50%',
+                                transform: 'translateX(-50%)',
                                 fontSize: '0.64rem',
                                 fontFamily: 'var(--font-mono, monospace)',
                                 backgroundColor: filteredStepNodes[i + 1]?.isHotspot
@@ -2422,24 +2625,12 @@ export const CorrelationTimelineModal: React.FC<CorrelationTimelineModalProps> =
                             </div>
 
                             {/* Arrow Vector Line */}
-                            <svg width="80" height="24" style={{ display: 'block' }}>
-                              <defs>
-                                <marker
-                                  id={isLight ? 'arrowhead-light' : 'arrowhead'}
-                                  markerWidth="6"
-                                  markerHeight="6"
-                                  refX="5"
-                                  refY="3"
-                                  orient="auto"
-                                >
-                                  <polygon points="0 0, 6 3, 0 6" fill={isLight ? '#0284c7' : '#3b82f6'} />
-                                </marker>
-                              </defs>
+                            <svg width={70} height={24} style={{ display: 'block' }}>
                               <line
-                                x1="0"
-                                y1="12"
-                                x2="74"
-                                y2="12"
+                                x1={0}
+                                y1={12}
+                                x2={64}
+                                y2={12}
                                 stroke={isLight ? '#0284c7' : '#3b82f6'}
                                 strokeWidth="1.8"
                                 strokeDasharray="4 3"
@@ -2450,8 +2641,10 @@ export const CorrelationTimelineModal: React.FC<CorrelationTimelineModalProps> =
                         )}
                       </React.Fragment>
                     );
-                  })
+                  })}
+                  </div>
                 )}
+                </div>
               </div>
             ) : viewLayout === 'flame' ? (
               /* ==============================================================
