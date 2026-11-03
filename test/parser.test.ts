@@ -119,8 +119,13 @@ const deepColonNsLine = '[2026-09-02 00:05:02.100] [App::Controllers::UserContro
 const parsedDeepColonNs = parseSingleLine(deepColonNsLine, 9);
 assert.strictEqual(parsedDeepColonNs.namespace, 'App::Controllers::UserController', 'Multi-level colon-separated :: namespace parsed correctly');
 
+const fiveTierNsLine = '[2026-11-03 10:00:00.000] [Product::System::SubSystem::Class::method] [INFO] Method executed successfully';
+const parsed5Tier = parseSingleLine(fiveTierNsLine, 10);
+assert.strictEqual(parsed5Tier.namespace, 'Product::System::SubSystem::Class::method', '5-tier namespace parsed');
+assert.strictEqual(parsed5Tier.operation, 'method', 'Method automatically inferred as operation when omitted');
+
 const dotNsLine = '[2026-09-02 00:05:03.200] [Auth.SessionManager] [ValidateSession] [INFO] Session valid';
-const parsedDotNs = parseSingleLine(dotNsLine, 10);
+const parsedDotNs = parseSingleLine(dotNsLine, 11);
 assert.strictEqual(parsedDotNs.namespace, 'Auth.SessionManager', 'Dot-separated . namespace parsed correctly');
 
 console.log('✓ Test 8 Passed: Namespace accurately parsed for both dot-separated (.) and colon-separated (::) formats');

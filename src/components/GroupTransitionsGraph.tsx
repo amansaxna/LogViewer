@@ -8,6 +8,8 @@ import {
   Repeat,
   ChevronDown,
   ChevronUp,
+  Maximize2,
+  Minimize2,
   X,
   Flame,
   AlertTriangle,
@@ -61,6 +63,7 @@ export const GroupTransitionsGraph: React.FC<GroupTransitionsGraphProps> = ({
   const [playbackSpeed, setPlaybackSpeed] = useState<number>(1); // 0.5x, 1x, 2x
   const [isLooping, setIsLooping] = useState<boolean>(true);
   const [isCollapsed, setIsCollapsed] = useState<boolean>(false);
+  const [isLargeSize, setIsLargeSize] = useState<boolean>(true); // Default to enlarged div size
   const [autoFollow, setAutoFollow] = useState<boolean>(true);
 
   // Compute graph data & transitions
@@ -100,42 +103,73 @@ export const GroupTransitionsGraph: React.FC<GroupTransitionsGraphProps> = ({
     return () => clearInterval(timer);
   }, [isPlaying, playbackSpeed, isLooping, totalSteps, onSelectStep]);
 
-  // Compute 2D coordinates for group nodes inside SVG (viewBox: 0 0 360 145)
+  // Compute 2D coordinates for group nodes inside SVG (viewBox: 0 0 500 215 in large mode, 0 0 380 155 in compact)
   const groupCoords = useMemo(() => {
     const coords = new Map<string, { x: number; y: number; group: GroupNodeInfo }>();
     const count = groups.length;
     if (count === 0) return coords;
 
-    if (count === 1) {
-      coords.set(groups[0].name, { x: 180, y: 70, group: groups[0] });
-    } else if (count === 2) {
-      coords.set(groups[0].name, { x: 95, y: 70, group: groups[0] });
-      coords.set(groups[1].name, { x: 265, y: 70, group: groups[1] });
-    } else if (count === 3) {
-      coords.set(groups[0].name, { x: 105, y: 46, group: groups[0] });
-      coords.set(groups[1].name, { x: 255, y: 46, group: groups[1] });
-      coords.set(groups[2].name, { x: 180, y: 112, group: groups[2] });
-    } else if (count === 4) {
-      coords.set(groups[0].name, { x: 80, y: 70, group: groups[0] });
-      coords.set(groups[1].name, { x: 180, y: 38, group: groups[1] });
-      coords.set(groups[2].name, { x: 280, y: 70, group: groups[2] });
-      coords.set(groups[3].name, { x: 180, y: 110, group: groups[3] });
+    if (isLargeSize) {
+      const cx = 250;
+      const cy = 108;
+      const rx = 180;
+      const ry = 58;
+
+      if (count === 1) {
+        coords.set(groups[0].name, { x: cx, y: cy, group: groups[0] });
+      } else if (count === 2) {
+        coords.set(groups[0].name, { x: 130, y: cy, group: groups[0] });
+        coords.set(groups[1].name, { x: 370, y: cy, group: groups[1] });
+      } else if (count === 3) {
+        coords.set(groups[0].name, { x: 145, y: 68, group: groups[0] });
+        coords.set(groups[1].name, { x: 355, y: 68, group: groups[1] });
+        coords.set(groups[2].name, { x: cx, y: 165, group: groups[2] });
+      } else if (count === 4) {
+        coords.set(groups[0].name, { x: 100, y: cy, group: groups[0] });
+        coords.set(groups[1].name, { x: cx, y: 52, group: groups[1] });
+        coords.set(groups[2].name, { x: 400, y: cy, group: groups[2] });
+        coords.set(groups[3].name, { x: cx, y: 165, group: groups[3] });
+      } else {
+        // 5+ groups arranged around an ellipse with ample breathing room
+        for (let i = 0; i < count; i++) {
+          const theta = -Math.PI / 2 + (2 * Math.PI * i) / count;
+          const x = Math.round(cx + rx * Math.cos(theta));
+          const y = Math.round(cy + ry * Math.sin(theta));
+          coords.set(groups[i].name, { x, y, group: groups[i] });
+        }
+      }
     } else {
-      // 5+ groups arranged around an ellipse
-      const cx = 180;
-      const cy = 72;
-      const rx = 120;
+      const cx = 190;
+      const cy = 76;
+      const rx = 125;
       const ry = 44;
-      for (let i = 0; i < count; i++) {
-        const theta = -Math.PI / 2 + (2 * Math.PI * i) / count;
-        const x = Math.round(cx + rx * Math.cos(theta));
-        const y = Math.round(cy + ry * Math.sin(theta));
-        coords.set(groups[i].name, { x, y, group: groups[i] });
+
+      if (count === 1) {
+        coords.set(groups[0].name, { x: cx, y: cy, group: groups[0] });
+      } else if (count === 2) {
+        coords.set(groups[0].name, { x: 100, y: cy, group: groups[0] });
+        coords.set(groups[1].name, { x: 280, y: cy, group: groups[1] });
+      } else if (count === 3) {
+        coords.set(groups[0].name, { x: 110, y: 50, group: groups[0] });
+        coords.set(groups[1].name, { x: 270, y: 50, group: groups[1] });
+        coords.set(groups[2].name, { x: cx, y: 120, group: groups[2] });
+      } else if (count === 4) {
+        coords.set(groups[0].name, { x: 80, y: cy, group: groups[0] });
+        coords.set(groups[1].name, { x: cx, y: 40, group: groups[1] });
+        coords.set(groups[2].name, { x: 300, y: cy, group: groups[2] });
+        coords.set(groups[3].name, { x: cx, y: 120, group: groups[3] });
+      } else {
+        for (let i = 0; i < count; i++) {
+          const theta = -Math.PI / 2 + (2 * Math.PI * i) / count;
+          const x = Math.round(cx + rx * Math.cos(theta));
+          const y = Math.round(cy + ry * Math.sin(theta));
+          coords.set(groups[i].name, { x, y, group: groups[i] });
+        }
       }
     }
 
     return coords;
-  }, [groups]);
+  }, [groups, isLargeSize]);
 
   // Compute curved paths for transition edges
   const edgePaths = useMemo(() => {
@@ -145,9 +179,10 @@ export const GroupTransitionsGraph: React.FC<GroupTransitionsGraphProps> = ({
       if (!fromCoord || !toCoord) return null;
 
       if (edge.isSelfLoop) {
-        // Self loop arc above the node
+        // Self loop arc above the node with clearance
         const { x, y } = fromCoord;
-        const pathD = `M ${x - 8} ${y - 12} C ${x - 24} ${y - 36}, ${x + 24} ${y - 36}, ${x + 8} ${y - 12}`;
+        const loopH = isLargeSize ? 38 : 30;
+        const pathD = `M ${x - 9} ${y - 14} C ${x - 26} ${y - loopH}, ${x + 26} ${y - loopH}, ${x + 9} ${y - 14}`;
         return {
           edge,
           pathD,
@@ -163,7 +198,7 @@ export const GroupTransitionsGraph: React.FC<GroupTransitionsGraphProps> = ({
       const dx = x2 - x1;
       const dy = y2 - y1;
       const dist = Math.sqrt(dx * dx + dy * dy) || 1;
-      const curvature = Math.min(26, dist * 0.22);
+      const curvature = Math.min(isLargeSize ? 34 : 26, dist * 0.22);
       const nx = -dy / dist;
       const ny = dx / dist;
       const cx = (x1 + x2) / 2 + nx * curvature;
@@ -178,7 +213,7 @@ export const GroupTransitionsGraph: React.FC<GroupTransitionsGraphProps> = ({
         toCoord,
       };
     }).filter(Boolean);
-  }, [graphData.edges, groupCoords]);
+  }, [graphData.edges, groupCoords, isLargeSize]);
 
   // Determine active transition path
   const activeEdgeInfo = useMemo(() => {
@@ -295,7 +330,8 @@ export const GroupTransitionsGraph: React.FC<GroupTransitionsGraphProps> = ({
         gap: 10,
         boxSizing: 'border-box',
         width: '100%',
-        maxWidth: 390,
+        maxWidth: isLargeSize ? 520 : 390,
+        transition: 'max-width 200ms ease',
         userSelect: 'none',
       }}
     >
@@ -362,6 +398,24 @@ export const GroupTransitionsGraph: React.FC<GroupTransitionsGraphProps> = ({
 
         {/* Header Action Buttons */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+          {/* Size Toggle (Expanded / Compact) */}
+          <button
+            type="button"
+            onClick={() => setIsLargeSize((s) => !s)}
+            style={{
+              border: 'none',
+              background: 'transparent',
+              color: isLight ? '#78716c' : '#8b949e',
+              padding: 3,
+              cursor: 'pointer',
+              borderRadius: 4,
+              display: 'flex',
+            }}
+            title={isLargeSize ? "Switch to compact view" : "Expand to larger graph"}
+          >
+            {isLargeSize ? <Minimize2 size={13} /> : <Maximize2 size={13} />}
+          </button>
+
           {/* Collapse Button */}
           <button
             type="button"
@@ -406,18 +460,19 @@ export const GroupTransitionsGraph: React.FC<GroupTransitionsGraphProps> = ({
       <div
         style={{
           width: '100%',
-          height: 145,
+          height: isLargeSize ? 215 : 155,
           position: 'relative',
           backgroundColor: isLight ? '#faf8f5' : '#0a0d13',
           borderRadius: 8,
           border: isLight ? '1px solid #ded7ca' : '1px solid rgba(255, 255, 255, 0.05)',
           overflow: 'hidden',
+          transition: 'height 200ms ease',
         }}
       >
         <svg
           width="100%"
-          height="145"
-          viewBox="0 0 360 145"
+          height={isLargeSize ? 215 : 155}
+          viewBox={isLargeSize ? '0 0 500 215' : '0 0 380 155'}
           style={{ display: 'block', overflow: 'visible' }}
         >
           <defs>
@@ -530,15 +585,15 @@ export const GroupTransitionsGraph: React.FC<GroupTransitionsGraphProps> = ({
                   <circle
                     cx={x}
                     cy={y}
-                    r="16"
+                    r={isLargeSize ? "18" : "15"}
                     fill="none"
                     stroke={nodeColor}
-                    strokeWidth="1.5"
+                    strokeWidth="1.6"
                     opacity="0.8"
                   >
                     <animate
                       attributeName="r"
-                      values="16;28"
+                      values={isLargeSize ? "18;32" : "15;26"}
                       dur="1.2s"
                       repeatCount="indefinite"
                     />
@@ -555,19 +610,19 @@ export const GroupTransitionsGraph: React.FC<GroupTransitionsGraphProps> = ({
                 <circle
                   cx={x}
                   cy={y}
-                  r={isActive ? 16 : 14}
+                  r={isLargeSize ? (isActive ? 18 : 16) : (isActive ? 15 : 13)}
                   fill={isLight ? '#ffffff' : '#141820'}
                   stroke={nodeColor}
-                  strokeWidth={isActive ? 2.5 : 1.8}
+                  strokeWidth={isActive ? 2.6 : 1.8}
                   filter={isActive ? 'url(#glow-neon)' : 'none'}
                 />
 
                 {/* Node Text: Initials */}
                 <text
                   x={x}
-                  y={y + 3.5}
+                  y={y + (isLargeSize ? 4 : 3.5)}
                   textAnchor="middle"
-                  fontSize="8.5"
+                  fontSize={isLargeSize ? "9.5" : "8"}
                   fontWeight="800"
                   fontFamily="var(--font-mono, monospace)"
                   fill={nodeColor}
@@ -578,22 +633,24 @@ export const GroupTransitionsGraph: React.FC<GroupTransitionsGraphProps> = ({
                 {/* Group Name Label Below Node */}
                 <text
                   x={x}
-                  y={y + 24}
+                  y={y + (isLargeSize ? 27 : 23)}
                   textAnchor="middle"
-                  fontSize="7.5"
+                  fontSize={isLargeSize ? "8.5" : "7.5"}
                   fontWeight={isActive ? '700' : '500'}
                   fontFamily="var(--font-mono, monospace)"
                   fill={isActive ? (isLight ? '#0284c7' : '#38bdf8') : (isLight ? '#57534e' : '#94a3b8')}
                 >
-                  {group.name.length > 10 ? `${group.name.slice(0, 9)}…` : group.name}
+                  {group.name.length > (isLargeSize ? 16 : 10)
+                    ? `${group.name.slice(0, isLargeSize ? 15 : 9)}…`
+                    : group.name}
                   <title>{group.name} ({group.stepCount} steps)</title>
                 </text>
 
                 {/* Error Dot Indicator if Group contains errors */}
                 {group.hasError && (
                   <circle
-                    cx={x + 11}
-                    cy={y - 9}
+                    cx={x + (isLargeSize ? 13 : 10)}
+                    cy={y - (isLargeSize ? 11 : 9)}
                     r="3.5"
                     fill="#ef4444"
                     stroke={isLight ? '#ffffff' : '#0e1117'}

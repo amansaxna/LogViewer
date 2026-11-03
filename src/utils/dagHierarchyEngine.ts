@@ -5,13 +5,19 @@
 export interface NamespaceHierarchy {
   full: string;
   root: string;
+  product?: string;
+  system?: string;
   subsystem: string;
+  subsystemName?: string;
+  className?: string;
+  method?: string;
+  scopePath?: string;
   parentPath: string;
   leaf: string;
   segments: string[];
 }
 
-export type ClusterGranularity = 'auto' | 'l1' | 'l2' | 'l3' | 'none';
+export type ClusterGranularity = 'auto' | 'l1' | 'l2' | 'l3' | 'l4' | 'none';
 
 export interface ClusteringMetadata {
   commonAncestor: string;
@@ -129,10 +135,53 @@ export function parseNamespaceHierarchy(rawNamespace?: string): NamespaceHierarc
   const parentPath = segments.length > 1 ? segments.slice(0, -1).join(' › ') : '';
   const subsystem = segments.length >= 2 ? `${segments[0]} :: ${segments[1]}` : root;
 
+  let product: string | undefined = undefined;
+  let system: string | undefined = undefined;
+  let subsystemName: string | undefined = undefined;
+  let className: string | undefined = undefined;
+  let method: string | undefined = undefined;
+  let scopePath: string | undefined = undefined;
+
+  if (segments.length >= 5) {
+    // 5-tier architecture: Product::System::SubSystem::Class::method
+    product = segments[0];
+    system = segments[1];
+    subsystemName = segments[2];
+    className = segments[3];
+    method = segments[4];
+    scopePath = segments.slice(0, 3).join(' › ');
+  } else if (segments.length === 4) {
+    // 4-tier architecture: Product::System::SubSystem::Class or System::SubSystem::Class::method
+    product = segments[0];
+    system = segments[1];
+    subsystemName = segments[2];
+    className = segments[2];
+    method = segments[3];
+    scopePath = segments.slice(0, 2).join(' › ');
+  } else if (segments.length === 3) {
+    // 3-tier architecture: CheckoutPlatform::OrderOrchestrator::SagaCoordinator
+    product = segments[0];
+    system = segments[0];
+    subsystemName = segments[1];
+    className = segments[2];
+    scopePath = segments.slice(0, 2).join(' › ');
+  } else if (segments.length === 2) {
+    // 2-tier architecture: Auth::Service
+    subsystemName = segments[0];
+    className = segments[1];
+    scopePath = segments[0];
+  }
+
   return {
     full: trimmed,
     root,
+    product,
+    system,
     subsystem,
+    subsystemName,
+    className,
+    method,
+    scopePath,
     parentPath,
     leaf,
     segments,
@@ -174,17 +223,22 @@ export function resolveEffectiveClusterLevel(
   }
 
   if (granularity === 'l1') {
-    return { level: 0, commonAncestor: '', levelName: 'L1: Domain' };
+    return { level: 0, commonAncestor: '', levelName: 'L1: Domain / Product' };
   }
 
   if (granularity === 'l2') {
     const commonAncestor = hierarchies[0]?.segments[0] || '';
-    return { level: 1, commonAncestor, levelName: 'L2: Module' };
+    return { level: 1, commonAncestor, levelName: 'L2: System' };
   }
 
   if (granularity === 'l3') {
     const commonAncestor = hierarchies[0]?.segments.slice(0, 2).join(' › ') || '';
-    return { level: 2, commonAncestor, levelName: 'L3: Component' };
+    return { level: 2, commonAncestor, levelName: 'L3: Subsystem' };
+  }
+
+  if (granularity === 'l4') {
+    const commonAncestor = hierarchies[0]?.segments.slice(0, 3).join(' › ') || '';
+    return { level: 3, commonAncestor, levelName: 'L4: Class' };
   }
 
   if (granularity === 'none') {
@@ -220,10 +274,9 @@ export function resolveEffectiveClusterLevel(
   }
 
   const commonAncestor = commonPrefix.slice(0, targetLevel).join(' › ');
-  const levelName = targetLevel === 0
-    ? 'Auto: Root Subsystems'
-    : targetLevel === 1
-    ? 'Auto: Functional Modules'
+  const tierNames = ['Root Subsystems', 'System / Service Modules', 'Subsystems', 'Classes', 'Methods'];
+  const levelName = targetLevel < tierNames.length
+    ? `Auto: ${tierNames[targetLevel]} (Depth ${targetLevel + 1})`
     : `Auto: Sub-Modules (Depth ${targetLevel + 1})`;
 
   return {
@@ -724,19 +777,43 @@ export function computeGroupTransitions<
   const roots = nodes.map((n) => n.hierarchy?.root || n.module.split(/[:.]+/)[0] || 'Default');
   const uniqueRoots = new Set(roots);
 
-  let stepGroupNames: string[];
+  let stepGroupNames: string[] | null = null;
   if (uniqueRoots.size > 1) {
     stepGroupNames = roots;
   } else {
-    // Check 2-tier subsystems
-    const subs = nodes.map((n) => n.hierarchy?.subsystem || n.hierarchy?.root || n.module || 'Default');
+    // Check 2-tier qualified subsystems (e.g. CheckoutModule :: ValidateCart)
+    const subs = nodes.map((n) => n.hierarchy?.subsystem || n.module || 'Default');
     const uniqueSubs = new Set(subs);
     if (uniqueSubs.size > 1) {
       stepGroupNames = subs;
     } else {
-      // Fallback to leaf component or operation
-      stepGroupNames = nodes.map((n) => n.hierarchy?.leaf || n.operation || 'Step');
+      // For deep 3+ tier hierarchies (like Product::System::SubSystem::Class::method),
+      // dynamically search for the first diverging depth across all nodes
+      const maxDepth = Math.max(...nodes.map((n) => n.hierarchy?.segments?.length || n.module.split(/[:.]+/).length || 1));
+      for (let depth = 2; depth < maxDepth; depth++) {
+        const groupsAtDepth = nodes.map((n) => {
+          const segs = n.hierarchy?.segments;
+          if (segs && segs.length > depth) {
+            return segs[depth];
+          }
+          const rawParts = n.module.split(/[:.]+/).filter(Boolean);
+          if (rawParts.length > depth) {
+            return rawParts[depth];
+          }
+          return n.hierarchy?.leaf || n.module || 'Default';
+        });
+        const uniqueAtDepth = new Set(groupsAtDepth);
+        if (uniqueAtDepth.size > 1) {
+          stepGroupNames = groupsAtDepth;
+          break;
+        }
+      }
     }
+  }
+
+  // Fallback if all nodes share identical full namespace
+  if (!stepGroupNames) {
+    stepGroupNames = nodes.map((n) => n.hierarchy?.className || n.hierarchy?.leaf || n.operation || 'Step');
   }
 
   // 2. Build unique groups map

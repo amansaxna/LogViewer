@@ -433,6 +433,15 @@ export function parseSingleLine(rawLine: string, lineNumber: number): LogEntry {
     }
   }
 
+  // If namespace contains a method as its 5th+ segment (e.g. Product::System::SubSystem::Class::method)
+  // and no explicit operation was provided in brackets:
+  if (!operation && namespace) {
+    const nsParts = namespace.split(/::|\./);
+    if (nsParts.length >= 5) {
+      operation = nsParts[nsParts.length - 1];
+    }
+  }
+
   // Determine final level
   const finalLevel: LogLevel =
     explicitLevel ||

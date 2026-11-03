@@ -389,4 +389,52 @@ assert.strictEqual(groupData.transitions[4].level, 'error', 'Error level correct
 assert.ok(groupData.groups.some((g) => g.hasError), 'Payment group must be flagged with error');
 console.log('✓ Test 18 Passed: computeGroupTransitions extracts groups, steps & transitions accurately');
 
+// Test 19: 5-Tier Deep Namespace Parsing (Product::System::SubSystem::Class::method)
+const ns5Tier = 'Product::System::SubSystem::Class::method';
+const h5 = parseNamespaceHierarchy(ns5Tier);
+assert.strictEqual(h5.segments.length, 5, '5 segments extracted');
+assert.strictEqual(h5.root, 'Product', 'Root product extracted');
+assert.strictEqual(h5.product, 'Product', 'Product property verified');
+assert.strictEqual(h5.system, 'System', 'System property verified');
+assert.strictEqual(h5.subsystemName, 'SubSystem', 'Subsystem property verified');
+assert.strictEqual(h5.className, 'Class', 'Class property verified');
+assert.strictEqual(h5.method, 'method', 'Method property verified');
+assert.strictEqual(h5.leaf, 'method', 'Leaf property is method');
+assert.strictEqual(h5.scopePath, 'Product › System › SubSystem', 'Scope breadcrumb path verified');
+assert.strictEqual(h5.parentPath, 'Product › System › SubSystem › Class', 'Parent path verified');
+console.log('✓ Test 19 Passed: 5-tier deep namespace (Product::System::SubSystem::Class::method) parsed accurately');
+
+// Test 20: 5-Tier Adaptive Subsystem Clustering & Granularity (L1, L2, L3, L4, None)
+const trace5Tier = [
+  { module: 'ECommerce::Orders::CheckoutSubsystem::CartValidator::validateCart', deltaFromPrevMs: 10, operation: 'validateCart' },
+  { module: 'ECommerce::Orders::CheckoutSubsystem::InventoryAllocator::reserveStock', deltaFromPrevMs: 40, operation: 'reserveStock' },
+  { module: 'ECommerce::Orders::PaymentSubsystem::StripeGateway::authorizeHold', deltaFromPrevMs: 80, operation: 'authorizeHold' },
+  { module: 'ECommerce::Orders::PaymentSubsystem::StripeGateway::captureFunds', deltaFromPrevMs: 120, operation: 'captureFunds' },
+];
+
+const autoClusters5Tier = groupNodesIntoSubsystems(trace5Tier, false, 'auto');
+// Shared prefix is ECommerce › Orders. Dives down to depth 2 (CheckoutSubsystem vs PaymentSubsystem)
+assert.strictEqual(autoClusters5Tier.length, 2, 'Auto clustering must group by diverging depth 2 subsystems');
+assert.strictEqual(autoClusters5Tier[0].displayName, 'CheckoutSubsystem', 'First cluster is CheckoutSubsystem');
+assert.strictEqual(autoClusters5Tier[1].displayName, 'PaymentSubsystem', 'Second cluster is PaymentSubsystem');
+
+const l4Clusters = groupNodesIntoSubsystems(trace5Tier, false, 'l4');
+assert.strictEqual(l4Clusters.length, 3, 'L4 granularity must group by Class (CartValidator, InventoryAllocator, StripeGateway)');
+
+console.log('✓ Test 20 Passed: 5-tier adaptive clustering & granularity (L1-L4) verified');
+
+// Test 21: 5-Tier Animated Group Transitions
+const groupData5 = computeGroupTransitions(
+  trace5Tier.map((t, i) => ({
+    index: i,
+    module: t.module,
+    operation: t.operation,
+    hierarchy: parseNamespaceHierarchy(t.module),
+  }))
+);
+assert.strictEqual(groupData5.groups.length, 2, 'Must group by diverging Subsystem level (CheckoutSubsystem & PaymentSubsystem)');
+assert.ok(groupData5.groups.some((g) => g.name === 'CheckoutSubsystem'));
+assert.ok(groupData5.groups.some((g) => g.name === 'PaymentSubsystem'));
+console.log('✓ Test 21 Passed: 5-tier animated group transitions accurately groups by diverging tier');
+
 console.log('\nAll DAG Hierarchy, Subsystem & Swimlane Tests Passed Successfully!\n');

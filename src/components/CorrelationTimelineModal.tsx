@@ -224,12 +224,12 @@ export const CorrelationTimelineModal: React.FC<CorrelationTimelineModalProps> =
       return;
     }
     const rect = hudElementRef.current?.getBoundingClientRect();
-    const modalRect = document.querySelector('.modal-content')?.getBoundingClientRect();
-    const modalLeft = modalRect ? modalRect.left : 0;
-    const modalTop = modalRect ? modalRect.top : 0;
+    const parentRect = hudElementRef.current?.parentElement?.getBoundingClientRect();
+    const parentLeft = parentRect ? parentRect.left : 0;
+    const parentTop = parentRect ? parentRect.top : 0;
 
-    const currentX = rect ? (rect.left - modalLeft) : (window.innerWidth - 420);
-    const currentY = rect ? (rect.top - modalTop) : 64;
+    const currentX = rect ? (rect.left - parentLeft) : 100;
+    const currentY = rect ? (rect.top - parentTop) : 16;
 
     dragRef.current = {
       startMouseX: e.clientX,
@@ -247,12 +247,12 @@ export const CorrelationTimelineModal: React.FC<CorrelationTimelineModalProps> =
       if (!dragRef.current) return;
       const dx = e.clientX - dragRef.current.startMouseX;
       const dy = e.clientY - dragRef.current.startMouseY;
-      const modalRect = document.querySelector('.modal-content')?.getBoundingClientRect();
-      const modalWidth = modalRect ? modalRect.width : window.innerWidth;
-      const modalHeight = modalRect ? modalRect.height : window.innerHeight;
+      const parentRect = hudElementRef.current?.parentElement?.getBoundingClientRect();
+      const parentWidth = parentRect ? parentRect.width : window.innerWidth;
+      const parentHeight = parentRect ? parentRect.height : window.innerHeight;
 
-      const newX = Math.max(12, Math.min(modalWidth - 360, dragRef.current.startX + dx));
-      const newY = Math.max(56, Math.min(modalHeight - 80, dragRef.current.startY + dy));
+      const newX = Math.max(12, Math.min(parentWidth - 360, dragRef.current.startX + dx));
+      const newY = Math.max(8, Math.min(parentHeight - 80, dragRef.current.startY + dy));
 
       setHudPos({ x: newX, y: newY });
     };
@@ -386,7 +386,7 @@ export const CorrelationTimelineModal: React.FC<CorrelationTimelineModalProps> =
         deltaFromPrevMs,
         deltaFromStartMs,
         module: rawModule,
-        operation: entry.operation || (entry.workflow && !isWorkflow ? `[${entry.workflow}]` : entry.correlationId ? `[${entry.correlationId}]` : (entry.message ? entry.message.slice(0, 48) : 'Event')),
+        operation: entry.operation || hierarchy.method || (entry.workflow && !isWorkflow ? `[${entry.workflow}]` : entry.correlationId ? `[${entry.correlationId}]` : (entry.message ? entry.message.slice(0, 48) : 'Event')),
         fileLocation: entry.fileLocation,
         level: entry.level,
         duration: entry.duration,
@@ -924,15 +924,16 @@ export const CorrelationTimelineModal: React.FC<CorrelationTimelineModalProps> =
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
-            gap: 10,
+            gap: 8,
             flexWrap: 'nowrap',
             boxSizing: 'border-box',
             flexShrink: 0,
-            overflowX: 'auto',
+            zIndex: 50,
+            position: 'relative',
           }}
         >
           {/* Left Brand & Timeline Identity (Correlation or Workflow) */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 1, minWidth: 0, overflow: 'hidden' }}>
             <div
               style={{
                 width: 32,
@@ -956,9 +957,9 @@ export const CorrelationTimelineModal: React.FC<CorrelationTimelineModalProps> =
               {isWorkflow ? <GitBranch size={16} /> : <Zap size={16} />}
             </div>
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'nowrap', lineHeight: 1.2 }}>
-                <span style={{ fontSize: '0.86rem', fontWeight: 700, letterSpacing: '-0.01em', color: isLight ? '#1c1917' : '#ededef', whiteSpace: 'nowrap' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 2, minWidth: 0, overflow: 'hidden' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'nowrap', lineHeight: 1.2, minWidth: 0 }}>
+                <span style={{ fontSize: '0.86rem', fontWeight: 700, letterSpacing: '-0.01em', color: isLight ? '#1c1917' : '#ededef', whiteSpace: 'nowrap', flexShrink: 0 }}>
                   {isWorkflow ? 'Workflow Timeline & DAG' : 'Correlation Timeline & DAG'}
                 </span>
                 <span
@@ -978,7 +979,12 @@ export const CorrelationTimelineModal: React.FC<CorrelationTimelineModalProps> =
                       : (isLight ? '1px solid rgba(5, 150, 105, 0.3)' : '1px solid rgba(52, 211, 153, 0.3)'),
                     fontWeight: 600,
                     whiteSpace: 'nowrap',
+                    maxWidth: 150,
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    flexShrink: 0,
                   }}
+                  title={targetId}
                 >
                   {targetId}
                 </span>
@@ -992,6 +998,10 @@ export const CorrelationTimelineModal: React.FC<CorrelationTimelineModalProps> =
                   gap: 6,
                   lineHeight: 1.2,
                   whiteSpace: 'nowrap',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  flexShrink: 1,
+                  minWidth: 0,
                 }}
               >
                 <span>{stepNodes.length} {stepNodes.length === 1 ? 'step' : 'steps'}</span>
@@ -1020,7 +1030,7 @@ export const CorrelationTimelineModal: React.FC<CorrelationTimelineModalProps> =
           </div>
 
           {/* Right Toolbar Controls */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 5, flexShrink: 0 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0, flexWrap: 'nowrap' }}>
             {/* Search Filter */}
             <div
               style={{
@@ -1031,7 +1041,8 @@ export const CorrelationTimelineModal: React.FC<CorrelationTimelineModalProps> =
                 border: isLight ? '1px solid #ded7ca' : '1px solid #232832',
                 borderRadius: 5,
                 padding: '3px 7px',
-                width: 95,
+                width: 84,
+                flexShrink: 0,
               }}
             >
               <Search size={12} color={isLight ? '#78716c' : '#64748b'} />
@@ -1285,7 +1296,7 @@ export const CorrelationTimelineModal: React.FC<CorrelationTimelineModalProps> =
                 >
                   <LayersIcon size={11} />
                   <span>
-                    Group: {clusterGranularity === 'auto' ? 'Auto' : clusterGranularity === 'l1' ? 'L1' : clusterGranularity === 'l2' ? 'L2' : clusterGranularity === 'l3' ? 'L3' : 'Flat'}
+                    Group: {clusterGranularity === 'auto' ? 'Auto' : clusterGranularity === 'l1' ? 'L1' : clusterGranularity === 'l2' ? 'L2' : clusterGranularity === 'l3' ? 'L3' : clusterGranularity === 'l4' ? 'L4' : 'Flat'}
                   </span>
                   <ChevronDown size={10} style={{ opacity: 0.7 }} />
                 </button>
@@ -1315,10 +1326,11 @@ export const CorrelationTimelineModal: React.FC<CorrelationTimelineModalProps> =
                       }}
                     >
                       {[
-                        { id: 'auto', label: 'Auto (Smart LCP)', desc: 'Auto-trims shared parent (e.g. CoreBanking)' },
-                        { id: 'l1', label: 'L1: Domain / Root', desc: 'Highest root prefix (e.g. CoreBanking)' },
-                        { id: 'l2', label: 'L2: Module / Service', desc: 'Secondary module (e.g. AlertSubsystem)' },
-                        { id: 'l3', label: 'L3: Component / Class', desc: 'Tertiary component (e.g. PagerDutyNotifier)' },
+                        { id: 'auto', label: 'Auto (Smart LCP)', desc: 'Auto-trims shared prefixes (e.g. Product › System)' },
+                        { id: 'l1', label: 'L1: Domain / Product', desc: 'Highest root prefix (e.g. Product)' },
+                        { id: 'l2', label: 'L2: System / Service', desc: 'Secondary system (e.g. System)' },
+                        { id: 'l3', label: 'L3: SubSystem / Module', desc: 'Tertiary subsystem (e.g. SubSystem)' },
+                        { id: 'l4', label: 'L4: Class / Component', desc: 'Quaternary component (e.g. Class)' },
                         { id: 'none', label: 'Flat (Clusters Off)', desc: 'No bounding enclosures' },
                       ].map((opt) => (
                         <button
@@ -1382,11 +1394,13 @@ export const CorrelationTimelineModal: React.FC<CorrelationTimelineModalProps> =
                   display: 'flex',
                   alignItems: 'center',
                   gap: 4,
+                  whiteSpace: 'nowrap',
+                  flexShrink: 0,
                 }}
                 title="Toggle Draggable Group Level Transitions HUD"
               >
                 <GitMerge size={11} />
-                <span>Transitions</span>
+                <span style={{ whiteSpace: 'nowrap' }}>Transitions</span>
               </button>
             )}
 
@@ -1413,11 +1427,13 @@ export const CorrelationTimelineModal: React.FC<CorrelationTimelineModalProps> =
                   display: 'flex',
                   alignItems: 'center',
                   gap: 4,
+                  whiteSpace: 'nowrap',
+                  flexShrink: 0,
                 }}
                 title="Toggle Active Call-Path Spotlight (Hotkey: s)"
               >
                 {isSpotlightEnabled ? <Eye size={11} /> : <EyeOff size={11} />}
-                <span>Spotlight</span>
+                <span style={{ whiteSpace: 'nowrap' }}>Spotlight</span>
               </button>
             )}
 
@@ -1542,9 +1558,9 @@ export const CorrelationTimelineModal: React.FC<CorrelationTimelineModalProps> =
                 position: 'absolute',
                 top: hudPos ? hudPos.y : 16,
                 left: hudPos ? hudPos.x : undefined,
-                right: hudPos ? undefined : 24,
-                zIndex: 40,
-                maxWidth: 390,
+                right: hudPos ? undefined : (selectedNode ? 460 : 20),
+                zIndex: 60,
+                maxWidth: 540,
                 width: '100%',
                 pointerEvents: 'auto',
                 cursor: isDraggingHud ? 'grabbing' : undefined,
@@ -2022,7 +2038,7 @@ export const CorrelationTimelineModal: React.FC<CorrelationTimelineModalProps> =
                                           }}
                                           title={`Full Namespace: ${node.module}`}
                                         >
-                                          {node.hierarchy.parentPath}
+                                          {node.hierarchy.scopePath || node.hierarchy.parentPath}
                                         </div>
                                         <div
                                           style={{
@@ -2033,9 +2049,9 @@ export const CorrelationTimelineModal: React.FC<CorrelationTimelineModalProps> =
                                             overflow: 'hidden',
                                             textOverflow: 'ellipsis',
                                           }}
-                                          title={node.hierarchy.leaf}
+                                          title={node.hierarchy.className || node.hierarchy.leaf}
                                         >
-                                          {node.hierarchy.leaf}
+                                          {node.hierarchy.className || node.hierarchy.leaf}
                                         </div>
                                       </div>
                                     ) : (
@@ -2430,7 +2446,7 @@ export const CorrelationTimelineModal: React.FC<CorrelationTimelineModalProps> =
                                 }}
                                 title={`Full Namespace: ${node.module}`}
                               >
-                                {node.hierarchy.parentPath}
+                                {node.hierarchy.scopePath || node.hierarchy.parentPath}
                               </div>
                               <div
                                 style={{
@@ -2441,9 +2457,9 @@ export const CorrelationTimelineModal: React.FC<CorrelationTimelineModalProps> =
                                   overflow: 'hidden',
                                   textOverflow: 'ellipsis',
                                 }}
-                                title={node.hierarchy.leaf}
+                                title={node.hierarchy.className || node.hierarchy.leaf}
                               >
-                                {node.hierarchy.leaf}
+                                {node.hierarchy.className || node.hierarchy.leaf}
                               </div>
                             </div>
                           ) : (
@@ -3956,7 +3972,9 @@ export const CorrelationTimelineModal: React.FC<CorrelationTimelineModalProps> =
                               }}
                               title={`Full Namespace: ${selectedNode.module}`}
                             >
-                              {selectedNode.hierarchy.leaf}
+                              {selectedNode.hierarchy.className && selectedNode.hierarchy.method
+                                ? `${selectedNode.hierarchy.className}::${selectedNode.hierarchy.method}`
+                                : selectedNode.hierarchy.leaf}
                             </div>
                           </div>
                         );
